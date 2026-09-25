@@ -24,8 +24,7 @@
 (setq-default indicate-empty-lines t
               fill-column 80)
 
-;; Built-in theme (Modus ships with Emacs).
-(load-theme 'modus-vivendi t)
+;; No theme yet: Emacs default colors. Add `load-theme' here later.
 
 ;; Use the first available font from the list; fall back to the default.
 (when (display-graphic-p)

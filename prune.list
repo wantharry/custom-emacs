@@ -1,0 +1,28 @@
+# Built-in Emacs Lisp to remove from the installed copy (paths relative to
+# emacs-src/lisp/). A trailing "/" means a whole directory; other lines are
+# globs. prune.py rescues any entry that a kept file still requires.
+
+# Games and toys
+play/
+
+# Notes / organizer
+org/
+
+# Mail and news readers (shared libs like rfc822, mail-utils, sendmail stay)
+gnus/
+mh-e/
+mail/rmail*.el
+mail/undigest.el
+mail/unrmail.el
+mail/feedmail.el
+mail/mspools.el
+mail/supercite.el
+net/newst-*.el
+net/newsticker.el
+
+# Chat
+erc/
+net/rcirc.el
+
+# Legacy IDE tooling (CEDET, EDE, Semantic, SRecode)
+cedet/

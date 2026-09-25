@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# Build the research Emacs from ./emacs-src into ./build.
+# Build the research Emacs from ./emacs-src into ./build, install it into
+# ./install, and optionally prune unused built-in Lisp from the install.
 # Verified on: Ubuntu 24.04 (WSL2), Emacs 32.0.50 (master @ 7bc4f49).
-# Usage: ./build.sh [configure|make|all]   (default: all)
+#
+# Usage: ./build.sh [configure|make|install|prune|all]   (default: all)
+#   configure  run autogen.sh (if needed) and configure, into ./build
+#   make       compile (slow the first time: native-comp is ahead-of-time)
+#   install    make install into ./install (gitignored)
+#   prune      remove the Lisp listed in prune.list from ./install
+#   all        configure + make + install + prune
+# See docs/BUILD.md and docs/PRUNING.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SRC="$ROOT/emacs-src"
 BUILD="$ROOT/build"
+INSTALL="$ROOT/install"
 
 # Common flags. --with-native-compilation=aot precompiles all built-in Lisp
 # (slow build, fast startup); use =yes to compile lazily instead.
-FLAGS=(--prefix="$ROOT/install"
+FLAGS=(--prefix="$INSTALL"
        --with-native-compilation=aot
        --with-tree-sitter --with-sqlite3 --with-harfbuzz --with-modules)
 
@@ -23,12 +32,18 @@ configure() {
   [ -x "$SRC/configure" ] || (cd "$SRC" && ./autogen.sh)
   mkdir -p "$BUILD" && cd "$BUILD" && "$SRC/configure" "${FLAGS[@]}"
 }
-build() { make -C "$BUILD" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"; }
+ncpus() { nproc 2>/dev/null || sysctl -n hw.ncpu; }
+build()   { make -C "$BUILD" -j"$(ncpus)"; }
+install_() { make -C "$BUILD" install; }
+prune()   { python3 "$ROOT/prune.py" --apply "$INSTALL"; }
 
 case "${1:-all}" in
   configure) configure ;;
   make)      build ;;
-  all)       configure && build ;;
-  *) echo "usage: $0 [configure|make|all]" >&2; exit 2 ;;
+  install)   install_ ;;
+  prune)     prune ;;
+  all)       configure && build && install_ && prune ;;
+  *) echo "usage: $0 [configure|make|install|prune|all]" >&2; exit 2 ;;
 esac
-echo "Run: $BUILD/src/emacs --init-directory=$ROOT/config"
+echo "Run: $INSTALL/bin/emacs --init-directory=$ROOT/config"
+echo "  (unpruned, straight from the build tree: $BUILD/src/emacs)"
