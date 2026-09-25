@@ -26,3 +26,8 @@ net/rcirc.el
 
 # Legacy IDE tooling (CEDET, EDE, Semantic, SRecode)
 cedet/
+
+# Exceptions ("!" = never remove). Found by tracing real workflows, not by the
+# dependency scan, because they are loaded lazily at run time:
+# url -> mm-decode loads this when package.el downloads anything.
+!gnus/mm-archive.el

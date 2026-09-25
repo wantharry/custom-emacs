@@ -21,7 +21,13 @@ kept file needs.
 | File | Role |
 |---|---|
 | `prune.list` | What you want gone. Paths are relative to `emacs-src/lisp/`. A trailing `/` means a whole directory; other lines are globs. `#` starts a comment |
-| `prune.py` | `--plan` shows what would go; `--apply DIR` deletes it from an installed tree |
+| `prune.py` | `--plan` shows what would go and why; `--list` prints the final list; `--apply DIR` deletes it from an installed tree |
+| `tools/verify-prune.sh` | The full check of a pruned install against the unpruned build (see [Verification](#verification-performed)) |
+| `tools/workflows.el`, `tools/requireall.el` | What the check runs |
+
+A line in `prune.list` starting with `!` is an **exception**: that path is never
+removed, and anything it hard-requires is kept too. Exceptions are for files that
+are loaded lazily at run time, which the dependency scan cannot see.
 
 ```sh
 python3 prune.py --plan            # dry run, prints what is pruned/kept/why
@@ -65,13 +71,13 @@ VC, TRAMP, Transient, ...). Add them to `prune.list` to remove them too.
 
 ## Results
 
-Plan: **411 of 1,678 files** removed (14.3 MB of source).
+Plan: **410 of 1,678 files** removed (14.3 MB of source).
 
 | Directory | Removed |
 |---|---|
 | `org` | 127 of 129 (`org-element-ast` and `org-macs` stay: the new calendar parser hard-requires them) |
 | `cedet` | 92 of 154 |
-| `gnus` | 80 of 105 |
+| `gnus` | 79 of 105 (`mm-archive` is an exception, see below) |
 | `mh-e` | 25 of 25 |
 | `erc` | 41 of 41 |
 | `play` | 25 of 25 |
@@ -82,27 +88,53 @@ Measured on the installed tree:
 
 | | Before | After |
 |---|---|---|
-| Install size | 308 MB | 257 MB |
-| Native `.eln` files | 1,627 | 1,227 |
+| Install size | 308 MB | 258 MB |
+| Native `.eln` files | 1,627 | 1,228 |
 
 ## Verification performed
 
-1. **Require every bundled package** on the original build and the pruned
-   install, then compared:
-   - Original: 512 of 513 load (`nxml` already fails; it has no `nxml.el`).
-   - Pruned: 476 of 513 load. The 37 failures are `nxml` plus exactly the
-     removed packages: the games, `erc`, `rcirc`, `mh-e`, `rmail`, `feedmail`,
-     `mspools`, `supercite`, `undigest`, `unrmail`, `newsticker`, `org`.
-   - **No coding or editing package regressed.**
-2. **Smoke tests** on the pruned install all passed: the project's own
-   `init.el`; Eglot, Flymake, xref, project, eldoc, jsonrpc; tree-sitter and
-   the C/Python/JS/TypeScript/Go/Rust/JSON/CSS modes; vc-git, diff-mode, ediff,
-   smerge, log-view; TRAMP; Transient; dired, compile, grep, ibuffer; recentf,
-   savehist; use-package, which-key; package.el; eshell, eww, calc; opening a
-   Python buffer with fontification; SQLite and JSON; and **native compilation
-   of a new function at runtime** (correct result, `native-comp-function-p` true).
-3. **GUI launch** of the pruned install with `config/`: window started, no
-   errors in the log.
+Run everything with one command (needs network for the package and URL tests):
+
+```sh
+./tools/verify-prune.sh
+```
+
+It does four things, and exits non-zero if anything is wrong:
+
+1. **Runs 17 realistic workflows** on the unpruned build: package refresh,
+   install (unsigned and signed), HTTPS fetch, HTML rendering, VC, diff/ediff,
+   dired/grep/find, help, customize, calendar, TRAMP, compile/edebug/ERT, mail
+   composition, Eglot/project/xref/Flymake, tree-sitter Python/JS/C, and a broad
+   UI/mode sweep.
+2. **Traces every Lisp file those workflows load** and reports any that are on
+   the removal list. Any hit is a file you must keep (add a `!` line).
+3. **Runs the same 17 workflows on the pruned install.**
+4. **`require`s all 513 bundled packages** on both builds and lists failures that
+   appear only after pruning. Those must be exactly the packages you removed.
+
+Latest result (2026-09-25): all 17 workflows pass on both builds; no loaded
+file is on the removal list; the unpruned build loads 512 of 513 packages (`nxml`
+already fails) and the pruned one 476 of 513, the 36 differences being exactly
+the removed packages (games, `erc`, `rcirc`, `mh-e`, `rmail`, `feedmail`,
+`mspools`, `supercite`, `undigest`, `unrmail`, `newsticker`, `org`).
+
+Also done by hand on the pruned install: the terminal UI in `emacs -nw` (menu,
+line numbers, electric pairing, ibuffer, window keys, clean exit), a GUI launch
+with `config/`, and native compilation of a new function at run time.
+
+### What went wrong the first time
+
+The first version was checked only by `require`-ing every package, and it
+looked clean. It was **not**: package downloads were broken. `url` loads
+`gnus/mm-archive` lazily when Emacs fetches anything, and that file had been
+pruned, so `package-refresh-contents` failed with *Cannot open load file ...
+mm-archive*. It was found only when installing a package failed.
+
+The lesson is that **loading a package is not the same as using it.** A static
+scan cannot see requires made at run time, so the check now traces real
+workflows and the fix is a `!gnus/mm-archive.el` exception in `prune.list`.
+A workflow you rely on that is not in `tools/workflows.el` is not covered.
+Add it there.
 
 ## Known limitations
 
@@ -122,6 +154,8 @@ Measured on the installed tree:
   - `textmodes/markdown-ts-mode` → `org-entities`: HTML entity lookup.
   - `net/mairix` → `rmail`.
   - `url/url` → `mm-view`, `gnus-*` internals: some mail/news URL schemes.
+  - `mm-decode` → `mm-archive` is the one that *did* break package downloads; it is
+    now an exception.
   - The `comp`/`disass` "dependencies on `wisent/comp`" reported by the tool are a
     **name collision** (`comp` is also the native compiler) and are harmless;
     native compilation was verified to work.
@@ -136,23 +170,9 @@ Measured on the installed tree:
 
 1. Edit `prune.list`.
 2. `python3 prune.py --plan`, and read the "rescued" and "lazy" sections.
-3. `./build.sh install` (fresh copy, so previously pruned files come back),
+3. `./build.sh install` (a fresh copy, so previously pruned files come back),
    then `./build.sh prune`.
-4. Re-run the verification: require every bundled package on the original
-   `build/src/emacs` and on `install/bin/emacs`, and diff the failures. Any
-   package that fails only on the pruned build and is not on your removal
-   list is a regression.
-5. Run your real workflows.
-
-A snippet for step 4 (run with each binary and diff the `FAIL` lines):
-
-```elisp
-(require 'package)
-(dolist (b (mapcar #'car (package--builtin-alist)))
-  (condition-case e (require b)
-    (error (princ (format "FAIL %s: %s\n" b (error-message-string e))))))
-```
-
-```sh
-emacs -Q --batch -l requireall.el
-```
+4. `./tools/verify-prune.sh`. If step 2 of it reports a file, add a `!` line for
+   it and repeat from step 3.
+5. Use it for the things you actually do, and add any workflow the script does
+   not cover to `tools/workflows.el`.

@@ -90,6 +90,16 @@ what fixed them. Newest-relevant first.
 - **Cause:** stale autoload entries. Expected; see the limitations in
   [PRUNING.md](PRUNING.md#known-limitations).
 
+### Package refresh/install fails: `Cannot open load file ... mm-archive`
+
+- **Cause:** `url` loads `gnus/mm-archive` lazily on any download, and it was
+  pruned. Package `require` checks did not catch it because the load happens at
+  run time.
+- **Fix:** it is now a `!gnus/mm-archive.el` exception in `prune.list`. Rebuild
+  the install (`./build.sh install && ./build.sh prune`) and run
+  `./tools/verify-prune.sh`. See
+  [PRUNING.md](PRUNING.md#what-went-wrong-the-first-time).
+
 ### The tool keeps far too much / prunes almost nothing
 
 - **Cause seen during development:** counting the generated autoload registries

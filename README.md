@@ -19,7 +19,7 @@ the pruning tool. The Emacs source itself is cloned separately into
 | Linux build (Ubuntu 24.04 on WSL2, GTK/Wayland) | **Verified.** Builds, launches a GUI window, all smoke tests pass |
 | Native compilation, tree-sitter, SQLite, HarfBuzz | **Verified** enabled and working |
 | Starter config (`config/`) | **Verified** loads cleanly. No theme, no external packages |
-| Pruning unused built-in Lisp | **Verified.** 308 MB → 257 MB install, no coding feature lost |
+| Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
 | Windows build | *Untested.* Placeholder in `build.sh` only |
 | macOS build | *Untested.* Placeholder in `build.sh` only |
 | CI (GitHub Actions) for all three OSes | *Not written yet* |
@@ -54,6 +54,7 @@ research-emacs/
 ├── build.sh             configure / make / install / prune
 ├── prune.list           which built-in Lisp to remove (edit this)
 ├── prune.py             dependency-aware pruning tool
+├── tools/               verification scripts for a pruned build
 ├── config/
 │   ├── early-init.el    runs before the window exists (startup speed)
 │   └── init.el          the actual configuration
@@ -83,8 +84,8 @@ research-emacs/
 | C in `src/` | ~567 K lines |
 | Startup, headless, bare `-Q` | 0.03 s |
 | Startup, headless, with our config | 0.07 s |
-| Install size, unpruned → pruned | 308 MB → 257 MB |
-| Native-compiled files, unpruned → pruned | 1,627 → 1,227 |
+| Install size, unpruned → pruned | 308 MB → 258 MB |
+| Native-compiled files, unpruned → pruned | 1,627 → 1,228 |
 | Built-in packages loading, unpruned → pruned | 512/513 → 476/513 (the 36 missing are the removed ones; `nxml` fails in both) |
 
 ## Open decisions

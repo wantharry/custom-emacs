@@ -98,11 +98,13 @@ def preloaded():
 
 def plan():
     files = all_files()
-    pats = read_manifest()
+    allpats = read_manifest()
+    pats = [p for p in allpats if not p.startswith("!")]
+    keeps = [p[1:] for p in allpats if p.startswith("!")]
     by_base = {}
     for rel in files:
         by_base.setdefault(os.path.basename(rel), []).append(rel)
-    prune = {r for r in files if matches(r, pats)}
+    prune = {r for r in files if matches(r, pats) and not matches(r, keeps)}
     scanned = {r: (needs(p) if not SKIP_SRC.search(r) else (set(), set()))
                for r, p in files.items()}
     deps = {r: h for r, (h, _) in scanned.items()}
@@ -186,6 +188,12 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--plan", action="store_true")
+    g.add_argument("--list", action="store_true")
     g.add_argument("--apply", metavar="INSTALL_DIR")
     a = ap.parse_args()
-    cmd_plan() if a.plan else cmd_apply(a.apply)
+    if a.plan:
+        cmd_plan()
+    elif a.list:
+        print("\n".join(sorted(plan()[1])))
+    else:
+        cmd_apply(a.apply)
