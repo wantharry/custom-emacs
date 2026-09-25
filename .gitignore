@@ -1,0 +1,10 @@
+# Upstream source and build output are reproducible; don't track them.
+/emacs-src/
+/build/
+/install/
+*.log
+
+# Inside the init directory, track only the hand-written config.
+/config/*
+!/config/init.el
+!/config/early-init.el
