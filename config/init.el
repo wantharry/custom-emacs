@@ -77,9 +77,17 @@
 ;; the buffer writable again.  Emacs's own writers still work: `customize' saves
 ;; with `inhibit-read-only', and package/recentf/savehist write through temporary
 ;; buffers rather than visited files.
+;; The one exception: the message files Git asks you to write (a commit message, a merge
+;; message, a tag, the rebase list), which Magit opens for you.  Locking them would make
+;; committing impossible, and they only ever exist because you asked to commit.
+(defvar my/always-editable-file-regexp
+  "/\\.git/\\(?:.*/\\)?\\(?:COMMIT_EDITMSG\\|MERGE_MSG\\|TAG_EDITMSG\\|NOTES_EDITMSG\\|PULLREQ_EDITMSG\\|EDIT_DESCRIPTION\\|git-rebase-todo\\)\\'"
+  "Files whose buffers are left editable by the read-only lock.")
+
 (defun my/make-file-buffer-read-only ()
   "Make the file-visiting buffer that was just opened read-only."
-  (read-only-mode 1))
+  (unless (and buffer-file-name (string-match-p my/always-editable-file-regexp buffer-file-name))
+    (read-only-mode 1)))
 (add-hook 'find-file-hook #'my/make-file-buffer-read-only 90)
 
 (defun allow-editing ()
@@ -296,6 +304,23 @@ installed, offer to install it from NonGNU ELPA."
 (defconst my/start-library (expand-file-name "startpage" user-emacs-directory))
 (require 'startpage my/start-library)
 (setq initial-buffer-choice #'my/start-initial-buffer)
+
+;;; Magit ------------------------------------------------------------------------
+
+;; Git in a keyboard-driven interface: `C-x g' opens the status of the current repository
+;; (see docs/MAGIT.md).  Installed into config/elpa by `./build.sh packages'; nothing
+;; loads until the first use, so it costs nothing at startup.  Without it installed,
+;; `C-x g' says so instead of failing.
+(when (locate-library "magit")
+  (autoload 'magit-status "magit" "Show the status of the current Git repository." t)
+  (autoload 'magit-dispatch "magit" "Show all Magit commands." t)
+  (autoload 'magit-file-dispatch "magit" "Show Magit commands for this file." t)
+  (autoload 'magit-log-buffer-file "magit" "Show the history of this file." t))
+(defun my/magit-missing ()
+  (interactive)
+  (message "Magit is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-x g") (if (locate-library "magit") #'magit-status #'my/magit-missing))
+(global-set-key (kbd "C-c g") (if (locate-library "magit") #'magit-file-dispatch #'my/magit-missing))
 
 ;;; Keys ---------------------------------------------------------------------
 

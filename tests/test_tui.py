@@ -223,6 +223,61 @@ class TerminalEmacs(unittest.TestCase):
         scr = self.wait_for("Recent work")
         self.assertIn("Projects", scr)
 
+    def make_git_repo(self):
+        repo = os.path.join(self.tmp, "repo")
+        os.makedirs(repo)
+        run = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True)
+        run("init", "-q"); run("config", "user.email", "t@t"); run("config", "user.name", "t")
+        path = os.path.join(repo, "a.txt")
+        with open(path, "w") as fh:
+            fh.write("one\n")
+        run("add", "a.txt"); run("commit", "-qm", "first")
+        with open(path, "a") as fh:
+            fh.write("two\n")
+        return repo, path
+
+    def git_log(self, repo):
+        return subprocess.run(["git", "log", "--format=%s"], cwd=repo, capture_output=True, text=True).stdout
+
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "config", "elpa")) and
+                         any(d.startswith("magit-") for d in os.listdir(os.path.join(ROOT, "config", "elpa"))),
+                         "Magit is not installed (./build.sh packages)")
+    def test_magit_status_shows_the_change(self):
+        repo, path = self.make_git_repo()
+        self.start(path)
+        self.wait_for("one")
+        self.keys("C-x", "g")
+        scr = self.wait_for("Unstaged changes", timeout=15)
+        self.assertIn("a.txt", scr)
+        self.assertIn("Recent commits", scr)
+        self.assertIn("magit: repo", scr)
+
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "config", "elpa")) and
+                         any(d.startswith("magit-") for d in os.listdir(os.path.join(ROOT, "config", "elpa"))),
+                         "Magit is not installed (./build.sh packages)")
+    def test_magit_commit_works_although_files_are_read_only(self):
+        repo, path = self.make_git_repo()
+        self.start(path)
+        self.wait_for("one")
+        self.keys("C-x", "g")
+        self.wait_for("Unstaged changes", timeout=15)
+        self.keys("s")
+        self.wait_for("Staged changes")
+        self.keys("c")
+        self.wait_for("Commit")          # the transient menu
+        self.keys("c")
+        self.wait_for("Changes to be committed|Changes from HEAD", timeout=15)
+        self.text("second from magit")     # the message buffer must accept typing
+        self.wait_for("second from magit")
+        self.keys("C-c", "C-c")
+        end = time.time() + 15
+        while time.time() < end and "second from magit" not in self.git_log(repo):
+            time.sleep(0.2)
+        self.assertIn("second from magit", self.git_log(repo))
+        # the file itself is still locked
+        self.keys("q")
+        self.wait_for(r"%%.*a\.txt|a\.txt.*%%")
+
     def test_evil_toggle_and_it_still_cannot_edit_a_read_only_file(self):
         f = self.make_file("a.txt", "hello\n")
         self.start(f)

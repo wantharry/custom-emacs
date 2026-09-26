@@ -183,6 +183,24 @@ graphical window does not.
 - **Fix:** the config already declares `src/main/java` and `src`. For another layout add a
   `.dir-locals.el` as shown in [NAVIGATING-CODE.md](NAVIGATING-CODE.md#5-java-definition-implementations-references).
 
+## Magit
+
+### "Magit is not installed" when I press `C-x g`
+
+- Run `./build.sh packages` (needs network). It installs Magit and its four helper packages into `config/elpa/`.
+
+### I cannot type in the commit message
+
+- Git's message files (`.git/COMMIT_EDITMSG` and the like) are the one exception to the read-only lock.
+  If your Git puts them elsewhere (for example a custom `GIT_DIR` layout that is not called `.git`), add the
+  path to `my/always-editable-file-regexp` in `init.el`, or press `C-c e e` in that buffer.
+
+### `C-c C-c` finishes the commit but the buffer does not close, or Git says the editor failed
+
+- Magit tells Git to use Emacs through `emacsclient`, which must be next to `emacs`
+  (`install/bin/emacsclient`). A build without it, or starting Emacs by a different path, breaks that. Check
+  with `M-x with-editor-debug`.
+
 ## Start screen
 
 ### Opening a file from the command line also shows the start screen, in a split

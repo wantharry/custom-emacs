@@ -306,6 +306,32 @@ the end it is aborted."
         (kill-buffer b)
         (when (get-buffer "*start*") (kill-buffer "*start*"))))))
 
+;;; Magit
+
+(gui-deftest gui/magit-status-in-a-real-window
+  (skip-unless (locate-library "magit"))
+  (test-with-temp-dir d
+    (let ((default-directory d))
+      (dolist (c '(("init" "-q") ("config" "user.email" "t@t") ("config" "user.name" "t")))
+        (apply #'call-process "git" nil nil nil c))
+      (test-write-file (concat d "a.txt") "one\n")
+      (call-process "git" nil nil nil "add" "a.txt") (call-process "git" nil nil nil "commit" "-qm" "first")
+      (test-write-file (concat d "a.txt") "one\ntwo\n"))
+    (let* ((b (find-file (concat d "a.txt")))
+           (info (gui--feed (listify-key-sequence (kbd "C-x g")) 3.0
+                            (lambda ()
+                              (with-current-buffer (window-buffer (selected-window))
+                                (goto-char (point-min))
+                                (re-search-forward "Unstaged changes" nil t)
+                                (list (buffer-name) (get-text-property (match-beginning 0) 'font-lock-face)
+                                      (face-foreground 'magit-section-heading nil t)))))))
+      (unwind-protect
+          (progn (should (string-match-p "\\`magit: " (nth 0 info)))
+                 (should (eq (nth 1 info) 'magit-section-heading))
+                 (should (stringp (nth 2 info))))
+        (dolist (x (buffer-list)) (when (string-match-p "\\`magit" (buffer-name x)) (kill-buffer x)))
+        (kill-buffer b)))))
+
 ;;; Evil and the pointer
 
 (gui-deftest gui/evil-cursor-follows-the-state

@@ -18,11 +18,12 @@ the pruning tool. The Emacs source itself is cloned separately into
 |---|---|
 | Linux build (Ubuntu 24.04 on WSL2, GTK/Wayland) | **Verified.** Builds, launches a GUI window, all smoke tests pass |
 | Native compilation, tree-sitter, SQLite, HarfBuzz | **Verified** enabled and working |
-| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only package is Evil, optional, toggled with `C-c v` |
+| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only packages are Evil (optional, `C-c v`) and Magit (`C-x g`) |
 | Read-only files | **Verified.** Every file opens read-only; `C-c e e` or `M-x allow-editing` is the one deliberate way to edit (a three-key chord, so no slip can do it) |
+| Magit | **Verified**, including a real commit typed through its message buffer in a real terminal. Loads only on first use (0.5 s once, then 0.05 s per status). See [docs/MAGIT.md](docs/MAGIT.md) |
 | Project search and Java navigation | **Verified** with a real `jdtls`: `C-x p f` (files), `C-x p g` (text, via ripgrep), definitions, implementations and references from keys, Ctrl+Click and right-click. Instant fuzzy file finder with a whole-disk index and a live fallback, no package: `C-c f f`, `C-c f g` (checked in a real window and terminal, with screenshots) |
 | Java and Rust | **Verified.** Tree-sitter modes plus `rust-analyzer` and `jdtls` via Eglot, started by hand (`M-x eglot`); no measurable startup cost |
-| Test suite | **366 tests offline (about 5 s), 410 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
+| Test suite | **378 tests offline (about 5 s), 425 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
 | Windows build | *Untested.* Placeholder in `build.sh` only |
 | macOS build | *Untested.* Placeholder in `build.sh` only |
@@ -85,6 +86,7 @@ research-emacs/
 | [docs/CROSS-PLATFORM.md](docs/CROSS-PLATFORM.md) | Plan for Windows and macOS and CI (untested) |
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust: what is installed, what it costs (measured), how to use and extend it |
 | [docs/START-SCREEN.md](docs/START-SCREEN.md) | The screen Emacs opens on: your last 5 files, folders and projects as links, expandable, and `C-c h` to get back to it |
+| [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
 | [docs/NAVIGATING-CODE.md](docs/NAVIGATING-CODE.md) | Find a file in a project, search across it, and in Java click a method to see its definition, implementations and references (measured on a real server) |
 | [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |
 | [docs/KEYBOARD.md](docs/KEYBOARD.md) | Learning Emacs: movement, editing, search, Dired, help, Evil. Every key is machine-checked |
@@ -108,7 +110,7 @@ research-emacs/
 
 1. **Scope.** General coding editor, or a single-purpose tool? The current
    config assumes a coding editor.
-2. **Magit.** Not included. A separate project, *gitmacs*
+2. **Magit.** Included (`C-x g`), see [docs/MAGIT.md](docs/MAGIT.md). A separate project, *gitmacs*
    (`~/projects/emacs/magit`), is a Magit-only launcher; it was used as a
    reference for look and feel and is **not modified or part of this repo**.
 3. **Theme and mode line.** Removed for now, to be added later. The reference

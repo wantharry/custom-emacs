@@ -76,7 +76,7 @@
     (let ((dir (file-name-as-directory (expand-file-name dir))))
       (unless (my/start--ignored-p dir)
         (my/start--push 'my/start--folders dir)
-        (when-let ((root (my/start--project-root dir)))
+        (when-let* ((root (my/start--project-root dir)))
           (unless (my/start--ignored-p root)
             (my/start--push 'my/start--projects root)))))))
 
@@ -161,7 +161,7 @@
                                (cons kind my/start--expanded)))
     (my/start-refresh)
     (goto-char (point-min))
-    (when-let ((m (text-property-search-forward 'my-toggle kind t)))
+    (when-let* ((m (text-property-search-forward 'my-toggle kind t)))
       (goto-char (prop-match-beginning m)))))
 
 (defun my/start--insert-section (kind title)

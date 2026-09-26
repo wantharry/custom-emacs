@@ -40,9 +40,10 @@ ignored on purpose; see `.gitignore`.
 | Editing | 4-space indentation with spaces, matching parens, delete-selection, auto-revert, save-place, recent files, minibuffer history. Backups and auto-saves go to `config/backups/` and no lock files are created |
 | Completion | Built-in only: vertical `fido` minibuffer, flexible matching, inline completion preview, `which-key` |
 | Coding | `treesit-font-lock-level 4`; Eglot (built-in LSP client) is available but not auto-started |
-| Packages | Puts installed packages (only Evil) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
+| Packages | Puts installed packages (Evil and Magit) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
 | Project text search | `C-x p g` uses ripgrep when installed (4 to 10 times faster than grep, measured), applied only when xref loads |
 | Clicking through code | Turns on the right-click menu (Find Definition, Find References, and our Find Implementations and Find Type Definition when a language server is running), Ctrl+Click for definitions, `repeat-mode`, and the Java source-path default. See [NAVIGATING-CODE.md](NAVIGATING-CODE.md) |
+| Magit | `C-x g` opens Git status, `C-c g` file commands. Autoloaded (nothing loads at startup). Also the one exception to the read-only lock: Git's commit-message files open editable. See [MAGIT.md](MAGIT.md) |
 | Start screen | What opens when Emacs starts without a file: the last 5 files, folders and projects as links, each expandable. `C-c h` brings it back. From `config/startpage.el`. See [START-SCREEN.md](START-SCREEN.md) |
 | Fast file finding | `C-c f f` / `C-c f g`: instant fuzzy file search over an `rg`-built index of the project or the whole disk, with a live search when the index has nothing. Autoloaded from `config/fastfind.el` (nothing loads or runs at startup; the index is built after 90 s idle). Options are `my/ff-*`. See [NAVIGATING-CODE.md](NAVIGATING-CODE.md) |
 | Read-only files | Every file opens read-only. `C-c e e` (`M-x allow-editing`) and `C-c e l` (`M-x stop-editing`) are the only ways to change that; the single-key `C-x C-q` just prints a reminder. The hook runs last so nothing (such as version control) can unlock a buffer. See [KEYBOARD.md](KEYBOARD.md) |
@@ -51,7 +52,7 @@ ignored on purpose; see `.gitignore`.
 | Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
 | Startup report | Prints Emacs version, load time and GC count to the echo area once |
 
-The only third-party package is **Evil**, and it is optional: it is installed by
+The only third-party packages are **Evil** and **Magit**, and both are optional: they are installed by
 `./build.sh packages` (or offered on first use of `C-c v`) into `config/elpa/`, which
 is gitignored. Nothing else is installed.
 

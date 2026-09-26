@@ -9,7 +9,7 @@
                          ("nongnu" . "https://elpa.nongnu.org/nongnu/")))
 (package-initialize)
 
-(defconst my/packages '(evil)
+(defconst my/packages '(evil magit)
   "Packages this configuration uses.  Everything else is built in.")
 
 (let ((missing (seq-remove #'package-installed-p my/packages)))
