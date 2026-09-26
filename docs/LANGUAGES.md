@@ -57,11 +57,12 @@ How to read these:
    you close the last buffer of the project (`eglot-autoshutdown`).
 
 Handy Eglot commands (no default keys): `eglot-rename`, `eglot-code-actions`,
-`eglot-format`, `eglot-find-implementation`, `eglot-find-typeDefinition`,
+`eglot-format`, `eglot-find-implementation`, `eglot-find-type-definition`,
 `eglot-reconnect`, `eglot-events-buffer` (protocol log, off by default for speed).
 
-Two small demo projects live in `~/emacs-demo/` (`hello-java/Hello.java` and
-`hello-rust/`) to try all this on.
+Three small demo projects live in `~/emacs-demo/` to try all this on: `hello-java/Hello.java`,
+`hello-rust/`, and `java-project/`, a multi-file Java project used for navigation (see
+[NAVIGATING-CODE.md](NAVIGATING-CODE.md)).
 
 ## Setting it up again from scratch
 
@@ -110,7 +111,9 @@ same pinned list.
 indentation, comments, imenu, function-at-point, the server configuration, that opening
 files starts no servers, and that the Java and Rust toolchains really compile and run.
 Two more tests start the real servers and check they answer through Eglot; they run only
-with `./build.sh test --lsp` (about 5 seconds). A separate test **fails** (it does not skip)
+with `./build.sh test --lsp` (about 5 seconds for these two; the Java navigation tests in
+`java-navigation.el` add about 80 seconds, because each newly opened file takes the server a few
+seconds to analyze). A separate test **fails** (it does not skip)
 if a grammar is missing, so a broken install cannot hide behind skipped tests.
 
 ## Known limits
@@ -118,4 +121,8 @@ if a grammar is missing, so a broken install cannot hide behind skipped tests.
 - Highlighting and indentation were checked by tests, **not by eye**; look at a real file.
 - No debugger (DAP) and no Maven or Gradle installed; `jdtls` handles Maven and Gradle
   projects it finds, but that path is untested here.
+- Java projects **without a build file** need the source root declared. The config sets a default
+  for `src/main/java` and `src`; other layouts need a `.dir-locals.el` (see
+  [NAVIGATING-CODE.md](NAVIGATING-CODE.md)). Projects with a `pom.xml` or `build.gradle` should not
+  need it, but that path was not tested here.
 - Grammars and servers are per platform. Nothing here has been tried on Windows or macOS.

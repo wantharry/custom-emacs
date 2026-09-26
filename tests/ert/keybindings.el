@@ -4,7 +4,7 @@
 ;; checks that KEY really runs `command` in the keymap named by the preceding
 ;; <!-- keymap: NAME --> marker (default: global, with our config loaded).
 
-(require 'dired) (require 'wdired) (require 'ibuffer) (require 'isearch)
+(require 'dired) (require 'wdired) (require 'ibuffer) (require 'isearch) (require 'xref) (require 'project)
 
 (defun kb--rows ()
   "Return a list of (MAP KEY COMMAND LINE) parsed from the key tables in the guides
@@ -13,7 +13,7 @@
   (let (rows)
     ;; A <!-- keymap: none --> marker switches checking off until the next marker, for
     ;; tables that are not "key, command" (for example keys pressed after a chord).
-    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md"))
+    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md"))
       (with-temp-buffer
         (insert-file-contents (expand-file-name doc test-root))
         (let ((map "global") (n 0))
@@ -144,8 +144,8 @@ would see them."
   (should (eq (lookup-key undo-repeat-map "u") 'undo))
   (should (eq (lookup-key next-error-repeat-map "n") 'next-error))
   (should (eq (lookup-key next-error-repeat-map "p") 'previous-error))
-  ;; the guide says it is not on by default in this config
-  (should-not (bound-and-true-p repeat-mode)))
+  ;; the guide says it is on in this config
+  (should repeat-mode))
 
 (ert-deftest keys/typing-guide-mentions-the-facts-it-relies-on ()
   (let ((text (with-temp-buffer (insert-file-contents (expand-file-name "docs/TYPING.md" test-root)) (buffer-string))))

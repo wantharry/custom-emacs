@@ -331,6 +331,8 @@ Inside Info: `SPC` next page, `DEL` previous, `n`/`p` next/previous node, `u` up
 
 ## Programming
 
+For finding files, searching a project and clicking through Java code, see [NAVIGATING-CODE.md](NAVIGATING-CODE.md).
+
 | Key | Command | What it does |
 |---|---|---|
 | `M-.` | `xref-find-definitions` | jump to a definition |

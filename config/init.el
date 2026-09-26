@@ -206,6 +206,66 @@ installed, offer to install it from NonGNU ELPA."
 ;; memory, and most editing does not need it.  Skip logging every protocol message.
 (setq eglot-events-buffer-config '(:size 0))
 
+;;; Clicking through code -------------------------------------------------------
+
+;; Right-click a symbol in code for "Find Definition" and "Find References" (Emacs
+;; adds these to the context menu only when `context-menu-mode' is on).
+(context-menu-mode 1)
+
+;; Ctrl+Click on a symbol jumps to its definition, as in VS Code, IntelliJ and Eclipse
+;; (Emacs 31 and newer).
+(when (fboundp 'global-xref-mouse-mode)
+  (global-xref-mouse-mode 1))
+
+;; When a language server (Eglot) manages the buffer, also offer implementations and
+;; the type definition there.  Emacs has no default mouse route to them.
+(defun my/eglot-find-implementation-at-mouse (event)
+  "Show the implementations of the symbol clicked with EVENT."
+  (interactive "e")
+  (mouse-set-point event)
+  (call-interactively #'eglot-find-implementation))
+
+(defun my/eglot-find-type-definition-at-mouse (event)
+  "Go to the type definition of the symbol clicked with EVENT."
+  (interactive "e")
+  (mouse-set-point event)
+  (call-interactively #'eglot-find-type-definition))
+
+(defun my/context-menu-eglot (menu click)
+  "Add Eglot-only navigation items to the right-click MENU for CLICK."
+  (when (and (featurep 'eglot) (eglot-managed-p)
+             (save-excursion
+               (mouse-set-point click)
+               (thing-at-point 'symbol)))
+    (define-key-after menu [my-find-impl]
+      '(menu-item "Find Implementations" my/eglot-find-implementation-at-mouse
+                  :help "Show the classes that implement this interface or method")
+      'xref-find-def)
+    (define-key-after menu [my-find-type]
+      '(menu-item "Find Type Definition" my/eglot-find-type-definition-at-mouse
+                  :help "Go to the type of this symbol")
+      'my-find-impl))
+  menu)
+(add-hook 'context-menu-functions #'my/context-menu-eglot 20)
+
+;; Text search across a project (C-x p g) is 4 to 10 times faster with ripgrep than with
+;; grep (measured on the 5,629 files of the Emacs source: 56-63 ms against 226-670 ms,
+;; same matches).  Applied when xref loads, so it costs nothing at startup; falls back to
+;; grep on a machine without rg.
+(with-eval-after-load 'xref
+  (setq xref-search-program (if (executable-find "rg") 'ripgrep 'grep)))
+
+;; jdtls, for a folder with no build file (no pom.xml or build.gradle), guesses the
+;; source root wrongly (it warns "declared package does not match expected package")
+;; and then finds no references to classes.  Tell it where the sources are.  Projects
+;; with a build file ignore this.  Covers src/main/java/... and src/...
+(setq-default eglot-workspace-configuration
+              '(:java (:project (:sourcePaths ["src/main/java" "src"]))))
+
+;; After a chord such as C-x o, keep pressing the last letter to repeat it (o, O for
+;; other-window, u for undo, n/p for next/previous-error).  M-x repeat-mode to toggle.
+(repeat-mode 1)
+
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c v") #'my/toggle-evil)

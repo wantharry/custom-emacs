@@ -174,6 +174,22 @@ graphical window does not.
 - **Fix:** use the pinned versions in `config/init.el` and rebuild with
   `./build.sh grammars`. See [LANGUAGES.md](LANGUAGES.md#why-the-grammars-are-pinned).
 
+### Java: references to a class come back empty (but methods work), or a red "declared package does not match" mark
+
+- **Cause:** for a folder with no `pom.xml` or `build.gradle`, `jdtls` guesses the source root
+  wrongly. Measured on the demo project: references to the interface `Shape` were empty and a
+  call to `Geometry.total` was missed; after declaring the source root, all 8 uses of `Shape` and
+  the call were found.
+- **Fix:** the config already declares `src/main/java` and `src`. For another layout add a
+  `.dir-locals.el` as shown in [NAVIGATING-CODE.md](NAVIGATING-CODE.md#5-java-definition-implementations-references).
+
+### Right-click shows no Find Definition, or Ctrl+Click does nothing
+
+- Find Definition and Find References need a symbol under the click in a code file. Find
+  Implementations and Find Type Definition appear only while the server is running
+  (`M-x eglot`). Ctrl+Click needs Emacs 31 or newer, and on Windows the Ctrl modifier can be
+  captured by the system.
+
 ### `jdtls` uses over a gigabyte of memory
 
 - **Expected:** it is a JVM (about 1.35 GB in the measured demo). It only runs after

@@ -6,7 +6,7 @@ until `./build.sh test` says `ALL TESTS PASSED`.
 ```sh
 ./build.sh test                  # everything that works offline (about 5 seconds)
 ./build.sh test --network        # plus the tests that need internet
-./build.sh test --lsp            # plus tests that start real language servers
+./build.sh test --lsp            # plus tests that start real language servers (about 90 seconds)
 ./build.sh test --gui            # plus tests inside a real Emacs window and a real terminal
 ./build.sh test --full           # everything: network, language servers, window/terminal, tools/verify-prune.sh
 ./build.sh test dired            # only the ERT files whose name contains "dired"
@@ -61,8 +61,9 @@ the tooling.
 | `evil.el` | The `C-c v` toggle: on, off, repeatable, states, motions and operators, restores plain Emacs keys, Emacs keys still work, and a regression test for the Emacs 32 incompatibility |
 | `evil-missing.el` | The toggle when Evil is not installed: declining, and accepting the install |
 | `readonly.el` | Every kind of file (existing, new, symlinked) opens read-only; the disk is never touched; `allow-editing`/`stop-editing` work and only saving reaches the disk; nothing can unlock a buffer behind our back; `C-x C-q` twenty mistyped editing shortcuts change nothing (including under Evil); the `C-c e e` / `C-c e l` chords work in every mode (Dired, ibuffer, Java, Rust, Evil) and nothing shorter unlocks a file; Customize, recent files and file operations keep working |
-| `keybindings.el` | **Every key in `docs/KEYBOARD.md` and `docs/TYPING.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
+| `keybindings.el` | **Every key in `docs/KEYBOARD.md`, `docs/TYPING.md` and `docs/NAVIGATING-CODE.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
 | `languages-java-rust.el` | Java and Rust: tree-sitter modes, parsing, highlighting, indentation, imenu, server setup, no servers started on open, the toolchains compile and run; with `--lsp`, real `rust-analyzer` and `jdtls` sessions through Eglot |
+| `java-navigation.el` | Finding files in a project (tracked, new and ignored files, fuzzy typing), text search across it, the outline, Ctrl+Click and right-click menu behavior, the results list, and with `--lsp` a real `jdtls`: definitions, implementations, references, type definition, find-by-name, and that `M-.` really jumps |
 | `pruning.el` | Removed packages are gone, coding essentials and deliberate exceptions are present, removed features fail cleanly, no native code left for them |
 | `network-live.el` | Real HTTPS fetch, package refresh, package install (only with `--network`) |
 | `tests/test_prune.py` | The pruning tool, using small fake trees: dependency rescue, lazy requires, exceptions, preloaded files, applying to an install, idempotence |
@@ -145,6 +146,10 @@ That has already happened three times here:
   loop leaves `this-command` set, which suppresses the which-key popup, and hiding a popup by
   hand stops the next one for the same prefix. Real typing is unaffected; the harness resets
   the state before every feed.
+- **`jdtls` guesses the source root for a folder with no build file,** and the wrong guess only
+  breaks references to *types*, so methods look fine. A test asks for both, so a regression shows.
+- **Results in the `*xref*` list are clickable through a keymap on the text itself,** not the
+  buffer's keymap, so a test that looks in the buffer keymap finds nothing.
 - **A graphical session is silent about errors.** A crashed script just leaves the window
   open, so scripts that drive a window wrap everything and always exit.
 

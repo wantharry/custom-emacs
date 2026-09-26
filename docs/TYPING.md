@@ -196,8 +196,8 @@ for as long as you keep pressing it:
 | `M-g n` | `p` | `previous-error` |
 <!-- keymap: global -->
 
-It is **not** turned on in this config. To keep it, add `(repeat-mode 1)` to
-`config/init.el`. Try it for a week and decide.
+It is **turned on** in this config. `M-x repeat-mode` switches it off if you do not like it, and
+`(repeat-mode -1)` in `config/init.el` keeps it off.
 
 ### 4.3 Counts and the repeat key
 
