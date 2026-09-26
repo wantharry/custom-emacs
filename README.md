@@ -20,9 +20,9 @@ the pruning tool. The Emacs source itself is cloned separately into
 | Native compilation, tree-sitter, SQLite, HarfBuzz | **Verified** enabled and working |
 | Starter config (`config/`) | **Verified** loads cleanly. No theme; the only package is Evil, optional, toggled with `C-c v` |
 | Read-only files | **Verified.** Every file opens read-only; `C-c e e` or `M-x allow-editing` is the one deliberate way to edit (a three-key chord, so no slip can do it) |
-| Project search and Java navigation | **Verified** with a real `jdtls`: `C-x p f` (files), `C-x p g` (text, via ripgrep), definitions, implementations and references from keys, Ctrl+Click and right-click. Whole-disk indexed search: measured, **not built yet** |
+| Project search and Java navigation | **Verified** with a real `jdtls`: `C-x p f` (files), `C-x p g` (text, via ripgrep), definitions, implementations and references from keys, Ctrl+Click and right-click. Instant fuzzy file finder with a whole-disk index and a live fallback, no package: `C-c f f`, `C-c f g` (checked in a real window and terminal, with screenshots) |
 | Java and Rust | **Verified.** Tree-sitter modes plus `rust-analyzer` and `jdtls` via Eglot, started by hand (`M-x eglot`); no measurable startup cost |
-| Test suite | **347 tests offline (about 5 s), 384 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
+| Test suite | **347 tests offline (about 5 s), 387 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
 | Windows build | *Untested.* Placeholder in `build.sh` only |
 | macOS build | *Untested.* Placeholder in `build.sh` only |

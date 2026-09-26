@@ -16,6 +16,7 @@ built into Emacs plus the language server for Java, which is already set up
 | I want to... | Keyboard | Mouse |
 |---|---|---|
 | Open a file in this project | `C-x p f`, then type part of its name | |
+| **Open a file instantly, by a few letters** (project, or the whole disk) | `C-c f f` (project) / `C-c f g` (whole disk) | |
 | Search text in every project file | `C-x p g` | |
 | Search text in this file | `C-s` | |
 | Jump to the definition of a method or class | `M-.` | **Ctrl+Click** it, or right-click, **Find Definition** |
@@ -47,6 +48,77 @@ the list contains every tracked file **and** new files that git has not seen yet
 out what `.gitignore` excludes (so `build/` and `*.class` do not clutter the list). A folder that
 is not a git repository is not a project: use `C-x C-f` (normal file open) or `M-x find-name-dired`
 there.
+
+### The instant finder: `C-c f f` and `C-c f g`
+
+`C-x p f` is fine inside a project. For anything bigger, or outside a project, this config adds
+its own finder, written in Emacs Lisp with **no package** (the same idea as `fzf`, `consult` or
+`projectile`, but small enough to read in `config/fastfind.el`).
+
+<!-- keymap: global -->
+| Key | Command | What it does |
+|---|---|---|
+| `C-c f f` | `my/ff-find-file` | find a file in this project; outside a project, anywhere on the disk |
+| `C-c f g` | `my/ff-find-file-global` | find a file anywhere on the disk |
+| `C-c f r` | `my/ff-reindex` | rebuild the whole-disk index now |
+
+`M-x my/ff-status` tells you how old the indexes are and which search program is in use.
+
+**How it works.**
+
+1. **An index** is a plain list of file paths. The project one is rebuilt from `git ls-files`
+   when it is older than 60 seconds or older than the repository's own index. The whole-disk one
+   is built by `ripgrep` in about 1.2 s cold, in the background, after Emacs has been idle for
+   90 seconds, and again when it is over 6 hours old. Nothing runs at startup.
+2. **Typing** searches that index. Several words all have to match (`demo shp` finds
+   `demo/Shape.java`), a name matches best (`gmtry` finds `Geometry.java`), and a name that starts
+   a word beats one that only contains the letters. Regexp characters such as `.` or `[` are just
+   letters here.
+3. **If the index has nothing**, it searches the disk live, the way you would with `find`, and marks
+   the answer `(not in the index: live search)`. So a file you created a minute ago is still found,
+   and so is one in a folder the index leaves out (below).
+
+**What you see** (real screenshots of this build; the demo project is in `~/emacs-demo`):
+
+*Five letters find `Geometry.java`. `gmtry` is not even a substring:*
+
+![project search for gmtry](images/find-1-project-typo.png)
+
+*Two words, in any order of the folders:*
+
+![two words](images/find-2-two-words.png)
+
+*The whole disk (37 candidates, best first; the C source file is the top match):*
+
+![whole disk](images/find-3-whole-disk.png)
+
+*A file that is not in the index (created after it was built): found live, and labelled:*
+
+![live fallback](images/find-4-live-fallback.png)
+
+*And the ordinary project text search, `C-x p g` for `area`, for comparison:*
+
+![text search](images/find-5-text-search.png)
+
+**What the index leaves out** (so it stays small and fast): `.git`, `node_modules`, `__pycache__`,
+caches, `~/.cargo/registry`, `~/.gradle`, `~/.m2/repository`, `target/debug`, and the folders
+`/proc /sys /dev /run /mnt /tmp /snap`. `/mnt` is where WSL mounts the Windows drives. The live
+search still looks for hidden and git-ignored files. Change the lists in `my/ff-excluded-names`
+and `my/ff-excluded-paths`, and the search roots in `my/ff-global-roots` (for example add
+`"/mnt/c/Users"` to include Windows files).
+
+**Options** (set them in `init.el`):
+
+<!-- keymap: none -->
+| Variable | Default | Meaning |
+|---|---|---|
+| `my/ff-auto-refresh` | `t` | build the whole-disk index in the background when idle; `nil` means only `C-c f r` |
+| `my/ff-global-roots` | `("/")` | where the whole-disk index looks |
+| `my/ff-max-results` | 200 | how many candidates to show |
+| `my/ff-stale-seconds` | 6 hours | age after which the whole-disk index is rebuilt |
+| `my/ff-project-stale-seconds` | 60 | same for a project index |
+| `my/ff-rg` | `auto` | `auto` uses `ripgrep` if installed, else `grep`, else pure Emacs Lisp (slower, same results) |
+<!-- keymap: global -->
 
 ### Other ways to open a file
 
@@ -211,16 +283,27 @@ Only a search across the *whole disk* gets slow with Emacs's built-in matching. 
 fast, so the benefit of an index is going from about 0.3 s to about 0.05 s.
 
 **Packages that do this.** They are **not installed** here, since you asked to keep only packages
-you use. They exist in the package archives as of this date: `consult` (find, fd, locate and
+you use (the finder above replaces them). They exist in the package archives as of this date: `consult` (find, fd, locate and
 ripgrep commands), `vertico` and `orderless` (a faster completion interface and matching),
 `affe` (an asynchronous fuzzy finder), `fzf` (a front-end for the `fzf` program, which is not
 installed either), `projectile` and `find-file-in-project` (project file lists with caching),
 `counsel` and `ivy`, and `fussy` with `fzf-native` (faster fuzzy scoring).
 
-**Not built yet.** A whole-disk indexed search ("search the index, and if it is not there search
-regularly") has not been written. The measurements above are the basis for it: `rg` as the
-fuzzy matcher over an index file kept fresh in the background, with a live `rg` search as the
-fallback, in Emacs's normal completion list, and no extra package.
+**What was built from this.** `config/fastfind.el` (section 2): an `rg`-made index kept fresh in
+the background, `rg` as the matcher, and a live search as the fallback, inside Emacs's normal
+completion list. Measured on this machine with the real index (337,696 files, 32 MB):
+
+| What | Result |
+|---|---|
+| Build the whole-disk index (cold) | about 1.2 s, in the background |
+| Type to a match, whole disk | 14 to 147 ms per query |
+| Type to a match, in a project | 5 to 10 ms |
+| A file that is not in the index (live fallback) | about 0.85 s |
+| Startup cost | none: it is loaded the first time you press a `C-c f` key |
+
+Both the offline tests (37 for the finder itself) and real-window and real-terminal tests cover it.
+The real-window test exists because the first version passed every headless test and still showed
+"(No matches)" on screen; see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## 8. What was set up for this, and where
 
@@ -233,6 +316,7 @@ Everything is in `config/init.el`, in the "Clicking through code" and "Languages
 | `my/context-menu-eglot`, `my/eglot-find-implementation-at-mouse`, `my/eglot-find-type-definition-at-mouse` | adds **Find Implementations** and **Find Type Definition** to the right-click menu while a language server runs |
 | `eglot-workspace-configuration` with `java.project.sourcePaths` | tells `jdtls` where sources are for projects without a build file |
 | `(with-eval-after-load 'xref ...)` setting `xref-search-program` | `ripgrep` for project text search; falls back to `grep` |
+| `fastfind.el` autoloads, `C-c f f`, `C-c f g`, `C-c f r`, an idle timer | the instant file finder (section 2); nothing loads until first use |
 | `(repeat-mode 1)` | after `C-x o`, keep pressing `o` to repeat ([TYPING.md](TYPING.md)) |
 
 The demo project is in `~/emacs-demo/java-project` (outside this repository). Its tests are in
@@ -247,6 +331,8 @@ The demo project is in `~/emacs-demo/java-project` (outside this repository). It
 | Right-click has no Find Definition | It appears only in code files with a recognized symbol under the click. The two Eglot-only entries need `M-x eglot` |
 | Ctrl+Click does nothing | Emacs older than 31, or the window did not receive the Ctrl modifier (Windows can grab it) |
 | `Buffer is read-only` when you meant to edit | That is the lock. `C-c e e` unlocks it; navigation never needs that |
+| `C-c f f` shows "(No matches)" or an empty list | The typed words are not in any file name. Try fewer letters. If it always happens, run `M-x my/ff-status` |
+| A file is missing from `C-c f g` | It is in an excluded folder (section 2), or created since the index was built. It still appears with the "live search" label after a moment; `C-c f r` rebuilds the index |
 | The server uses a lot of memory | Expected for Java (about 1.35 GB). `M-x eglot-shutdown` frees it |
 
 ## 10. Related guides

@@ -8,6 +8,7 @@
 /config/*
 !/config/init.el
 !/config/early-init.el
+!/config/fastfind.el
 
 # Python bytecode from the test runner
 __pycache__/

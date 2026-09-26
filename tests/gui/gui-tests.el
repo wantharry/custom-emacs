@@ -232,6 +232,55 @@ the end it is aborted."
     (should (string-match-p "eglot" shown))
     (should (string-match-p "\n" shown))))
 
+;;; The file finder, in the real minibuffer
+
+(require 'fastfind my/ff-library)   ; so `my/ff-cache-dir' is special before it is let-bound
+
+(defun gui--ff-project (dir)
+  "Make DIR a git project holding a few files; return the path of Geometry.java."
+  (make-directory (concat dir "src/demo") t)
+  (dolist (f '("Geometry.java" "Shape.java" "Circle.java"))
+    (test-write-file (concat dir "src/demo/" f) "class X {}\n"))
+  (let ((default-directory dir))
+    (call-process "git" nil nil nil "init" "-q")
+    (call-process "git" nil nil nil "add" "-A"))
+  (concat dir "src/demo/Geometry.java"))
+
+(defun gui--minibuffer-text ()
+  (with-current-buffer (window-buffer (minibuffer-window))
+    (concat (buffer-string) "\n"
+            (mapconcat (lambda (o) (concat (overlay-get o 'before-string)
+                                           (overlay-get o 'after-string)))
+                       (overlays-in (point-min) (point-max)) ""))))
+
+(gui-deftest gui/file-finder-shows-a-match-for-a-typo
+  ;; Regression: fido replaced the completion style and showed "(No matches)".
+  (test-with-temp-dir d
+    (let* ((geo (gui--ff-project d))
+           (my/ff-cache-dir (concat d "cache/"))
+           (buf (find-file geo))
+           (shown (gui--feed (append (listify-key-sequence (kbd "C-c f f")) (listify-key-sequence "gmtry")) 2.0
+                             #'gui--minibuffer-text)))
+      (unwind-protect
+          (progn (should (string-match-p "Geometry\\.java" shown))
+                 (should-not (string-match-p "No matches" shown))
+                 (should-not (string-match-p "Shape\\.java" shown)))
+        (kill-buffer buf)))))
+
+(gui-deftest gui/file-finder-enter-opens-the-file
+  (test-with-temp-dir d
+    (let* ((geo (gui--ff-project d))
+           (my/ff-cache-dir (concat d "cache/"))
+           (start (find-file geo))
+           (opened (gui--feed (append (listify-key-sequence (kbd "C-c f f"))
+                                      (listify-key-sequence "circle")
+                                      (listify-key-sequence (kbd "RET")))
+                              2.5 (lambda () (buffer-file-name (window-buffer (selected-window)))))))
+      (unwind-protect
+          (should (equal opened (concat d "src/demo/Circle.java")))
+        (dolist (b (buffer-list)) (when (buffer-file-name b) (kill-buffer b)))
+        (ignore start)))))
+
 ;;; Evil and the pointer
 
 (gui-deftest gui/evil-cursor-follows-the-state

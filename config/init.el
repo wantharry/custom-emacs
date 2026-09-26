@@ -266,8 +266,33 @@ installed, offer to install it from NonGNU ELPA."
 ;; other-window, u for undo, n/p for next/previous-error).  M-x repeat-mode to toggle.
 (repeat-mode 1)
 
+;;; Fast file finding ------------------------------------------------------------
+
+;; Type a few letters of a file name and get the best matches at once, from an index of
+;; the project or of the whole disk (matched with ripgrep), with a live search when the
+;; index has nothing.  See fastfind.el and docs/NAVIGATING-CODE.md.
+;;   C-c f f  project file (anywhere, outside a project)   C-c f g  anywhere on the disk
+;;   C-c f r  rebuild the whole-disk index now
+;; Autoloaded by full path: putting `user-emacs-directory' itself on `load-path' makes
+;; Emacs print a startup warning.
+(defconst my/ff-library (expand-file-name "fastfind" user-emacs-directory))
+(autoload 'my/ff-find-file my/ff-library "Find a file in the current project." t)
+(autoload 'my/ff-find-file-global my/ff-library "Find a file anywhere on the disk." t)
+(autoload 'my/ff-reindex my/ff-library "Rebuild the whole-disk file index." t)
+(autoload 'my/ff-status my/ff-library "Show the state of the file indexes." t)
+
+;; The whole-disk index is built in the background, once, after Emacs has been idle for
+;; 90 seconds, and again when it is over 6 hours old.  Nothing runs at startup.  Set this
+;; to nil to build it only when you press C-c f r.
+(defvar my/ff-auto-refresh t)
+(when my/ff-auto-refresh
+  (run-with-idle-timer 90 nil (lambda () (require 'fastfind my/ff-library) (my/ff-maybe-refresh))))
+
 ;;; Keys ---------------------------------------------------------------------
 
+(global-set-key (kbd "C-c f f") #'my/ff-find-file)
+(global-set-key (kbd "C-c f g") #'my/ff-find-file-global)
+(global-set-key (kbd "C-c f r") #'my/ff-reindex)
 (global-set-key (kbd "C-c v") #'my/toggle-evil)
 (global-set-key (kbd "C-x C-b") #'ibuffer)
 (global-set-key (kbd "M-o") #'other-window)

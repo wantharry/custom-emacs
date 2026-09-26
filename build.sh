@@ -60,7 +60,7 @@ screenshots() {
   local out="${1:?usage: build.sh screenshots OUTDIR FILE...}"; shift
   local emacs; emacs="$(pick_emacs)"
   local dir; dir="$(mktemp -d)"
-  cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$dir/"
+  cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$dir/"
   for d in elpa tree-sitter; do [ -d "$ROOT/config/$d" ] && ln -s "$ROOT/config/$d" "$dir/$d"; done
   SHOT_DIR="$out" SHOT_FILES="$(IFS=:; echo "$*")" "$emacs" --init-directory="$dir" -l "$dir/early-init.el" -l "$dir/init.el" -l "$ROOT/tools/gui-screenshot.el" >/dev/null 2>&1
   ls "$out"/*.png

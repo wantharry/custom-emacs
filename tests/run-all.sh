@@ -52,7 +52,7 @@ run_one() {   # $1 = test file
         -f ert-run-tests-batch-and-exit > "$OUT/$name.log" 2>&1 || status=$? ;;
     config|noelpa)
       local dir="$OUT/init-$name"; mkdir -p "$dir"
-      cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$dir/"
+      cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$dir/"
       [ "$harness" = config ] && [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$dir/elpa"
       [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$dir/tree-sitter"
       CONFIG_DIR="$dir" "$EMACS" --batch --init-directory="$dir" \
@@ -109,7 +109,7 @@ if [ "$GUI" = 1 ]; then
     echo "GUI (real window): SKIPPED, no display in this session"
   else
     gdir="$OUT/init-gui"; mkdir -p "$gdir"
-    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$gdir/"
+    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$gdir/"
     [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$gdir/elpa"
     [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$gdir/tree-sitter"
     gt0=$(date +%s.%N)

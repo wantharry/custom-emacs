@@ -37,4 +37,15 @@
   (dolist (f '(magit doom-themes doom-modeline company lsp-mode projectile))
     (should-not (featurep f))))
 
+(ert-deftest startup/load-path-does-not-contain-the-config-directory ()
+  ;; Emacs prints a startup warning (visible in the terminal) if it does.
+  (should-not (member (file-name-as-directory user-emacs-directory)
+                      (mapcar #'file-name-as-directory load-path))))
+
+(ert-deftest startup/file-finder-not-loaded-and-no-search-until-idle ()
+  ;; The finder is autoloaded: nothing is read or indexed at startup.
+  (should-not (featurep 'fastfind))
+  (should (autoloadp (symbol-function 'my/ff-find-file)))
+  (should (autoloadp (symbol-function 'my/ff-find-file-global))))
+
 ;;; startup-perf.el ends here

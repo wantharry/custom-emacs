@@ -183,6 +183,28 @@ graphical window does not.
 - **Fix:** the config already declares `src/main/java` and `src`. For another layout add a
   `.dir-locals.el` as shown in [NAVIGATING-CODE.md](NAVIGATING-CODE.md#5-java-definition-implementations-references).
 
+## File finder (`C-c f f`)
+
+### The list says "(No matches)" although the file exists
+
+- **Cause (fixed):** the vertical minibuffer (`fido`) sets its own completion style *after* the
+  finder does, replacing it with plain `flex`, which asked the finder for candidates matching an
+  empty string. Fix: the style is set in a `minibuffer-with-setup-hook` with `:append`. Every headless
+  test passed while a real window showed nothing, which is why `gui/file-finder-*` and the terminal
+  test exist.
+
+### Emacs shows a warning "Your load-path seems to contain your user-emacs-directory"
+
+- **Cause (fixed):** the first version put `config/` on `load-path` to autoload `fastfind.el`.
+  Emacs prints that warning in a `*Warnings*` window. It appeared only in the terminal test, never in
+  `--batch`. The finder is now autoloaded by full path and `startup/load-path-does-not-contain-the-config-directory` guards it.
+
+### The index contains files it should not, or misses some
+
+- `rg` applies an absolute `--glob` exclusion only when its working directory is `/`, so the
+  listing is run from `/`. Emacs regexps: `[^/]` also matches a newline; the finder uses `[^/\n]`.
+  If you change the exclusions, run `M-x my/ff-reindex` and check `M-x my/ff-status`.
+
 ### Right-click shows no Find Definition, or Ctrl+Click does nothing
 
 - Find Definition and Find References need a symbol under the click in a code file. Find

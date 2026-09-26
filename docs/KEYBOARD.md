@@ -342,6 +342,9 @@ For finding files, searching a project and clicking through Java code, see [NAVI
 | `M-/` | `dabbrev-expand` | complete the word from text already in your buffers |
 | `C-M-i` | `complete-symbol` | complete the symbol at the cursor |
 | `C-x p f` | `project-find-file` | open a file in the current project |
+| `C-c f f` | `my/ff-find-file` | **this config:** instant fuzzy file finder (project, or whole disk outside one) |
+| `C-c f g` | `my/ff-find-file-global` | **this config:** the same over the whole disk |
+| `C-c f r` | `my/ff-reindex` | **this config:** rebuild the whole-disk file index |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

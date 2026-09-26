@@ -30,7 +30,7 @@ class TerminalEmacs(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="tui-")
         self.cfg = os.path.join(self.tmp, "cfg")
         os.makedirs(self.cfg)
-        for f in ("early-init.el", "init.el"):
+        for f in ("early-init.el", "init.el", "fastfind.el"):
             shutil.copy(os.path.join(ROOT, "config", f), self.cfg)
         for d in ("elpa", "tree-sitter"):
             src = os.path.join(ROOT, "config", d)
@@ -141,6 +141,30 @@ class TerminalEmacs(unittest.TestCase):
         self.text("eglo")
         scr = self.wait_for("eglot-manual")
         self.assertRegex(scr, r"(?m)^eglot\b")
+
+    def make_project(self):
+        proj = os.path.join(self.tmp, "proj")
+        os.makedirs(os.path.join(proj, "src", "demo"))
+        for n in ("Geometry", "Shape", "Circle"):
+            with open(os.path.join(proj, "src", "demo", n + ".java"), "w") as fh:
+                fh.write("class X {}\n")
+        subprocess.run(["git", "init", "-q"], cwd=proj, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=proj, check=True)
+        return proj
+
+    def test_file_finder_lists_a_fuzzy_match_and_enter_opens_it(self):
+        proj = self.make_project()
+        first = os.path.join(proj, "src", "demo", "Shape.java")
+        self.start(first)
+        self.wait_for("class X")
+        self.keys("C-c", "f", "f")
+        self.wait_for("Find file \\(proj\\)")
+        self.text("gmtry")
+        scr = self.wait_for("src/demo/Geometry.java")
+        self.assertNotIn("No matches", scr)
+        self.keys("Enter")
+        scr = self.wait_for("Geometry.java\\s+All")
+        self.assertIn("Geometry.java", scr)
 
     def test_evil_toggle_and_it_still_cannot_edit_a_read_only_file(self):
         f = self.make_file("a.txt", "hello\n")
