@@ -63,7 +63,8 @@
 
 ;; Nothing on disk changes by accident, for example when a slip while learning
 ;; shortcuts turns into typed text.  Each file you visit is read-only until you
-;; deliberately type  M-x allow-editing  (and  M-x stop-editing  locks it again).
+;; deliberately type  M-x allow-editing  or press  C-c e e  (C-c e l  or
+;; M-x stop-editing  locks it again).
 ;; This also covers files that do not exist yet: allow editing to create them.
 ;;
 ;; The hook runs last (depth 90) so nothing else, such as version control, can make
@@ -100,8 +101,13 @@ Files open read-only.  This is the one deliberate way to change that;
 A single shortcut must not be able to switch editing on, so that a mistyped
 key sequence can never make a file editable."
   (interactive)
-  (message "Files open read-only.  To edit, type:  M-x allow-editing"))
+  (message "Files open read-only.  To edit, type:  C-c e e   (or M-x allow-editing)"))
 (global-set-key (kbd "C-x C-q") #'my/read-only-hint)
+
+;; Deliberate three-key chords under C-c (the prefix Emacs reserves for users), so a
+;; single slipped key can never unlock a file:  C-c e e = edit,  C-c e l = lock.
+(global-set-key (kbd "C-c e e") #'allow-editing)
+(global-set-key (kbd "C-c e l") #'stop-editing)
 
 ;;; Completion (all built in) -------------------------------------------------
 

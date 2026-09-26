@@ -4,7 +4,7 @@ The rule of this project: **run the tests after every change.** A change is not 
 until `./build.sh test` says `ALL TESTS PASSED`.
 
 ```sh
-./build.sh test                  # everything that works offline (about 15 seconds)
+./build.sh test                  # everything that works offline (about 5 seconds)
 ./build.sh test --network        # plus the tests that need internet
 ./build.sh test --lsp            # plus tests that start real language servers
 ./build.sh test --full           # everything: network, language servers, tools/verify-prune.sh
@@ -59,7 +59,7 @@ the tooling.
 | `startup-perf.el` | Startup under half a second; `package.el`, Evil and third-party code **not** loaded at startup |
 | `evil.el` | The `C-c v` toggle: on, off, repeatable, states, motions and operators, restores plain Emacs keys, Emacs keys still work, and a regression test for the Emacs 32 incompatibility |
 | `evil-missing.el` | The toggle when Evil is not installed: declining, and accepting the install |
-| `readonly.el` | Every kind of file (existing, new, symlinked) opens read-only; the disk is never touched; `allow-editing`/`stop-editing` work and only saving reaches the disk; nothing can unlock a buffer behind our back; `C-x C-q` and twenty mistyped editing shortcuts change nothing (including under Evil); Customize, recent files and file operations keep working |
+| `readonly.el` | Every kind of file (existing, new, symlinked) opens read-only; the disk is never touched; `allow-editing`/`stop-editing` work and only saving reaches the disk; nothing can unlock a buffer behind our back; `C-x C-q` twenty mistyped editing shortcuts change nothing (including under Evil); the `C-c e e` / `C-c e l` chords work in every mode (Dired, ibuffer, Java, Rust, Evil) and nothing shorter unlocks a file; Customize, recent files and file operations keep working |
 | `keybindings.el` | **Every key in `docs/KEYBOARD.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
 | `languages-java-rust.el` | Java and Rust: tree-sitter modes, parsing, highlighting, indentation, imenu, server setup, no servers started on open, the toolchains compile and run; with `--lsp`, real `rust-analyzer` and `jdtls` sessions through Eglot |
 | `pruning.el` | Removed packages are gone, coding essentials and deliberate exceptions are present, removed features fail cleanly, no native code left for them |

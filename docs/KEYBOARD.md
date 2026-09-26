@@ -39,16 +39,18 @@ you try, and the file on disk is untouched.
 
 | To do this | Type |
 |---|---|
-| **Allow editing** the current buffer | `M-x allow-editing` (then `RET`) |
+| **Allow editing** the current buffer | `C-c e e` (or `M-x allow-editing`) |
 | Save your changes | `C-x C-s` |
-| **Lock it again** | `M-x stop-editing` |
+| **Lock it again** | `C-c e l` (or `M-x stop-editing`) |
 
-There is deliberately **no keyboard shortcut** to switch editing on. The standard one,
-`C-x C-q`, only prints a reminder here, so a mistyped key sequence cannot unlock a file.
+The shortcuts are deliberate **three-key chords**, so a slipped key cannot unlock a file:
+`C-c e e` to **e**dit and `C-c e l` to **l**ock (`C-c` is the prefix Emacs reserves for
+your own keys, and `which-key` lists the choices after `C-c e`). The standard single
+shortcut, `C-x C-q`, only prints a reminder here.
 Notes:
 
 - It applies to every file you open, including new ones. To **create** a file, open it
-  (`C-x C-f name`), then `M-x allow-editing`.
+  (`C-x C-f name`), then `C-c e e`.
 - Movement, searching, selecting and copying (`C-SPC`, `M-w`) all still work; only
   changes are blocked.
 - `stop-editing` warns if the buffer has unsaved changes.
@@ -264,6 +266,8 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x <left>` | `previous-buffer` | previous buffer |
 | `C-x <right>` | `next-buffer` | next buffer |
 | `C-c r` | `recentf-open` | **this config:** open a recent file |
+| `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
+| `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |
 | `C-x 0` | `delete-window` | close this window |
 | `C-x 1` | `delete-other-windows` | keep only this window |
 | `C-x 2` | `split-window-below` | split top and bottom |

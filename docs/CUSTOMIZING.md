@@ -41,7 +41,7 @@ ignored on purpose; see `.gitignore`.
 | Completion | Built-in only: vertical `fido` minibuffer, flexible matching, inline completion preview, `which-key` |
 | Coding | `treesit-font-lock-level 4`; Eglot (built-in LSP client) is available but not auto-started |
 | Packages | Puts installed packages (only Evil) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
-| Read-only files | Every file opens read-only. `M-x allow-editing` and `M-x stop-editing` are the only ways to change that; `C-x C-q` just prints a reminder. The hook runs last so nothing (such as version control) can unlock a buffer. See [KEYBOARD.md](KEYBOARD.md) |
+| Read-only files | Every file opens read-only. `C-c e e` (`M-x allow-editing`) and `C-c e l` (`M-x stop-editing`) are the only ways to change that; the single-key `C-x C-q` just prints a reminder. The hook runs last so nothing (such as version control) can unlock a buffer. See [KEYBOARD.md](KEYBOARD.md) |
 | Evil | `C-c v` toggles vi-style editing; Evil loads on first use. Includes a one-line compatibility shim (below) |
 | Languages | Pins the Java and Rust tree-sitter grammar versions, remaps `.java` to `java-ts-mode` when its grammar exists, and keeps language servers manual. See [LANGUAGES.md](LANGUAGES.md) |
 | Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |

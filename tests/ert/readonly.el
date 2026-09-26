@@ -1,6 +1,8 @@
 ;;; readonly.el --- files open read-only; one typed command allows editing  -*- lexical-binding: t; -*-
 ;; harness: config
 
+(require 'ibuffer) (require 'dired)
+
 (defmacro ro-with-file (spec &rest body)
   "Bind (VAR) to a file buffer for a temp file NAME with CONTENT, shown in the window.
 SPEC is (VAR NAME CONTENT).  The file is opened the normal way, so the read-only
@@ -176,6 +178,75 @@ hook runs.  Also binds `ro-file' to the path."
                  (ignore-errors (execute-kbd-macro (kbd "<escape>"))))
                (should (equal (buffer-string) "hello\n")))
       (evil-mode -1))))
+
+;;; Key bindings for the two commands (deliberate three-key chords)
+
+(ert-deftest readonly/edit-chord-turns-editing-on-and-lock-chord-turns-it-off ()
+  (ro-with-file (b "a.txt" "hello\n")
+    (should buffer-read-only)
+    (execute-kbd-macro (kbd "C-c e e"))
+    (should-not buffer-read-only)
+    (execute-kbd-macro (kbd "C-c e l"))
+    (should buffer-read-only)))
+
+(ert-deftest readonly/chords-are-bound-globally-to-the-commands ()
+  (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))
+  (should (eq (key-binding (kbd "C-c e l")) 'stop-editing)))
+
+(ert-deftest readonly/no-single-or-double-key-turns-editing-on ()
+  ;; The unlock needs three keys, and the partial sequences do nothing.
+  (should (= 3 (length (kbd "C-c e e"))))
+  (dolist (keys '("C-c" "C-c e" "C-c e x" "C-c e RET" "C-c l" "C-c e C-g"))
+    (ro-with-file (b "a.txt" "hello\n")
+      (ignore-errors (execute-kbd-macro (kbd keys)))
+      (should buffer-read-only))))
+
+(ert-deftest readonly/only-long-chords-are-bound-to-allow-editing ()
+  ;; Whatever keys exist for it, every one must need three or more keystrokes.
+  (let ((keys (where-is-internal 'allow-editing nil)))
+    (should keys)
+    (dolist (k keys)
+      (should (>= (length k) 3)))))
+
+(ert-deftest readonly/the-chord-works-in-every-kind-of-buffer ()
+  (dolist (spec '(("a.el" . emacs-lisp-mode) ("a.py" . python-mode) ("a.c" . c-mode)
+                  ("a.txt" . text-mode) ("a.json" . js-json-mode)))
+    (ro-with-file (b (car spec) "x\n")
+      (should (eq major-mode (cdr spec)))
+      (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))
+      (execute-kbd-macro (kbd "C-c e e"))
+      (should-not buffer-read-only))))
+
+(ert-deftest readonly/the-chord-works-in-tree-sitter-java-and-rust-buffers ()
+  (dolist (spec '(("A.java" java . java-ts-mode) ("a.rs" rust . rust-ts-mode)))
+    (when (treesit-language-available-p (nth 1 spec))
+      (ro-with-file (b (car spec) "x\n")
+        (should (eq major-mode (nthcdr 2 spec)))
+        (execute-kbd-macro (kbd "C-c e e"))
+        (should-not buffer-read-only)))))
+
+(ert-deftest readonly/the-chord-is-not-shadowed-by-evil ()
+  (skip-unless (locate-library "evil"))
+  (ro-with-file (b "a.txt" "hello\n")
+    (my/toggle-evil)
+    (unwind-protect
+        (progn (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))
+               (execute-kbd-macro (kbd "C-c e e"))
+               (should-not buffer-read-only)
+               (execute-kbd-macro (kbd "C-c e l"))
+               (should buffer-read-only))
+      (evil-mode -1))))
+
+(ert-deftest readonly/the-chord-is-not-shadowed-in-dired-or-ibuffer ()
+  (test-with-temp-dir d
+    (let ((b (dired-noselect d)))
+      (unwind-protect (with-current-buffer b (should (eq (key-binding (kbd "C-c e e")) 'allow-editing)))
+        (kill-buffer b))))
+  (test-in-buffer #'ibuffer-mode "" (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))))
+
+(ert-deftest readonly/the-reminder-mentions-the-chord ()
+  (let ((msg (let ((inhibit-message t)) (my/read-only-hint) (current-message))))
+    (should (string-match-p "C-c e e" (with-current-buffer "*Messages*" (buffer-substring (max (point-min) (- (point-max) 200)) (point-max)))))))
 
 ;;; What must keep working
 
