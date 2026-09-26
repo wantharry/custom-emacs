@@ -1,5 +1,10 @@
 ;;; files-dired.el --- files, backups, dired, recent files  -*- lexical-binding: t; -*-
 ;; harness: config
+;; Files open read-only in this config, so tests that edit call `allow-editing'
+;; first, exactly as a user would.
+
+(defun fd--visit-editable (file)
+  (let ((b (find-file-noselect file))) (with-current-buffer b (allow-editing)) b))
 
 (ert-deftest files/write-and-read-back ()
   (test-with-temp-dir d
@@ -9,7 +14,7 @@
 
 (ert-deftest files/final-newline-added-on-save ()
   (test-with-temp-dir d
-    (let* ((f (concat d "n.txt")) (buf (find-file-noselect f)))
+    (let* ((f (concat d "n.txt")) (buf (fd--visit-editable f)))
       (unwind-protect (with-current-buffer buf (insert "abc") (save-buffer))
         (kill-buffer buf))
       (should (equal (test-read-file f) "abc\n")))))
@@ -18,7 +23,7 @@
   ;; Emacs never backs up files under /tmp by default, and tests live there.
   (let ((backup-enable-predicate (lambda (_) t)))
    (test-with-temp-dir d
-    (let* ((f (test-write-file (concat d "b.txt") "one\n")) (buf (find-file-noselect f)))
+    (let* ((f (test-write-file (concat d "b.txt") "one\n")) (buf (fd--visit-editable f)))
       (unwind-protect (with-current-buffer buf (insert "two\n") (save-buffer))
         (kill-buffer buf))
       (let ((backup (make-backup-file-name f)))
@@ -28,7 +33,7 @@
 
 (ert-deftest files/no-lockfile-created ()
   (test-with-temp-dir d
-    (let* ((f (test-write-file (concat d "l.txt") "x")) (buf (find-file-noselect f)))
+    (let* ((f (test-write-file (concat d "l.txt") "x")) (buf (fd--visit-editable f)))
       (unwind-protect
           (with-current-buffer buf
             (insert "y")
@@ -42,7 +47,7 @@
   ;; Emacs 29 too), so enable the mode explicitly and check the behavior.
   (should global-auto-revert-mode)
   (test-with-temp-dir d
-    (let* ((f (test-write-file (concat d "r.txt") "old\n")) (buf (find-file-noselect f)))
+    (let* ((f (test-write-file (concat d "r.txt") "old\n")) (buf (fd--visit-editable f)))
       (unwind-protect
           (with-current-buffer buf
             (auto-revert-mode 1)

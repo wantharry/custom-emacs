@@ -131,7 +131,7 @@ class TestSuiteItself(unittest.TestCase):
         for area in ["buffers-text", "editing-commands", "search-regex", "files-dired",
                      "processes", "encoding-text", "lisp-runtime", "language-modes",
                      "treesit", "vc-diff", "project-eglot", "network-data", "tramp",
-                     "mail-shr", "calendar-calc-help", "evil", "keybindings", "languages-java-rust", "config", "build-features",
+                     "mail-shr", "calendar-calc-help", "evil", "keybindings", "readonly", "languages-java-rust", "config", "build-features",
                      "startup-perf", "pruning"]:
             with self.subTest(area=area):
                 self.assertIn(area, covered)

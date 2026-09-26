@@ -31,6 +31,33 @@ buffer, and a **frame** is what other programs call a window. **Kill** means cut
 | `C-x C-s` | `save-buffer` | Save |
 | `C-/` | `undo` | Undo (repeat to keep undoing) |
 
+## Every file opens read-only
+
+This configuration opens **every file read-only**, so a slip while learning shortcuts
+can never type into a file. You will see `Buffer is read-only` in the bottom line if
+you try, and the file on disk is untouched.
+
+| To do this | Type |
+|---|---|
+| **Allow editing** the current buffer | `M-x allow-editing` (then `RET`) |
+| Save your changes | `C-x C-s` |
+| **Lock it again** | `M-x stop-editing` |
+
+There is deliberately **no keyboard shortcut** to switch editing on. The standard one,
+`C-x C-q`, only prints a reminder here, so a mistyped key sequence cannot unlock a file.
+Notes:
+
+- It applies to every file you open, including new ones. To **create** a file, open it
+  (`C-x C-f name`), then `M-x allow-editing`.
+- Movement, searching, selecting and copying (`C-SPC`, `M-w`) all still work; only
+  changes are blocked.
+- `stop-editing` warns if the buffer has unsaved changes.
+- Buffers that are not files (`*scratch*`, the minibuffer) are still editable.
+- In **Dired**, `C-x C-q` still starts wdired (renaming files by editing their names);
+  nothing changes on disk until you confirm with `C-c C-c`.
+- Things that must edit a file for you, such as `M-x eglot-rename` or `eglot-format`, will
+  report `Buffer is read-only` until you `M-x allow-editing`.
+
 `M-x` (`execute-extended-command`) runs **any** command by name. If you forget a key,
 `M-x` plus the command name always works.
 
@@ -230,7 +257,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x C-v` | `find-alternate-file` | replace this buffer with another file |
 | `C-x C-r` | `find-file-read-only` | open read-only |
 | `C-x i` | `insert-file` | insert a file's contents here |
-| `C-x C-q` | `read-only-mode` | toggle read-only |
+| `C-x C-q` | `my/read-only-hint` | **this config:** only reminds you to type `M-x allow-editing` (see below) |
 | `C-x b` | `switch-to-buffer` | switch buffer by name |
 | `C-x k` | `kill-buffer` | close a buffer |
 | `C-x C-b` | `ibuffer` | list buffers (this config uses ibuffer) |

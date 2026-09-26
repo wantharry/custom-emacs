@@ -59,6 +59,50 @@
         backup-by-copying t
         create-lockfiles nil))
 
+;;; Every file opens read-only -------------------------------------------------
+
+;; Nothing on disk changes by accident, for example when a slip while learning
+;; shortcuts turns into typed text.  Each file you visit is read-only until you
+;; deliberately type  M-x allow-editing  (and  M-x stop-editing  locks it again).
+;; This also covers files that do not exist yet: allow editing to create them.
+;;
+;; The hook runs last (depth 90) so nothing else, such as version control, can make
+;; the buffer writable again.  Emacs's own writers still work: `customize' saves
+;; with `inhibit-read-only', and package/recentf/savehist write through temporary
+;; buffers rather than visited files.
+(defun my/make-file-buffer-read-only ()
+  "Make the file-visiting buffer that was just opened read-only."
+  (read-only-mode 1))
+(add-hook 'find-file-hook #'my/make-file-buffer-read-only 90)
+
+(defun allow-editing ()
+  "Make the current buffer editable.
+Files open read-only.  This is the one deliberate way to change that;
+`stop-editing' locks the buffer again."
+  (interactive)
+  (if (not buffer-read-only)
+      (message "Already editable: %s" (buffer-name))
+    (read-only-mode -1)
+    (message "Editing ON for %s.  Save with C-x C-s; lock again with M-x stop-editing."
+             (buffer-name))))
+
+(defun stop-editing ()
+  "Make the current buffer read-only again."
+  (interactive)
+  (read-only-mode 1)
+  (message "Editing OFF for %s%s" (buffer-name)
+           (if (and buffer-file-name (buffer-modified-p))
+               " (it has UNSAVED changes; unlock and save with C-x C-s to keep them)"
+             "")))
+
+(defun my/read-only-hint ()
+  "Tell how to edit.  Replaces the standard C-x C-q toggle on purpose.
+A single shortcut must not be able to switch editing on, so that a mistyped
+key sequence can never make a file editable."
+  (interactive)
+  (message "Files open read-only.  To edit, type:  M-x allow-editing"))
+(global-set-key (kbd "C-x C-q") #'my/read-only-hint)
+
 ;;; Completion (all built in) -------------------------------------------------
 
 (fido-vertical-mode 1)                  ; minibuffer completion, vertical list
