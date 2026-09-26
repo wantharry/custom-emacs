@@ -30,7 +30,7 @@ class TerminalEmacs(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="tui-")
         self.cfg = os.path.join(self.tmp, "cfg")
         os.makedirs(self.cfg)
-        for f in ("early-init.el", "init.el", "fastfind.el"):
+        for f in ("early-init.el", "init.el", "fastfind.el", "startpage.el"):
             shutil.copy(os.path.join(ROOT, "config", f), self.cfg)
         for d in ("elpa", "tree-sitter"):
             src = os.path.join(ROOT, "config", d)
@@ -165,6 +165,63 @@ class TerminalEmacs(unittest.TestCase):
         self.keys("Enter")
         scr = self.wait_for("Geometry.java\\s+All")
         self.assertIn("Geometry.java", scr)
+
+    def seed_history(self, n=8):
+        """Make N git projects, each with one file, and a history that mentions them all.
+        They live under the home folder because the start screen ignores /tmp."""
+        base = tempfile.mkdtemp(prefix=".tui-start-", dir=os.path.expanduser("~"))
+        self.addCleanup(shutil.rmtree, base, True)
+        files, roots = [], []
+        for i in range(n):
+            root = os.path.join(base, f"proj{i}")
+            os.makedirs(os.path.join(root, ".git"))
+            os.makedirs(os.path.join(root, "src"))
+            f = os.path.join(root, "src", f"File{i}.txt")
+            with open(f, "w") as fh:
+                fh.write(f"contents of file {i}\n")
+            files.append(f)
+            roots.append(root + "/")
+        q = lambda xs: " ".join('"%s"' % x for x in xs)
+        with open(os.path.join(self.cfg, "recentf.eld"), "w") as fh:
+            fh.write("(setq recentf-list '(%s))\n" % q(reversed(files)))
+        with open(os.path.join(self.cfg, "recents.eld"), "w") as fh:
+            fh.write("((folders . (%s)) (projects . (%s)))" % (
+                q(reversed([os.path.dirname(f) + "/" for f in files])), q(reversed(roots))))
+        return files
+
+    def test_start_screen_lists_five_of_each_with_a_more_link(self):
+        self.seed_history()
+        self.start()
+        scr = self.wait_for("Recent work")
+        for word in ("Files", "Folders", "Projects"):
+            self.assertIn(word, scr)
+        self.assertIn("File7.txt", scr)
+        self.assertIn("File3.txt", scr)
+        self.assertNotIn("File2.txt", scr)
+        self.assertIn("[+ 3 more]", scr)
+        self.assertIn("proj7", scr)
+
+    def test_start_screen_expands_and_enter_opens_a_file(self):
+        self.seed_history()
+        self.start()
+        self.wait_for("Recent work")
+        for _ in range(5):
+            self.keys("Tab")
+        self.keys("Enter")
+        scr = self.wait_for("show fewer")
+        self.assertIn("File0.txt", scr)
+        self.keys("g")
+        self.keys("1")
+        scr = self.wait_for("contents of file 7")
+        self.assertRegex(scr, r"File7\.txt\s+All")
+
+    def test_c_c_h_returns_to_the_start_screen(self):
+        files = self.seed_history()
+        self.start(files[0])
+        self.wait_for("contents of file 0")
+        self.keys("C-c", "h")
+        scr = self.wait_for("Recent work")
+        self.assertIn("Projects", scr)
 
     def test_evil_toggle_and_it_still_cannot_edit_a_read_only_file(self):
         f = self.make_file("a.txt", "hello\n")

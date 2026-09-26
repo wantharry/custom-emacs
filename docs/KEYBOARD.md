@@ -270,6 +270,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x <left>` | `previous-buffer` | previous buffer |
 | `C-x <right>` | `next-buffer` | next buffer |
 | `C-c r` | `recentf-open` | **this config:** open a recent file |
+| `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable ([START-SCREEN.md](START-SCREEN.md)) |
 | `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
 | `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |
 | `C-x 0` | `delete-window` | close this window |

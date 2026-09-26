@@ -288,6 +288,15 @@ installed, offer to install it from NonGNU ELPA."
 (when my/ff-auto-refresh
   (run-with-idle-timer 90 nil (lambda () (require 'fastfind my/ff-library) (my/ff-maybe-refresh))))
 
+;;; Start screen ---------------------------------------------------------------
+
+;; What Emacs shows when started without a file: the last 5 files, folders and projects,
+;; each expandable with a "+ N more" link.  `C-c h' brings it back from anywhere.
+;; See startpage.el and docs/START-SCREEN.md.
+(defconst my/start-library (expand-file-name "startpage" user-emacs-directory))
+(require 'startpage my/start-library)
+(setq initial-buffer-choice #'my/start-initial-buffer)
+
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c f f") #'my/ff-find-file)
@@ -297,6 +306,7 @@ installed, offer to install it from NonGNU ELPA."
 (global-set-key (kbd "C-x C-b") #'ibuffer)
 (global-set-key (kbd "M-o") #'other-window)
 (global-set-key (kbd "C-c r") #'recentf-open)
+(global-set-key (kbd "C-c h") #'my/start)
 
 ;; Report how fast we started, once, so speed is measurable.
 (add-hook 'emacs-startup-hook

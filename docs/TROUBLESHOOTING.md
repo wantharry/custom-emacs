@@ -183,6 +183,20 @@ graphical window does not.
 - **Fix:** the config already declares `src/main/java` and `src`. For another layout add a
   `.dir-locals.el` as shown in [NAVIGATING-CODE.md](NAVIGATING-CODE.md#5-java-definition-implementations-references).
 
+## Start screen
+
+### Opening a file from the command line also shows the start screen, in a split
+
+- **Cause (fixed):** Emacs evaluates `initial-buffer-choice` after opening the files given on the
+  command line, and if it returns another buffer, shows both. The function now returns the start
+  screen only when the current buffer is still `*scratch*`. The old terminal tests failed on this,
+  since they all start Emacs with a file.
+
+### The start screen misses a folder I opened
+
+- Files in `/tmp`, `.git`, `elpa`, backups and remote (TRAMP) paths are deliberately not remembered.
+  See `my/start-ignore` in [START-SCREEN.md](START-SCREEN.md).
+
 ## File finder (`C-c f f`)
 
 ### The list says "(No matches)" although the file exists

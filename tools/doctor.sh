@@ -44,7 +44,7 @@ else ok "PATH has $total entries, $win on Windows drives"; fi
 section "Emacs"
 if [ ! -x "$EMACS" ]; then fail "no Emacs binary found (run ./build.sh)"; else
   ok "$("$EMACS" --version | head -1) ($EMACS)"
-  T="$(mktemp -d)"; cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$T/"
+  T="$(mktemp -d)"; cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$T/"
   for d in elpa tree-sitter; do [ -d "$ROOT/config/$d" ] && ln -s "$ROOT/config/$d" "$T/$d"; done
   read -r t rc < <(secs "$EMACS" --batch --init-directory="$T" -l "$T/early-init.el" -l "$T/init.el" --eval '(kill-emacs)')
   if [ "$rc" != 0 ]; then fail "loading config/init.el failed (exit $rc)"

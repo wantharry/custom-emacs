@@ -281,6 +281,31 @@ the end it is aborted."
         (dolist (b (buffer-list)) (when (buffer-file-name b) (kill-buffer b)))
         (ignore start)))))
 
+;;; The start screen
+
+(gui-deftest gui/start-screen-c-c-h-shows-links-in-a-real-window
+  (test-with-temp-dir d
+    (let* ((files (gui--ff-project d))
+           (b (find-file files))
+           (my/start-store-file (concat d "recents.eld"))
+           (my/start--folders nil) (my/start--projects nil) (my/start--loaded t)
+           (my/start-ignore nil) (recentf-list (list files))
+           (info (gui--feed (listify-key-sequence (kbd "C-c h")) 1.0
+                            (lambda ()
+                              (with-current-buffer (window-buffer (selected-window))
+                                (list (buffer-name) (buffer-string)
+                                      (and (button-at (point)) t) display-line-numbers-mode
+                                      (length (window-list))))))))
+      (unwind-protect
+          (progn (should (equal (nth 0 info) "*start*"))
+                 (should (string-match-p "Recent work" (nth 1 info)))
+                 (should (string-match-p "Geometry\\.java" (nth 1 info)))
+                 (should (nth 2 info))              ; the cursor starts on a link
+                 (should-not (nth 3 info))          ; no line numbers on this screen
+                 (should (= 1 (nth 4 info))))
+        (kill-buffer b)
+        (when (get-buffer "*start*") (kill-buffer "*start*"))))))
+
 ;;; Evil and the pointer
 
 (gui-deftest gui/evil-cursor-follows-the-state

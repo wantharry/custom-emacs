@@ -13,7 +13,7 @@
   (let (rows)
     ;; A <!-- keymap: none --> marker switches checking off until the next marker, for
     ;; tables that are not "key, command" (for example keys pressed after a chord).
-    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md"))
+    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md" "docs/START-SCREEN.md"))
       (with-temp-buffer
         (insert-file-contents (expand-file-name doc test-root))
         (let ((map "global") (n 0))
