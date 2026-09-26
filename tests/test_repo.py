@@ -50,7 +50,7 @@ class Docs(unittest.TestCase):
 
 class Scripts(unittest.TestCase):
     def test_shell_scripts_have_valid_syntax(self):
-        scripts = ["build.sh", "tools/verify-prune.sh", "tests/run-all.sh"]
+        scripts = ["build.sh", "tools/verify-prune.sh", "tools/doctor.sh", "tests/run-all.sh"]
         scripts += [os.path.relpath(p, ROOT) for p in glob.glob(rel(".githooks", "*"))]
         for s in scripts:
             with self.subTest(script=s):
@@ -58,9 +58,19 @@ class Scripts(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_scripts_are_executable(self):
-        for s in ["build.sh", "tools/verify-prune.sh", "tests/run-all.sh"]:
+        for s in ["build.sh", "tools/verify-prune.sh", "tools/doctor.sh", "tests/run-all.sh"]:
             with self.subTest(script=s):
                 self.assertTrue(os.access(rel(s), os.X_OK))
+
+    def test_doctor_reports_every_section_without_opening_a_window(self):
+        r = subprocess.run([rel("tools", "doctor.sh"), "--no-gui"], capture_output=True, text=True)
+        self.assertIn(r.returncode, (0, 1), r.stderr)          # warnings never fail; only FAILs do
+        for heading in ["Environment", "Where the files live", "PATH", "Emacs", "Fonts",
+                        "Emacs processes running now", "Tools", "Repository"]:
+            with self.subTest(section=heading):
+                self.assertIn(heading, r.stdout)
+        self.assertRegex(r.stdout, r"\d+ warning\(s\), \d+ failure\(s\)")
+        self.assertIn("config loads headless", r.stdout)
 
     def test_python_files_compile(self):
         for f in ["prune.py"] + [os.path.relpath(p, ROOT) for p in glob.glob(rel("tests", "*.py"))]:
@@ -69,7 +79,7 @@ class Scripts(unittest.TestCase):
 
     def test_build_script_advertises_every_target(self):
         text = read(rel("build.sh"))
-        for target in ["configure", "make", "install", "prune", "packages", "grammars", "test", "all"]:
+        for target in ["configure", "make", "install", "prune", "packages", "grammars", "screenshots", "doctor", "test", "all"]:
             with self.subTest(target=target):
                 self.assertRegex(text, rf"(?m)^\s+{target}\)", "no case branch")
 
@@ -119,6 +129,25 @@ class TestSuiteItself(unittest.TestCase):
             names += re.findall(r"^\(ert-deftest ([^\s(]+)", read(f), re.M)
         dupes = {n for n in names if names.count(n) > 1}
         self.assertEqual(dupes, set())
+
+    def test_gui_tests_are_unique_prefixed_and_have_a_runner(self):
+        gui = sorted(glob.glob(rel("tests", "gui", "*.el")))
+        self.assertTrue(any(f.endswith("gui-runner.el") for f in gui))
+        names = []
+        for f in self.ERT + gui:
+            names += re.findall(r"^\((?:ert-deftest|gui-deftest) ([^\s(]+)", read(f), re.M)
+        self.assertEqual({n for n in names if names.count(n) > 1}, set())
+        for f in gui:
+            if f.endswith("gui-runner.el"):
+                continue
+            for n in re.findall(r"^\(gui-deftest ([^\s(]+)", read(f), re.M):
+                with self.subTest(test=n):
+                    self.assertTrue(n.startswith("gui/"))
+
+    def test_terminal_tests_skip_cleanly_without_the_flag(self):
+        # they must not run (or fail) in the default offline suite
+        self.assertIn("RUN_TUI_TESTS", read(rel("tests", "test_tui.py")))
+        self.assertIn("RUN_TUI_TESTS", read(rel("tests", "run-all.sh")))
 
     def test_every_ert_test_has_an_area_prefix(self):
         for f in self.ERT:

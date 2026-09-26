@@ -4,7 +4,9 @@
 #   tests/run-all.sh              offline tests (run this after every change)
 #   tests/run-all.sh --network    also tests that need internet access
 #   tests/run-all.sh --lsp        also start real language servers (rust-analyzer, jdtls)
-#   tests/run-all.sh --full       everything: network, language servers, verify-prune.sh
+#   tests/run-all.sh --gui        also run inside a real Emacs window and a real terminal
+#                                 (needs a display and tmux; skipped without them)
+#   tests/run-all.sh --full       everything: network, language servers, GUI/terminal, verify-prune.sh
 #   tests/run-all.sh NAME         only ERT files whose name contains NAME
 #
 # EMACS=/path/to/emacs overrides the binary (default: install/bin/emacs, else
@@ -21,18 +23,20 @@ EMACS="${EMACS:-}"
 [ -z "$EMACS" ] && EMACS="$ROOT/build/src/emacs"
 [ -x "$EMACS" ] || { echo "no emacs binary found (build first, or set EMACS=)" >&2; exit 2; }
 
-NETWORK=0; FULL=0; LSP=0; FILTER=""
+NETWORK=0; FULL=0; LSP=0; GUI=0; FILTER=""
 for a in "$@"; do
   case "$a" in
     --network) NETWORK=1 ;;
     --lsp) LSP=1 ;;
-    --full) FULL=1; NETWORK=1; LSP=1 ;;
+    --gui) GUI=1 ;;
+    --full) FULL=1; NETWORK=1; LSP=1; GUI=1 ;;
     -*) echo "unknown option $a" >&2; exit 2 ;;
     *) FILTER="$a" ;;
   esac
 done
 [ "$NETWORK" = 1 ] && export RUN_NETWORK_TESTS=1
 [ "$LSP" = 1 ] && export RUN_LSP_TESTS=1
+[ "$GUI" = 1 ] && export RUN_TUI_TESTS=1
 
 OUT="$(mktemp -d)"; trap 'rm -rf "$OUT"' EXIT
 export ROOT EMACS_BIN="$EMACS"
@@ -98,6 +102,40 @@ for f in "${files[@]}"; do
   fi
 done
 printf '%-26s %6s %6s %6s %7s\n' "ERT TOTAL" "$tot" "$pass" "$fail" "$skip"
+
+if [ "$GUI" = 1 ]; then
+  echo
+  if [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+    echo "GUI (real window): SKIPPED, no display in this session"
+  else
+    gdir="$OUT/init-gui"; mkdir -p "$gdir"
+    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$gdir/"
+    [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$gdir/elpa"
+    [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$gdir/tree-sitter"
+    gt0=$(date +%s.%N)
+    GUI_LOG="$OUT/gui.log" GUI_TESTS="$FILTER" timeout 300 "$EMACS" --init-directory="$gdir" \
+      -l "$gdir/early-init.el" -l "$gdir/init.el" -l "$ROOT/tests/ert/helper.el" \
+      -l "$ROOT/tests/gui/gui-runner.el" > "$OUT/gui.err" 2>&1
+    gexit=$?
+    gsecs=$(printf '%.1f' "$(echo "$(date +%s.%N) - $gt0" | bc)")
+    gline="$(grep -a -E '^Ran [0-9]+ tests' "$OUT/gui.log" 2>/dev/null | tail -1)"
+    if [ -z "$gline" ]; then
+      printf '%-26s CRASHED or timed out (%ss, exit %s)\n' "GUI (real window)" "$gsecs" "$gexit"; bad=1
+      echo "    | --- Emacs output:"; grep -v 'Gdk-WARNING' "$OUT/gui.err" | sed 's/^/    | /' | tail -12
+      echo "    | --- test log:"; sed 's/^/    | /' "$OUT/gui.log" 2>/dev/null | tail -12
+    else
+      gn=$(sed -E 's/^Ran ([0-9]+) tests.*/\1/' <<<"$gline")
+      gok=$(sed -E 's/.*, ([0-9]+) results as expected.*/\1/' <<<"$gline")
+      gun=$(sed -E 's/.*expected, ([0-9]+) unexpected.*/\1/' <<<"$gline")
+      gsk=$(grep -oE '[0-9]+ skipped' <<<"$gline" | cut -d' ' -f1); gsk=${gsk:-0}
+      printf '%-26s %6s %6s %6s %7s %6s\n' "GUI (real window)" "$gn" "$gok" "$gun" "$gsk" "$gsecs"
+      if [ "$gun" != 0 ]; then
+        bad=1
+        awk '/^Test .* condition:$/ {p=1; print "    | " $0; next} /^ +(FAILED|passed|SKIPPED) / {p=0} p {print "    | " $0}' "$OUT/gui.log" | tr -cd '\11\12\40-\176' | head -30
+      fi
+    fi
+  fi
+fi
 
 echo
 py_out="$(cd "$ROOT" && python3 -m unittest discover -s tests -p 'test_*.py' 2>&1)"; py_status=$?

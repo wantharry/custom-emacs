@@ -56,6 +56,7 @@ git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src
 ./build.sh packages   # install Evil into config/elpa (network)
 ./build.sh grammars   # build the Java and Rust tree-sitter grammars (network, C compiler)
 ./build.sh test       # run the test suite
+./build.sh doctor     # check what makes Emacs slow or stuck (PATH, disk, fonts, processes)
 ```
 
 ### What `build.sh` configures

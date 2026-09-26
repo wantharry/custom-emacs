@@ -108,6 +108,13 @@ in the running session. For it to persist across restarts, put the override in
 `config/init.el` instead of editing `emacs-src/` (which must stay clean for
 `git pull`). Use `advice-add` or redefine after `(with-eval-after-load 'x ...)`.
 
+## Looking at the result
+
+After changing fonts, colors or the mode line, look at the real window:
+`./build.sh screenshots OUTDIR FILE...` saves PNGs of files as Emacs draws them. The
+graphical tests (`./build.sh test --gui`) check the fonts and colors exist and behave; they
+cannot tell you whether they look right.
+
 ## Profiling
 
 Do not guess at bottlenecks. To find out what is slow:

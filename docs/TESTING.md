@@ -7,7 +7,8 @@ until `./build.sh test` says `ALL TESTS PASSED`.
 ./build.sh test                  # everything that works offline (about 5 seconds)
 ./build.sh test --network        # plus the tests that need internet
 ./build.sh test --lsp            # plus tests that start real language servers
-./build.sh test --full           # everything: network, language servers, tools/verify-prune.sh
+./build.sh test --gui            # plus tests inside a real Emacs window and a real terminal
+./build.sh test --full           # everything: network, language servers, window/terminal, tools/verify-prune.sh
 ./build.sh test dired            # only the ERT files whose name contains "dired"
 EMACS=/path/to/emacs ./build.sh test     # test a different binary
 ```
@@ -65,7 +66,30 @@ the tooling.
 | `pruning.el` | Removed packages are gone, coding essentials and deliberate exceptions are present, removed features fail cleanly, no native code left for them |
 | `network-live.el` | Real HTTPS fetch, package refresh, package install (only with `--network`) |
 | `tests/test_prune.py` | The pruning tool, using small fake trees: dependency rescue, lazy requires, exceptions, preloaded files, applying to an install, idempotence |
+| `tools/doctor.sh` (checked by `tests/test_repo.py`) | Runs headless in the suite: every section is reported and warnings never fail it |
 | `tests/test_repo.py` | Docs links and anchors, every guide listed in the README, script syntax, ignore rules, `prune.list` syntax, and the test suite's own conventions |
+
+## Real window and real terminal
+
+The ERT files above run Emacs with `--batch`: headless, no window, no screen. That is fast
+and reliable, but it cannot show anything visual. Two more suites run Emacs the way you use
+it, and `./build.sh test --gui` runs both (they skip themselves without a display or `tmux`).
+
+| Suite | How it runs | What it covers |
+|---|---|---|
+| `tests/gui/gui-tests.el` (27 tests) | Emacs opens a **real graphical window** and runs the tests inside it (`tests/gui/gui-runner.el`) | The frame (graphical, size, menu bar on, tool bar off), the font actually chosen (monospace, from the preference list, 12 pt), text measured in pixels, Unicode and image support, real colors for syntax faces, the mode line (`%%` read-only, `**` modified), line numbers, current-line highlight, scrolling, splitting windows, the frame rendering to a PNG, keys through the **real command loop** (typing is blocked and the message shows; `C-c e e` and `C-c e l`), the which-key popup, the vertical `M-x` list, Evil's cursor shape per state, mouse and menu bindings, the clipboard, startup time in a window |
+| `tests/test_tui.py` (10 tests) | Emacs runs in a **real terminal** (`emacs -nw` inside `tmux`); the tests send genuine keystrokes and read the screen | Read-only on open with line numbers and mode line, typing blocked with the message on screen, the edit chord then typing then saving then locking (the disk is checked at each step), the `C-x C-q` reminder, the which-key popup for `C-c e` naming both commands, the vertical `M-x` list, the Evil toggle, Dired, colored code (ANSI escapes), and quitting |
+
+A graphical session prints nothing to stdout, so the GUI runner writes its results to a log
+file in the same format ERT uses. `./build.sh test --gui NAME` runs only tests whose name
+contains NAME.
+
+### Looking at it
+
+Tests can check that colors exist and that a font is monospace, not that it looks good.
+`./build.sh screenshots OUTDIR FILE...` opens each file in a real window and saves a PNG of
+what Emacs drew (`tools/gui-screenshot.el`). Use it whenever you change fonts, colors or the
+mode line.
 
 ## How a test file is run
 
@@ -111,6 +135,19 @@ That has already happened three times here:
 
 ## Things the tests found along the way
 
+- **The window uses DejaVu Sans Mono**, not JetBrains: the font names in `init.el` do not
+  match the installed `JetBrainsMono Nerd Font`. The font block only runs in a window, so
+  batch mode could never have shown this. The window test accepts any font from the
+  list, so it records the fallback without failing.
+- **A terminal reads `ESC` plus a key as Meta.** Tests that press `Escape` must wait for the
+  screen to change before the next key, as a person's pause would.
+- **Nested command loops leave state behind.** Running a command inside a test's nested
+  loop leaves `this-command` set, which suppresses the which-key popup, and hiding a popup by
+  hand stops the next one for the same prefix. Real typing is unaffected; the harness resets
+  the state before every feed.
+- **A graphical session is silent about errors.** A crashed script just leaves the window
+  open, so scripts that drive a window wrap everything and always exit.
+
 These are worth knowing; each is now covered by a test or a note.
 
 - **Batch mode hides problems.** It does not run `post-command-hook`, so the Evil
@@ -127,8 +164,9 @@ These are worth knowing; each is now covered by a test or a note.
 
 ## What the tests cannot tell you
 
-- **Anything visual:** colors, fonts, icons, the mode line. There is no display in
-  batch mode. Check these by eye.
+- **Whether it looks good.** The window and terminal suites check that fonts, colors and
+  the mode line exist and behave, not that you like them. Take screenshots
+  (`./build.sh screenshots`) and look. Icons from icon fonts are not checked at all.
 - **Real language servers and tree-sitter grammars**, until they are installed.
   Grammar-dependent tests skip and will start running by themselves.
 - **Windows and macOS.** Nothing here has been run there.

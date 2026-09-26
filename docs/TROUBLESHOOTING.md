@@ -69,6 +69,72 @@ what fixed them. Newest-relevant first.
 - Use `-Q --init-directory=<scratch> -l <that>/init.el` so its state files,
   `eln-cache` and package files do not land in `~/.emacs.d`.
 
+## The Emacs window looks frozen (WSL and WSLg)
+
+**Quick check:** `./build.sh doctor` measures everything below on your machine (PATH, where the
+files live, fonts, window start time, the font actually used, running and stuck Emacs
+processes, tools, the commit hook) and tells you what to fix.
+
+A window that stops responding under WSLg has several possible causes. This was checked on
+2026-09-25; the earlier hang itself could not be reproduced, so this is what was measured
+and what is known to cause it.
+
+**Checked here and ruled out as a cause of a slow or stuck start:**
+
+| Checked | Result |
+|---|---|
+| Time to open a graphical frame: the new build | 0.15 s |
+| Time to open a graphical frame: Ubuntu's Emacs 29.3 (GTK/X11 build) | 0.18 to 0.26 s |
+| The D-Bus session socket (`DBUS_SESSION_BUS_ADDRESS` points at `/run/user/1000/bus`, which does not exist) | Harmless here: identical timing with it unset, with `GSETTINGS_BACKEND=memory` and with `NO_AT_BRIDGE=1`. Worth knowing about, because a missing bus is a classic GTK stall on WSL |
+| Fonts | 250 fonts, all on the Linux disk (none from `/mnt/c`), cache valid, `fc-list` takes 0.00 s |
+| Leftover Emacs windows | Both running windows were sleeping (`S`, ~0% CPU), waiting for input, not hung |
+
+**Things that make Emacs look frozen, most likely first:**
+
+1. **Background native compilation.** The first use of a package compiles it in several
+   `emacs --batch` processes at once (17 were seen for Magit) and can use every core for a
+   minute. The window is fine but sluggish. `ps -C emacs` shows the workers.
+2. **Slow Windows-drive access.** 2,000 small files took 17.9 s on `/mnt/c` and 0.08 s on the
+   WSL disk. Opening a file or directory on `/mnt/c`, or a stale `recentf` entry pointing
+   there, can stall the window. Keep files on the Linux side.
+3. **A slow `PATH`.** The WSL `PATH` here has 39 Windows folders; each lookup of a missing
+   program costs ~0.09 s, and loading `package.el` made startup take ~0.9 s (fixed in this
+   config, see [Speed](#speed)).
+4. **A script or test that opens a graphical Emacs and hits an error.** A graphical session
+   shows errors nowhere, so the window just stays open and unresponsive. This happened
+   several times to scripts written for this project; all of them now wrap their work and
+   always exit. `tests/run-all.sh --gui` opens such a window for about 10 seconds.
+5. **A prompt you cannot see, or a stale server file.** For the separate *gitmacs* project
+   the README documents the first-launch daemon hang and the fix (kill the leftover
+   process and delete `%APPDATA%\.emacs.d\server\gitmacs`).
+6. **WSLg itself stuck.** If every Linux window is frozen, restart WSL from Windows:
+   `wsl --shutdown`.
+
+**Finding out what is wrong, from another terminal:**
+
+```sh
+ps -o pid,stat,pcpu,etime,args -C emacs
+```
+
+| State | Meaning |
+|---|---|
+| `R`, high CPU | busy computing (compiling, a runaway loop, a big file) |
+| `D` | stuck waiting for the disk, usually a `/mnt/c` path |
+| `S`, ~0% CPU | waiting for input: a hidden prompt, or the display server is not answering |
+
+To see **where** a busy Emacs is stuck, send it `SIGUSR2`; it stops and shows a backtrace
+(verified: `kill -USR2 <pid>` interrupts a busy loop and prints the call stack):
+
+```sh
+kill -USR2 <pid>
+```
+
+To stop it cleanly from any WSL terminal: `kill <pid>`, or `pkill -x emacs` for all of them.
+From Windows PowerShell: `wsl -e pkill -x emacs`.
+
+**Running `emacs -nw` inside a terminal** avoids WSLg entirely and works even when the
+graphical window does not.
+
 ## Speed
 
 ### Startup takes about a second instead of 0.05 s

@@ -3,13 +3,15 @@
 # ./install, and optionally prune unused built-in Lisp from the install.
 # Verified on: Ubuntu 24.04 (WSL2), Emacs 32.0.50 (master @ 7bc4f49).
 #
-# Usage: ./build.sh [configure|make|install|prune|packages|grammars|test|all]   (default: all)
+# Usage: ./build.sh [configure|make|install|prune|packages|grammars|screenshots|doctor|test|all]   (default: all)
 #   configure  run autogen.sh (if needed) and configure, into ./build
 #   make       compile (slow the first time: native-comp is ahead-of-time)
 #   install    make install into ./install (gitignored)
 #   prune      remove the Lisp listed in prune.list from ./install
 #   packages   install the chosen ELPA packages (evil) into config/elpa
 #   grammars   build the tree-sitter grammars (java, rust) into config/tree-sitter
+#   screenshots OUTDIR FILE...   save PNGs of files as a real Emacs window draws them
+#   doctor     check what makes Emacs slow or stuck (esp. on WSL): PATH, disk, fonts, processes
 #   test       run the whole test suite (see docs/TESTING.md)
 #   all        configure + make + install + prune
 # See docs/BUILD.md and docs/PRUNING.md.
@@ -47,6 +49,16 @@ grammars() {
   local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
   "$emacs" --batch --init-directory="$ROOT/config" -l "$ROOT/tools/install-grammars.el"
 }
+screenshots() {
+  local out="${1:?usage: build.sh screenshots OUTDIR FILE...}"; shift
+  local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
+  local dir; dir="$(mktemp -d)"
+  cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$dir/"
+  for d in elpa tree-sitter; do [ -d "$ROOT/config/$d" ] && ln -s "$ROOT/config/$d" "$dir/$d"; done
+  SHOT_DIR="$out" SHOT_FILES="$(IFS=:; echo "$*")" "$emacs" --init-directory="$dir" -l "$dir/early-init.el" -l "$dir/init.el" -l "$ROOT/tools/gui-screenshot.el" >/dev/null 2>&1
+  ls "$out"/*.png
+}
+run_doctor() { "$ROOT/tools/doctor.sh" "$@"; }
 run_tests() { "$ROOT/tests/run-all.sh" "$@"; }
 
 case "${1:-all}" in
@@ -56,9 +68,11 @@ case "${1:-all}" in
   prune)     prune ;;
   packages)  packages ;;
   grammars)  grammars ;;
+  screenshots) shift; screenshots "$@" ;;
+  doctor)    shift; run_doctor "$@" ;;
   test)      shift; run_tests "$@" ;;
   all)       configure && build && install_ && prune ;;
-  *) echo "usage: $0 [configure|make|install|prune|packages|grammars|test|all]" >&2; exit 2 ;;
+  *) echo "usage: $0 [configure|make|install|prune|packages|grammars|screenshots|doctor|test|all]" >&2; exit 2 ;;
 esac
 echo "Run: $INSTALL/bin/emacs --init-directory=$ROOT/config"
 echo "  (unpruned, straight from the build tree: $BUILD/src/emacs)"
