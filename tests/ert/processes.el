@@ -14,7 +14,7 @@
 
 (ert-deftest processes/environment-is-passed ()
   (let ((process-environment (cons "TEST_VAR=xyz" process-environment)))
-    (should (equal (string-trim (shell-command-to-string "echo $TEST_VAR")) "xyz"))))
+    (should (equal (string-trim (shell-command-to-string (if (eq system-type (quote windows-nt)) "echo %TEST_VAR%" "echo $TEST_VAR"))) "xyz"))))
 
 (ert-deftest processes/call-process-region-pipes-stdin ()
   (with-temp-buffer

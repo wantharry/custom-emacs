@@ -71,6 +71,8 @@ the tooling.
 | `network-live.el` | Real HTTPS fetch, package refresh, package install (only with `--network`) |
 | `tests/test_prune.py` | The pruning tool, using small fake trees: dependency rescue, lazy requires, exceptions, preloaded files, applying to an install, idempotence |
 | `tools/doctor.sh` (checked by `tests/test_repo.py`) | Runs headless in the suite: every section is reported and warnings never fail it |
+| `tests/test_dist.py` | The portable bundle: build scripts, the launcher compiles for Windows, and (when `dist/custom-emacs-windows-x64.zip` exists) that it holds everything needed, that its settings are **identical to `config/`** (so a forgotten rebuild fails), that Evil and Magit are compiled for the bundled Emacs, and that no personal history is inside |
+| `tools/test-windows.sh` | Runs the offline ERT files with the **Windows Emacs from an unpacked bundle**, from WSL, one line per file. The last full run: 378 tests, 349 pass, 0 fail, 29 skipped ([DISTRIBUTION.md](DISTRIBUTION.md)) |
 | `tests/test_repo.py` | Docs links and anchors, every guide listed in the README, script syntax, ignore rules, `prune.list` syntax, and the test suite's own conventions |
 
 ## Real window and real terminal

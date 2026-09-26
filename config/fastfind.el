@@ -20,13 +20,24 @@
 
 (defvar my/ff-cache-dir (locate-user-emacs-file "fastfind/")
   "Where the index files are kept.")
-(defvar my/ff-global-roots '("/")
-  "Folders indexed for the whole-disk search.  Other file systems are not entered, so the
-Windows drive under /mnt is left out.")
-(defvar my/ff-excluded-names '(".git" "node_modules" "__pycache__" ".cache" ".npm" ".rustup"
-                               ".cargo/registry" ".gradle" ".m2/repository" "target/debug")
+(defconst my/ff--windows (eq system-type 'windows-nt))
+
+(defvar my/ff--root-dir
+  (if my/ff--windows (concat (substring (expand-file-name "~") 0 2) "/") "/")
+  "The top folder listings run from: / on Linux and macOS, the drive of your home on Windows.")
+
+(defvar my/ff-global-roots (list my/ff--root-dir)
+  "Folders indexed for the whole-disk search.  Other file systems are not entered, so on
+Linux under WSL the Windows drive under /mnt is left out.")
+(defvar my/ff-excluded-names
+  (append '(".git" "node_modules" "__pycache__" ".cache" ".npm" ".rustup"
+            ".cargo/registry" ".gradle" ".m2/repository" "target/debug")
+          (and my/ff--windows '("AppData/Local/Packages" "AppData/Local/Microsoft" "$RECYCLE.BIN")))
   "Folder names left out of the whole-disk index.  The live fallback does not use this.")
-(defvar my/ff-excluded-paths '("/proc" "/sys" "/dev" "/run" "/mnt" "/tmp" "/snap")
+(defvar my/ff-excluded-paths
+  (if my/ff--windows
+      '("/Windows" "/Program Files" "/Program Files (x86)" "/ProgramData" "/System Volume Information" "/Recovery")
+    '("/proc" "/sys" "/dev" "/run" "/mnt" "/tmp" "/snap"))
   "Absolute folders left out of the whole-disk index.")
 (defvar my/ff-max-results 200 "Most candidates shown.")
 (defvar my/ff-stale-seconds (* 6 3600) "Age after which the whole-disk index is rebuilt.")
@@ -66,9 +77,13 @@ Unless EVERYTHING, the excluded folders are skipped (the index); with it, nothin
 (the live fallback)."
   (if (my/ff--rg)
       (append (list (my/ff--rg) "--files" "--hidden" "--no-ignore" "--one-file-system" "--no-messages")
+              ;; Windows prints backslashes by default; every path here uses /
+              (and my/ff--windows (list "--path-separator" "/"))
               (unless everything
                 (append (mapcan (lambda (n) (list "--glob" (format "!**/%s/**" n))) my/ff-excluded-names)
-                        (mapcan (lambda (p) (list "--glob" (format "!%s/**" p))) my/ff-excluded-paths)))
+                        ;; ripgrep runs from the drive's top folder, so "c:/x" is written "/x"
+                        (mapcan (lambda (p) (list "--glob" (format "!%s/**" (replace-regexp-in-string "\\`[a-zA-Z]:" "" p))))
+                                my/ff-excluded-paths)))
               roots)
     (append (list "find") roots '("-xdev")
             (unless everything
@@ -81,25 +96,41 @@ Unless EVERYTHING, the excluded folders are skipped (the index); with it, nothin
 
 (defvar my/ff--process nil "The running whole-disk index build, if any.")
 
+(defun my/ff--install-index (tmp file)
+  "Move the finished listing TMP over the index FILE, if the listing produced anything."
+  (when (and (file-exists-p tmp) (> (file-attribute-size (file-attributes tmp)) 0))
+    (rename-file tmp file t)
+    t))
+
 (defun my/ff-reindex (&optional sync)
   "Rebuild the whole-disk index in the background (or now, with SYNC).
-Bound to C-c f r."
+Bound to C-c f r.  No shell is involved, so this works the same on Windows."
   (interactive)
   (make-directory my/ff-cache-dir t)
   (let* ((file (my/ff--global-index-file))
-         (cmd (my/ff--list-command (mapcar #'expand-file-name my/ff-global-roots)))
-         (script "\"$@\" > \"$0.tmp\" 2>/dev/null; mv \"$0.tmp\" \"$0\""))
+         (tmp (concat file ".tmp"))
+         (cmd (my/ff--list-command (mapcar #'expand-file-name my/ff-global-roots))))
     (cond
-     (sync (let ((default-directory "/")) (apply #'call-process "sh" nil nil nil "-c" script file cmd)))
+     (sync (let ((default-directory my/ff--root-dir))
+             (apply #'call-process (car cmd) nil (list :file tmp) nil (cdr cmd))
+             (my/ff--install-index tmp file)))
      ((process-live-p my/ff--process) (message "Index is already being built"))
-     (t (setq my/ff--process
-              (let ((default-directory "/"))
-               (make-process :name "fastfind-index" :buffer nil :noquery t
-                            :command (append (list "sh" "-c" script file) cmd)
-                            :sentinel (lambda (_p event)
-                                        (when (string-prefix-p "finished" event)
-                                          (message "Fast file index ready (%s)"
-                                                   (file-name-nondirectory (my/ff--global-index-file)))))))))))
+     (t (ignore-errors (delete-file tmp))
+        (setq my/ff--process
+              (let ((default-directory my/ff--root-dir)
+                    (errbuf (generate-new-buffer " *fastfind-errors*")))
+                (make-process :name "fastfind-index" :buffer nil :noquery t :command cmd
+                              ;; a pipe, not a terminal: on a terminal ripgrep adds colors to the paths
+                              :connection-type 'pipe :coding 'no-conversion :stderr errbuf
+                              :filter (lambda (_p out)
+                                        (let ((coding-system-for-write 'no-conversion))
+                                          (write-region out nil tmp t 'silent)))
+                              :sentinel (lambda (p _event)
+                                          (when (memq (process-status p) '(exit signal))
+                                            (kill-buffer errbuf)
+                                            (when (my/ff--install-index tmp file)
+                                              (message "Fast file index ready (%s)"
+                                                       (file-name-nondirectory file)))))))))))
   (when (called-interactively-p 'interactive) (message "Building the file index in the background ...")))
 
 (defun my/ff-maybe-refresh ()
@@ -132,7 +163,7 @@ Files that are new and not yet added to git are not in it; the live fallback fin
               (dolist (f files) (insert (expand-file-name f) "\n")))
           (let ((cmd (my/ff--list-command (list root))))
             (with-temp-file file
-              (let ((default-directory "/"))
+              (let ((default-directory my/ff--root-dir))
                 (apply #'call-process (car cmd) nil t nil (cdr cmd))))))))
     file))
 
@@ -257,7 +288,7 @@ pulled into Emacs, so a whole-disk search takes about a second)."
   (let ((tmp (make-temp-file "fastfind-live-")))
     (unwind-protect
         (let ((cmd (my/ff--list-command (mapcar #'expand-file-name roots) t)))
-          (let ((default-directory "/"))
+          (let ((default-directory my/ff--root-dir))
             (apply #'call-process (car cmd) nil (list :file tmp) nil (cdr cmd)))
           (my/ff--match-file tmp query (if (cdr (my/ff--terms query)) 4000 (* 2 my/ff-max-results))))
       (ignore-errors (delete-file tmp)))))

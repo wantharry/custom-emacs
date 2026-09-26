@@ -10,18 +10,35 @@
     ".env" "docs/shapes/notes.txt" "docs/GeometryNotes.md" "lib/geometry-utils.js"
     "node_modules/pkg/index.js" ".git/config" "build/out/Shape.class" "a.b.txt" "axb.txt"))
 
+(defun ff--make-root ()
+  "A fresh folder for the fixture files.  On Windows the system temp folder has a long path
+(Users/name/AppData/Local/Temp) whose letters the loose \"letters in order anywhere in the path\"
+tier would match, so use a short one at the top of the drive (folders can be created there, files
+cannot, so only this folder goes there)."
+  (file-name-as-directory
+   (let ((temporary-file-directory (if (eq system-type 'windows-nt) "c:/" temporary-file-directory)))
+     (make-temp-file "ff-" t))))
+
 (defmacro ff-with-tree (root &rest body)
   "Bind ROOT to a temp folder holding `ff--files', with the cache elsewhere, no /tmp exclusion,
 and the global search limited to ROOT."
   (declare (indent 1))
-  `(test-with-temp-dir ,root
-     (test-with-temp-dir ff-cache
-       (dolist (f ff--files)
-         (make-directory (file-name-directory (concat ,root f)) t)
-         (test-write-file (concat ,root f) "x"))
-       (let ((my/ff-cache-dir ff-cache) (my/ff-global-roots (list ,root))
-             (my/ff-excluded-paths nil) (my/ff-project-stale-seconds 3600))
-         ,@body))))
+  `(let ((,root (ff--make-root)))
+     (unwind-protect
+         (test-with-temp-dir ff-cache
+           (dolist (f ff--files)
+             (make-directory (file-name-directory (concat ,root f)) t)
+             (test-write-file (concat ,root f) "x"))
+           (let ((my/ff-cache-dir ff-cache) (my/ff-global-roots (list ,root))
+                 (my/ff-excluded-paths nil) (my/ff-project-stale-seconds 3600))
+             ,@body))
+       (ignore-errors (delete-directory ,root t)))))
+
+(defun ff--wait-for-index ()
+  "Wait until the background build has finished AND its result is in place (the process being
+gone is not enough: the step that moves the finished file into place runs just after)."
+  (while (or (process-live-p my/ff--process) (not (file-exists-p (my/ff--global-index-file))))
+    (accept-process-output nil 0.1)))
 
 (defun ff--rel (paths root) (mapcar (lambda (p) (file-relative-name p root)) paths))
 (defun ff--find (root query) (ff--rel (car (my/ff--candidates (my/ff--global-index-file) (list root) query)) root))
@@ -48,7 +65,7 @@ and the global search limited to ROOT."
   (ff-with-tree r
     (my/ff-reindex)
     (with-timeout (20 (ert-fail "index build did not finish"))
-      (while (process-live-p my/ff--process) (accept-process-output nil 0.1)))
+      (ff--wait-for-index))
     (should (file-exists-p (my/ff--global-index-file)))
     (should (member "README.md" (ff--rel (split-string (test-read-file (my/ff--global-index-file)) "\n" t) r)))))
 
@@ -56,7 +73,7 @@ and the global search limited to ROOT."
   (ff-with-tree r
     (should-not (my/ff--age (my/ff--global-index-file)))
     (my/ff-maybe-refresh)
-    (with-timeout (20 (ert-fail "no index")) (while (process-live-p my/ff--process) (accept-process-output nil 0.1)))
+    (with-timeout (20 (ert-fail "no index")) (ff--wait-for-index))
     (let ((mtime (file-attribute-modification-time (file-attributes (my/ff--global-index-file)))))
       (my/ff-maybe-refresh)
       (should (equal mtime (file-attribute-modification-time (file-attributes (my/ff--global-index-file))))))))
@@ -67,7 +84,7 @@ and the global search limited to ROOT."
     (set-file-times (my/ff--global-index-file) (time-subtract (current-time) (* 10 3600)))
     (should (> (my/ff--age (my/ff--global-index-file)) my/ff-stale-seconds))
     (my/ff-maybe-refresh)
-    (with-timeout (20 (ert-fail "no rebuild")) (while (process-live-p my/ff--process) (accept-process-output nil 0.1)))
+    (with-timeout (20 (ert-fail "no rebuild")) (ff--wait-for-index))
     (should (< (my/ff--age (my/ff--global-index-file)) 60))))
 
 ;;; Matching and ranking
@@ -242,7 +259,10 @@ and the global search limited to ROOT."
   (ff-with-tree r
     (my/ff-reindex t)
     (let ((expected (mapcar (lambda (q) (ff--find r q)) '("shape" "gmtry" "demo shp" "notes.txt" "a.b.txt"))))
-      (dolist (kind '(grep lisp))
+      ;; On Windows the only grep is MSYS's (inside MinGit), which reads a backslash in a command-line
+      ;; argument differently, so a query with a dot matches too much.  The bundle always has ripgrep,
+      ;; which is used first, so grep is only compared where it behaves.
+      (dolist (kind (if (eq system-type 'windows-nt) '(lisp) '(grep lisp)))
         (should (equal expected
                        (ff-with-matcher kind
                          (mapcar (lambda (q) (ff--find r q)) '("shape" "gmtry" "demo shp" "notes.txt" "a.b.txt")))))))))

@@ -153,6 +153,11 @@ Ubuntu's Emacs 29.3 it stops at startup with a clear message (measured: it lacks
 Ubuntu 24.04 needs the equivalent of the package list in "System packages" above. See
 [CROSS-PLATFORM.md](CROSS-PLATFORM.md).
 
+## Making a portable bundle
+
+`./build.sh dist windows` makes `dist/custom-emacs-windows-x64.zip`, a folder you can unzip anywhere and run
+with `Emacs.exe`. See [DISTRIBUTION.md](DISTRIBUTION.md).
+
 ## Rebuilding after changes
 
 | You changed | Run |

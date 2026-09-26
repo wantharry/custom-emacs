@@ -3,7 +3,7 @@
 # ./install, and optionally prune unused built-in Lisp from the install.
 # Verified on: Ubuntu 24.04 (WSL2), Emacs 32.0.50 (master @ 7bc4f49).
 #
-# Usage: ./build.sh [configure|make|install|prune|packages|grammars|screenshots|doctor|test|all]   (default: all)
+# Usage: ./build.sh [configure|make|install|prune|packages|grammars|screenshots|dist|doctor|test|all]   (default: all)
 #   configure  run autogen.sh (if needed) and configure, into ./build
 #   make       compile (slow the first time: native-comp is ahead-of-time)
 #   install    make install into ./install (gitignored)
@@ -13,6 +13,7 @@
 #   screenshots OUTDIR FILE...   save PNGs of files as a real Emacs window draws them
 #   doctor     check what makes Emacs slow or stuck (esp. on WSL): PATH, disk, fonts, processes
 #   test       run the whole test suite (see docs/TESTING.md)
+#   dist       windows|linux   build a portable bundle (a zip you can unpack anywhere and run) into ./dist
 #   all        configure + make + install + prune
 # EMACS=/path/to/emacs makes packages, grammars, screenshots, doctor and test use that Emacs
 # instead of building one (needs Emacs 30 or newer).
@@ -65,6 +66,19 @@ screenshots() {
   SHOT_DIR="$out" SHOT_FILES="$(IFS=:; echo "$*")" "$emacs" --init-directory="$dir" -l "$dir/early-init.el" -l "$dir/init.el" -l "$ROOT/tools/gui-screenshot.el" >/dev/null 2>&1
   ls "$out"/*.png
 }
+dist_env() {   # the two tools the bundles need, kept in dist/.venv so nothing is installed system-wide
+  if [ ! -x "$ROOT/dist/.venv/bin/python" ]; then
+    mkdir -p "$ROOT/dist" && python3 -m venv "$ROOT/dist/.venv"
+    "$ROOT/dist/.venv/bin/pip" install -q patchelf ziglang
+  fi
+}
+dist() {
+  case "${1:-}" in
+    windows) dist_env; "$ROOT/tools/dist-windows.sh" ;;
+    linux)   dist_env; "$ROOT/tools/dist-linux.sh" ;;
+    *) echo "usage: $0 dist windows|linux" >&2; exit 2 ;;
+  esac
+}
 run_doctor() { "$ROOT/tools/doctor.sh" "$@"; }
 run_tests() { "$ROOT/tests/run-all.sh" "$@"; }
 
@@ -76,10 +90,11 @@ case "${1:-all}" in
   packages)  packages ;;
   grammars)  grammars ;;
   screenshots) shift; screenshots "$@" ;;
+  dist)      shift; dist "$@" ;;
   doctor)    shift; run_doctor "$@" ;;
   test)      shift; run_tests "$@" ;;
   all)       configure && build && install_ && prune ;;
-  *) echo "usage: $0 [configure|make|install|prune|packages|grammars|screenshots|doctor|test|all]" >&2; exit 2 ;;
+  *) echo "usage: $0 [configure|make|install|prune|packages|grammars|screenshots|dist|doctor|test|all]" >&2; exit 2 ;;
 esac
 echo "Run: $INSTALL/bin/emacs --init-directory=$ROOT/config"
 echo "  (unpruned, straight from the build tree: $BUILD/src/emacs)"

@@ -84,7 +84,8 @@
 (ert-deftest files/symbolic-links ()
   (test-with-temp-dir d
     (let ((a (test-write-file (concat d "a") "x")) (l (concat d "l")))
-      (make-symbolic-link a l)
+      (condition-case nil (make-symbolic-link a l)
+        (file-error (ert-skip "this system will not create symbolic links (Windows needs Developer Mode)")))
       (should (equal (file-symlink-p l) a))
       (should (file-equal-p a l)))))
 
@@ -93,7 +94,7 @@
   (should (equal (file-name-nondirectory "/a/b/c.txt") "c.txt"))
   (should (equal (file-name-extension "c.tar.gz") "gz"))
   (should (equal (file-name-sans-extension "c.txt") "c"))
-  (should (equal (expand-file-name "../x" "/a/b/") "/a/x"))
+  (should (equal (expand-file-name "../x" "/a/b/") (expand-file-name "/a/x")))   ; "c:/a/x" on Windows
   (should (equal (file-relative-name "/a/b/c" "/a/") "b/c")))
 
 (ert-deftest files/directory-listing ()

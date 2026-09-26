@@ -1,13 +1,21 @@
 ;;; build-features.el --- what this Emacs build can do  -*- lexical-binding: t; -*-
 ;; harness: bare
 
+(defun bf--our-own-build ()
+  "These tests describe the Emacs 32 build made here.  The Windows bundle uses the official
+Emacs 31 build, which has no native compilation, so they do not apply to it."
+  (when (eq system-type 'windows-nt) (ert-skip "the Windows bundle uses the official Emacs 31 build")))
+
 (ert-deftest build/version-is-32-or-newer ()
+  (bf--our-own-build)
   (should (>= emacs-major-version 32)))
 
 (ert-deftest build/native-compilation-available ()
+  (bf--our-own-build)
   (should (native-comp-available-p)))
 
 (ert-deftest build/native-compile-at-runtime ()
+  (bf--our-own-build)
   (let ((f (native-compile '(lambda (x) (* x 3)))))
     (should (native-comp-function-p f))
     (should (= 15 (funcall f 5)))))

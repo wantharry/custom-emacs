@@ -201,6 +201,27 @@ graphical window does not.
   (`install/bin/emacsclient`). A build without it, or starting Emacs by a different path, breaks that. Check
   with `M-x with-editor-debug`.
 
+## Windows bundle
+
+### Windows says "Windows protected your PC" when I open `Emacs.exe`
+
+- The launcher is not code-signed. Choose **More info**, then **Run anyway**. (Not tested against SmartScreen.)
+
+### Nothing happens, or "Could not start emacs\bin\runemacs.exe"
+
+- `Emacs.exe` must stay next to the `emacs`, `config` and `tools` folders. Move the whole folder, not the exe.
+  If it is unzipped under a protected folder (`Program Files`) Emacs cannot save its history: unzip elsewhere.
+
+### Magit says it cannot find Git
+
+- The bundle carries its own Git in `tools\git`; it is found only when Emacs is started with `Emacs.exe`, which
+  sets `PATH`. Starting `emacs\bin\emacs.exe` directly skips that.
+
+### Files I create show CRLF or LF differently than in another editor
+
+- Windows Emacs is set to write LF (see [CUSTOMIZING.md](CUSTOMIZING.md)). A file that already uses CRLF keeps it.
+  To change the default, remove `(prefer-coding-system 'utf-8-unix)` from `init.el`.
+
 ## Start screen
 
 ### Opening a file from the command line also shows the start screen, in a split

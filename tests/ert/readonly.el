@@ -52,7 +52,8 @@ hook runs.  Also binds `ro-file' to the path."
 (ert-deftest readonly/symlinked-files-open-read-only ()
   (test-with-temp-dir d
     (let* ((real (test-write-file (concat d "real.txt") "x")) (link (concat d "link.txt")))
-      (make-symbolic-link real link)
+      (condition-case nil (make-symbolic-link real link)
+        (file-error (ert-skip "this system will not create symbolic links (Windows needs Developer Mode)")))
       (let ((b (find-file-noselect link)))
         (unwind-protect (should (buffer-local-value 'buffer-read-only b))
           (kill-buffer b))))))

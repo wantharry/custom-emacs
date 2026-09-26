@@ -100,6 +100,8 @@ its own finder, written in Emacs Lisp with **no package** (the same idea as `fzf
 
 ![text search](images/find-5-text-search.png)
 
+**On Windows** the same commands work (checked; see [DISTRIBUTION.md](DISTRIBUTION.md)). The whole-disk index covers the drive of your home folder and leaves out `Windows`, `Program Files`, `ProgramData` and a few `AppData` folders instead of the Linux system folders; on a real PC it indexed 859,000 files in 1.6 s.
+
 **What the index leaves out** (so it stays small and fast): `.git`, `node_modules`, `__pycache__`,
 caches, `~/.cargo/registry`, `~/.gradle`, `~/.m2/repository`, `target/debug`, and the folders
 `/proc /sys /dev /run /mnt /tmp /snap`. `/mnt` is where WSL mounts the Windows drives. The live

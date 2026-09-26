@@ -25,7 +25,7 @@ the pruning tool. The Emacs source itself is cloned separately into
 | Java and Rust | **Verified.** Tree-sitter modes plus `rust-analyzer` and `jdtls` via Eglot, started by hand (`M-x eglot`); no measurable startup cost |
 | Test suite | **378 tests offline (about 5 s), 425 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
-| Windows build | *Untested.* Placeholder in `build.sh` only |
+| Windows | **Verified as a portable bundle**: unzip and double-click `Emacs.exe` (official Emacs 31.1 + these settings, Evil, Magit, grammars, ripgrep, Git). 0 test failures on Windows, a real Magit commit checked, with screenshots. Building Emacs 32 itself for Windows is *untested*. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) |
 | macOS build | *Untested.* Placeholder in `build.sh` only |
 | CI (GitHub Actions) for all three OSes | *Not written yet* |
 | Theme, mode line, final fonts | *Deliberately deferred* (see [Customizing](docs/CUSTOMIZING.md)) |
@@ -86,6 +86,7 @@ research-emacs/
 | [docs/CROSS-PLATFORM.md](docs/CROSS-PLATFORM.md) | Plan for Windows and macOS and CI (untested) |
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust: what is installed, what it costs (measured), how to use and extend it |
 | [docs/START-SCREEN.md](docs/START-SCREEN.md) | The screen Emacs opens on: your last 5 files, folders and projects as links, expandable, and `C-c h` to get back to it |
+| [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Portable bundles: unzip and run. The Windows zip (built and tested), what is inside, how it differs from the Linux build, limits, how to rebuild it |
 | [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
 | [docs/NAVIGATING-CODE.md](docs/NAVIGATING-CODE.md) | Find a file in a project, search across it, and in Java click a method to see its definition, implementations and references (measured on a real server) |
 | [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |
@@ -116,4 +117,4 @@ research-emacs/
 3. **Theme and mode line.** Removed for now, to be added later. The reference
    setup used `doom-tokyo-night`, `doom-modeline` and `nerd-icons`.
 4. **Languages** to set up tree-sitter grammars and language servers for.
-5. **Windows / macOS** builds and CI.
+5. **Linux bundle, macOS** bundle, and CI. (The Windows bundle exists: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).)

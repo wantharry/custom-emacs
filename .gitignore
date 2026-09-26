@@ -14,3 +14,4 @@
 # Python bytecode from the test runner
 __pycache__/
 *.pyc
+/dist/

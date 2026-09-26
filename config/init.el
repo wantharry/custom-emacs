@@ -49,6 +49,13 @@
       ring-bell-function #'ignore
       use-short-answers t)
 
+;; Windows would otherwise save new files with CRLF line endings; use UTF-8 with LF, as on Linux
+;; and macOS, so a file is the same wherever you write it.  Files that already use CRLF keep it.
+(when (eq system-type 'windows-nt)
+  (prefer-coding-system 'utf-8-unix)
+  ;; ... and do not print "(Unix)" in the mode line for it, which Linux does not
+  (setq eol-mnemonic-unix ":"))
+
 (electric-pair-mode 1)
 (show-paren-mode 1)
 (delete-selection-mode 1)
