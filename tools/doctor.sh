@@ -6,7 +6,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GUI=1; [ "${1:-}" = "--no-gui" ] && GUI=0
-EMACS="$ROOT/install/bin/emacs"; [ -x "$EMACS" ] || EMACS="$ROOT/build/src/emacs"
+EMACS="${EMACS:-$ROOT/install/bin/emacs}"; [ -x "$EMACS" ] || EMACS="$ROOT/build/src/emacs"   # EMACS=/path overrides
 WARNS=0; FAILS=0
 ok()      { printf '  [ OK ] %s\n' "$*"; }
 warn()    { printf '  [WARN] %s\n' "$*"; WARNS=$((WARNS+1)); }

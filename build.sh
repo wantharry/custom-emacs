@@ -14,6 +14,8 @@
 #   doctor     check what makes Emacs slow or stuck (esp. on WSL): PATH, disk, fonts, processes
 #   test       run the whole test suite (see docs/TESTING.md)
 #   all        configure + make + install + prune
+# EMACS=/path/to/emacs makes packages, grammars, screenshots, doctor and test use that Emacs
+# instead of building one (needs Emacs 30 or newer).
 # See docs/BUILD.md and docs/PRUNING.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -37,21 +39,26 @@ configure() {
   [ -x "$SRC/configure" ] || (cd "$SRC" && ./autogen.sh)
   mkdir -p "$BUILD" && cd "$BUILD" && "$SRC/configure" "${FLAGS[@]}"
 }
+pick_emacs() {   # EMACS=/path overrides; else the pruned install; else the build tree
+  if [ -n "${EMACS:-}" ]; then echo "$EMACS"
+  elif [ -x "$INSTALL/bin/emacs" ]; then echo "$INSTALL/bin/emacs"
+  else echo "$BUILD/src/emacs"; fi
+}
 ncpus() { nproc 2>/dev/null || sysctl -n hw.ncpu; }
 build()   { make -C "$BUILD" -j"$(ncpus)"; }
 install_() { make -C "$BUILD" install; }
 prune()   { python3 "$ROOT/prune.py" --apply "$INSTALL"; }
 packages() {
-  local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
+  local emacs; emacs="$(pick_emacs)"
   "$emacs" --batch --init-directory="$ROOT/config" -l "$ROOT/tools/install-packages.el"
 }
 grammars() {
-  local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
+  local emacs; emacs="$(pick_emacs)"
   "$emacs" --batch --init-directory="$ROOT/config" -l "$ROOT/tools/install-grammars.el"
 }
 screenshots() {
   local out="${1:?usage: build.sh screenshots OUTDIR FILE...}"; shift
-  local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
+  local emacs; emacs="$(pick_emacs)"
   local dir; dir="$(mktemp -d)"
   cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$dir/"
   for d in elpa tree-sitter; do [ -d "$ROOT/config/$d" ] && ln -s "$ROOT/config/$d" "$dir/$d"; done

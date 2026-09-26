@@ -1,5 +1,11 @@
 ;;; init.el --- personal config for the research Emacs  -*- lexical-binding: t; -*-
 
+;; This configuration uses features from Emacs 30 (completion preview, built-in
+;; which-key, Eglot's log setting).  Fail with a clear message instead of an obscure
+;; "void function" halfway through.  Built and tested on 32.0.50.
+(when (< emacs-major-version 30)
+  (error "This configuration needs Emacs 30 or newer; this is Emacs %s" emacs-version))
+
 ;;; Startup / performance ----------------------------------------------------
 
 ;; Restore a sane GC threshold after startup (early-init.el raised it).

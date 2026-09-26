@@ -105,6 +105,54 @@ other Emacs (Ubuntu's 29.3) and its files are untouched.
 To open a window from a script, run it in the background:
 `install/bin/emacs --init-directory=$PWD/config &`.
 
+## A new computer, or a new version of Emacs
+
+**What comes with the repository** (a fresh clone is 56 files, about 400 KB): the config,
+the build and pruning scripts, the tests and the docs. **What does not** (recreate it, each
+by one command): the Emacs source and build, the installed packages, the tree-sitter
+grammars, the language servers, your fonts, and the commit hook.
+
+On a new Linux machine:
+
+```sh
+git clone git@github.com:wantharry/custom-emacs.git && cd custom-emacs
+git config core.hooksPath .githooks            # the commit-time test hook
+./build.sh doctor --no-gui                     # what is missing, and what will be slow
+# get an Emacs: either build one (see above) ...
+./build.sh                                     # source + configure + compile + install + prune
+# ... or use one you already have (Emacs 30 or newer):
+export EMACS=/path/to/emacs
+./build.sh packages                            # Evil
+./build.sh grammars                            # tree-sitter grammars (needs git and a C compiler)
+./build.sh test                                # everything should say ALL TESTS PASSED
+```
+
+Tested exactly this way from a fresh GitHub clone (using the Emacs built here): after
+`packages` and `grammars`, **all tests pass**, including the real downloads, the real
+`rust-analyzer` and `jdtls` sessions, the real window and the real terminal. The language
+servers themselves (JDK, Rust, `jdtls`) are installed separately; see
+[LANGUAGES.md](LANGUAGES.md).
+
+**Versions.** The config needs **Emacs 30 or newer** and is built and tested on 32.0.50. On
+Ubuntu's Emacs 29.3 it stops at startup with a clear message (measured: it lacks
+`global-completion-preview-mode`, the built-in `which-key`, and Eglot's log setting).
+`EMACS=/path ./build.sh test` runs the whole suite against any Emacs.
+
+**When a new Emacs version comes out** (the tests exist for exactly this):
+
+1. Build or install it and run `EMACS=/path/to/new/emacs ./build.sh test --gui`.
+2. A failure names the exact thing that changed. This has already happened: Evil 1.15 read an
+   internal variable that Emacs 32 removed, and the test
+   `evil/no-post-command-hook-errors-on-emacs-32` caught it.
+3. After a source upgrade, also run `./tools/verify-prune.sh`: a new version can change which
+   built-in files depend on which, so the pruning list must be re-verified.
+4. Update the pinned tree-sitter grammar versions only if the new Emacs bundles a newer
+   tree-sitter library (see [LANGUAGES.md](LANGUAGES.md#why-the-grammars-are-pinned)).
+
+**Other operating systems.** macOS and Windows have not been tried. Linux other than
+Ubuntu 24.04 needs the equivalent of the package list in "System packages" above. See
+[CROSS-PLATFORM.md](CROSS-PLATFORM.md).
+
 ## Rebuilding after changes
 
 | You changed | Run |

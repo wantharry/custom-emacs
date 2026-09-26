@@ -50,7 +50,9 @@ install/bin/emacs --init-directory=$PWD/config
 ./build.sh test
 ```
 
-Details and alternatives: [docs/BUILD.md](docs/BUILD.md).
+Details and alternatives: [docs/BUILD.md](docs/BUILD.md). Moving to a new computer or a
+new Emacs version: see ["A new computer, or a new version of Emacs"](docs/BUILD.md#a-new-computer-or-a-new-version-of-emacs).
+Needs Emacs 30 or newer (tested on 32.0.50).
 
 ## What is in this repo
 
