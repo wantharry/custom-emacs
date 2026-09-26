@@ -3,12 +3,13 @@
 # ./install, and optionally prune unused built-in Lisp from the install.
 # Verified on: Ubuntu 24.04 (WSL2), Emacs 32.0.50 (master @ 7bc4f49).
 #
-# Usage: ./build.sh [configure|make|install|prune|packages|test|all]   (default: all)
+# Usage: ./build.sh [configure|make|install|prune|packages|grammars|test|all]   (default: all)
 #   configure  run autogen.sh (if needed) and configure, into ./build
 #   make       compile (slow the first time: native-comp is ahead-of-time)
 #   install    make install into ./install (gitignored)
 #   prune      remove the Lisp listed in prune.list from ./install
 #   packages   install the chosen ELPA packages (evil) into config/elpa
+#   grammars   build the tree-sitter grammars (java, rust) into config/tree-sitter
 #   test       run the whole test suite (see docs/TESTING.md)
 #   all        configure + make + install + prune
 # See docs/BUILD.md and docs/PRUNING.md.
@@ -42,6 +43,10 @@ packages() {
   local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
   "$emacs" --batch --init-directory="$ROOT/config" -l "$ROOT/tools/install-packages.el"
 }
+grammars() {
+  local emacs="$INSTALL/bin/emacs"; [ -x "$emacs" ] || emacs="$BUILD/src/emacs"
+  "$emacs" --batch --init-directory="$ROOT/config" -l "$ROOT/tools/install-grammars.el"
+}
 run_tests() { "$ROOT/tests/run-all.sh" "$@"; }
 
 case "${1:-all}" in
@@ -50,9 +55,10 @@ case "${1:-all}" in
   install)   install_ ;;
   prune)     prune ;;
   packages)  packages ;;
+  grammars)  grammars ;;
   test)      shift; run_tests "$@" ;;
   all)       configure && build && install_ && prune ;;
-  *) echo "usage: $0 [configure|make|install|prune|packages|test|all]" >&2; exit 2 ;;
+  *) echo "usage: $0 [configure|make|install|prune|packages|grammars|test|all]" >&2; exit 2 ;;
 esac
 echo "Run: $INSTALL/bin/emacs --init-directory=$ROOT/config"
 echo "  (unpruned, straight from the build tree: $BUILD/src/emacs)"

@@ -42,6 +42,7 @@ ignored on purpose; see `.gitignore`.
 | Coding | `treesit-font-lock-level 4`; Eglot (built-in LSP client) is available but not auto-started |
 | Packages | Puts installed packages (only Evil) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
 | Evil | `C-c v` toggles vi-style editing; Evil loads on first use. Includes a one-line compatibility shim (below) |
+| Languages | Pins the Java and Rust tree-sitter grammar versions, remaps `.java` to `java-ts-mode` when its grammar exists, and keeps language servers manual. See [LANGUAGES.md](LANGUAGES.md) |
 | Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
 | Startup report | Prints Emacs version, load time and GC count to the echo area once |
 

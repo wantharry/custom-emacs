@@ -54,6 +54,7 @@ git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src
 ./build.sh            # configure + make + install + prune
 ./build.sh configure  # or one step at a time: configure | make | install | prune
 ./build.sh packages   # install Evil into config/elpa (network)
+./build.sh grammars   # build the Java and Rust tree-sitter grammars (network, C compiler)
 ./build.sh test       # run the test suite
 ```
 

@@ -3,7 +3,8 @@
 #
 #   tests/run-all.sh              offline tests (run this after every change)
 #   tests/run-all.sh --network    also tests that need internet access
-#   tests/run-all.sh --full       also tools/verify-prune.sh (network, slow)
+#   tests/run-all.sh --lsp        also start real language servers (rust-analyzer, jdtls)
+#   tests/run-all.sh --full       everything: network, language servers, verify-prune.sh
 #   tests/run-all.sh NAME         only ERT files whose name contains NAME
 #
 # EMACS=/path/to/emacs overrides the binary (default: install/bin/emacs, else
@@ -20,16 +21,18 @@ EMACS="${EMACS:-}"
 [ -z "$EMACS" ] && EMACS="$ROOT/build/src/emacs"
 [ -x "$EMACS" ] || { echo "no emacs binary found (build first, or set EMACS=)" >&2; exit 2; }
 
-NETWORK=0; FULL=0; FILTER=""
+NETWORK=0; FULL=0; LSP=0; FILTER=""
 for a in "$@"; do
   case "$a" in
     --network) NETWORK=1 ;;
-    --full) FULL=1; NETWORK=1 ;;
+    --lsp) LSP=1 ;;
+    --full) FULL=1; NETWORK=1; LSP=1 ;;
     -*) echo "unknown option $a" >&2; exit 2 ;;
     *) FILTER="$a" ;;
   esac
 done
 [ "$NETWORK" = 1 ] && export RUN_NETWORK_TESTS=1
+[ "$LSP" = 1 ] && export RUN_LSP_TESTS=1
 
 OUT="$(mktemp -d)"; trap 'rm -rf "$OUT"' EXIT
 export ROOT EMACS_BIN="$EMACS"
@@ -47,6 +50,7 @@ run_one() {   # $1 = test file
       local dir="$OUT/init-$name"; mkdir -p "$dir"
       cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$dir/"
       [ "$harness" = config ] && [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$dir/elpa"
+      [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$dir/tree-sitter"
       CONFIG_DIR="$dir" "$EMACS" --batch --init-directory="$dir" \
         -l "$dir/early-init.el" -l "$dir/init.el" -l "$ROOT/tests/ert/helper.el" -l "$f" \
         -f ert-run-tests-batch-and-exit > "$OUT/$name.log" 2>&1 || status=$? ;;

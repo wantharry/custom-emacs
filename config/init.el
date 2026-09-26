@@ -130,6 +130,26 @@ installed, offer to install it from NonGNU ELPA."
   (evil-mode (if evil-mode -1 1))
   (message "Evil mode %s" (if evil-mode "enabled" "disabled")))
 
+;;; Languages: tree-sitter grammars and language servers ----------------------
+
+;; Grammar versions are pinned to ones built with parser ABI 14 or lower, which is
+;; the most the tree-sitter library on this machine (0.20.x) can load.  Install
+;; them with `./build.sh grammars' or `M-x treesit-install-language-grammar'.
+(setq treesit-language-source-alist
+      '((java "https://github.com/tree-sitter/tree-sitter-java" "v0.23.5")
+        (rust "https://github.com/tree-sitter/tree-sitter-rust" "v0.23.2")))
+
+;; Rust: Emacs 32 already opens .rs files in `rust-ts-mode' when its grammar exists.
+;; Java: .java opens in the older `java-mode' unless remapped, so remap it, but only
+;; when the grammar is installed (otherwise keep the working classic mode).
+(when (treesit-language-available-p 'java)
+  (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode)))
+
+;; Language servers (rust-analyzer, jdtls) are started by hand with M-x eglot and
+;; never automatically: a JVM-based server takes seconds and a large amount of
+;; memory, and most editing does not need it.  Skip logging every protocol message.
+(setq eglot-events-buffer-config '(:size 0))
+
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c v") #'my/toggle-evil)

@@ -6,7 +6,8 @@ until `./build.sh test` says `ALL TESTS PASSED`.
 ```sh
 ./build.sh test                  # everything that works offline (about 15 seconds)
 ./build.sh test --network        # plus the tests that need internet
-./build.sh test --full           # plus tools/verify-prune.sh (network, a few minutes)
+./build.sh test --lsp            # plus tests that start real language servers
+./build.sh test --full           # everything: network, language servers, tools/verify-prune.sh
 ./build.sh test dired            # only the ERT files whose name contains "dired"
 EMACS=/path/to/emacs ./build.sh test     # test a different binary
 ```
@@ -59,6 +60,7 @@ the tooling.
 | `evil.el` | The `C-c v` toggle: on, off, repeatable, states, motions and operators, restores plain Emacs keys, Emacs keys still work, and a regression test for the Emacs 32 incompatibility |
 | `evil-missing.el` | The toggle when Evil is not installed: declining, and accepting the install |
 | `keybindings.el` | **Every key in `docs/KEYBOARD.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
+| `languages-java-rust.el` | Java and Rust: tree-sitter modes, parsing, highlighting, indentation, imenu, server setup, no servers started on open, the toolchains compile and run; with `--lsp`, real `rust-analyzer` and `jdtls` sessions through Eglot |
 | `pruning.el` | Removed packages are gone, coding essentials and deliberate exceptions are present, removed features fail cleanly, no native code left for them |
 | `network-live.el` | Real HTTPS fetch, package refresh, package install (only with `--network`) |
 | `tests/test_prune.py` | The pruning tool, using small fake trees: dependency rescue, lazy requires, exceptions, preloaded files, applying to an install, idempotence |

@@ -69,7 +69,7 @@ class Scripts(unittest.TestCase):
 
     def test_build_script_advertises_every_target(self):
         text = read(rel("build.sh"))
-        for target in ["configure", "make", "install", "prune", "packages", "test", "all"]:
+        for target in ["configure", "make", "install", "prune", "packages", "grammars", "test", "all"]:
             with self.subTest(target=target):
                 self.assertRegex(text, rf"(?m)^\s+{target}\)", "no case branch")
 
@@ -80,7 +80,8 @@ class GitRules(unittest.TestCase):
 
     def test_generated_and_upstream_paths_are_ignored(self):
         for p in ["emacs-src/x", "build/x", "install/x", "make.log", "config/elpa/evil/evil.el",
-                  "config/custom.el", "config/backups/x~", "config/eln-cache/x.eln"]:
+                  "config/custom.el", "config/backups/x~", "config/eln-cache/x.eln",
+                  "config/tree-sitter/libtree-sitter-java.so"]:
             with self.subTest(path=p):
                 self.assertTrue(self.ignored(p))
 
@@ -130,7 +131,7 @@ class TestSuiteItself(unittest.TestCase):
         for area in ["buffers-text", "editing-commands", "search-regex", "files-dired",
                      "processes", "encoding-text", "lisp-runtime", "language-modes",
                      "treesit", "vc-diff", "project-eglot", "network-data", "tramp",
-                     "mail-shr", "calendar-calc-help", "evil", "keybindings", "config", "build-features",
+                     "mail-shr", "calendar-calc-help", "evil", "keybindings", "languages-java-rust", "config", "build-features",
                      "startup-perf", "pruning"]:
             with self.subTest(area=area):
                 self.assertIn(area, covered)

@@ -27,6 +27,12 @@
   (should-not (featurep 'evil))
   (should-not (bound-and-true-p evil-mode)))
 
+(ert-deftest startup/language-support-costs-nothing-until-used ()
+  ;; Grammars and language servers are only touched when a Java/Rust file is opened.
+  (should-not (featurep 'treesit))
+  (should-not (featurep 'eglot))
+  (should-not (featurep 'jsonrpc)))
+
 (ert-deftest startup/no-third-party-features-loaded ()
   (dolist (f '(magit doom-themes doom-modeline company lsp-mode projectile))
     (should-not (featurep f))))

@@ -526,6 +526,25 @@ can always turn Evil off again with `C-c v`.
 | `N` | `evil-search-previous` | previous match |
 | `:` | `evil-ex` | the `:` command line (`:w`, `:q`, `:%s/a/b/g`) |
 
+## Java, Rust and other languages (Eglot)
+
+Open a file, then `M-x eglot` starts the language server (`rust-analyzer` for Rust,
+`jdtls` for Java). After that the keys in **Programming** above (`M-.`, `M-,`, `M-?`,
+`C-M-i`) work through the server. Eglot's own commands have no default keys, so run them
+with `M-x`:
+
+| Run | What it does |
+|---|---|
+| `M-x eglot` | start the server for this project |
+| `M-x eglot-shutdown` | stop it and free its memory |
+| `M-x eglot-rename` | rename a symbol everywhere |
+| `M-x eglot-code-actions` | quick fixes and refactorings at the cursor |
+| `M-x eglot-format` | format the buffer with the server |
+| `M-x eglot-find-implementation` | jump to an implementation |
+| `M-x flymake-show-buffer-diagnostics` | list the errors and warnings |
+
+See [LANGUAGES.md](LANGUAGES.md) for costs and setup.
+
 ## A learning path
 
 1. **Day 1:** `C-h t` (the tutorial, about 30 minutes). Get comfortable with

@@ -93,6 +93,31 @@ what fixed them. Newest-relevant first.
   [CUSTOMIZING.md](CUSTOMIZING.md).
 - **Fix:** the compatibility shim in `init.el`. If you see it, the shim was removed.
 
+## Java and Rust
+
+### `rust-analyzer` says `Unknown binary 'rust-analyzer' in official toolchain`
+
+- **Cause:** the file in `~/.cargo/bin` is only a `rustup` stub until the component is
+  installed.
+- **Fix:** `rustup component add rust-analyzer`.
+
+### A tree-sitter grammar will not load, or `treesit-language-abi-version` is above 14
+
+- **Cause:** the grammar was built for a newer parser format than the tree-sitter
+  library (0.20.x here) supports.
+- **Fix:** use the pinned versions in `config/init.el` and rebuild with
+  `./build.sh grammars`. See [LANGUAGES.md](LANGUAGES.md#why-the-grammars-are-pinned).
+
+### `jdtls` uses over a gigabyte of memory
+
+- **Expected:** it is a JVM (about 1.35 GB in the measured demo). It only runs after
+  `M-x eglot`. Stop it with `M-x eglot-shutdown`.
+
+### Many Java/Rust tests are skipped
+
+- **Cause:** grammars are not installed. One test fails on purpose to tell you; run
+  `./build.sh grammars`.
+
 ## Fonts and icons
 
 ### The font is not the one I expected
