@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Run the offline test suite before every commit; abort the commit on failure.
+# Enable once per clone:  git config core.hooksPath .githooks
+# Skip in an emergency:   git commit --no-verify
+ROOT="$(git rev-parse --show-toplevel)"
+echo "pre-commit: running tests (tests/run-all.sh) ..."
+if ! "$ROOT/tests/run-all.sh" > /tmp/pre-commit-tests.log 2>&1; then
+  tail -40 /tmp/pre-commit-tests.log
+  echo; echo "pre-commit: TESTS FAILED, commit aborted.  Full log: /tmp/pre-commit-tests.log"
+  exit 1
+fi
+grep -E '^(ERT TOTAL|PYTHON)' /tmp/pre-commit-tests.log

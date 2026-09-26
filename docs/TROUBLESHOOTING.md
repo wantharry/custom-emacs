@@ -69,6 +69,30 @@ what fixed them. Newest-relevant first.
 - Use `-Q --init-directory=<scratch> -l <that>/init.el` so its state files,
   `eln-cache` and package files do not land in `~/.emacs.d`.
 
+## Speed
+
+### Startup takes about a second instead of 0.05 s
+
+- **Cause on WSL:** the Windows `PATH` is inherited (here 53 entries, 39 of them
+  Windows drives under `/mnt`). Each lookup of a program that is not installed costs
+  ~0.09 s, and loading `browse-url` (which `package.el` loads) does several, so
+  `(require 'package)` alone took ~0.7 s. With the Windows entries removed from `PATH`
+  it took 0.005 s.
+- **Fix in this config:** `package.el` is not loaded at startup. The test
+  `startup/package-el-not-loaded` guards it. To fix it for every program, set
+  `appendWindowsPath=false` under `[interop]` in `/etc/wsl.conf` (a system change, not
+  made here).
+- **Keep files on the Linux side.** Small-file operations were ~220 times slower on a
+  Windows drive (`/mnt/c`, 17.9 s) than on the WSL disk (0.08 s) in a 2,000-file test.
+
+## Evil
+
+### `Error in post-command-hook (evil-normal-post-command): (void-variable evil-mode-buffers)`
+
+- **Cause:** Evil 1.15 expects a variable Emacs 32 dropped. See
+  [CUSTOMIZING.md](CUSTOMIZING.md).
+- **Fix:** the compatibility shim in `init.el`. If you see it, the shim was removed.
+
 ## Fonts and icons
 
 ### The font is not the one I expected

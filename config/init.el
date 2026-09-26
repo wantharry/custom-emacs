@@ -79,8 +79,60 @@
 ;;   (add-hook 'python-ts-mode-hook #'eglot-ensure)
 (setq eglot-autoshutdown t)
 
+;;; Packages -----------------------------------------------------------------
+
+;; Only what we choose to use, installed into config/elpa (gitignored) by
+;; `./build.sh packages' or on first use.
+;;
+;; package.el is deliberately NOT loaded at startup.  It loads `browse-url',
+;; which searches PATH for browsers; on WSL, where PATH includes Windows
+;; drives, that alone costs ~0.7 s per launch.  Installed packages are put on
+;; `load-path' directly instead, and package.el is loaded only to install.
+(defvar my/elpa-dir (expand-file-name "elpa" user-emacs-directory)
+  "Where packages installed by this configuration live.")
+
+(dolist (dir (file-expand-wildcards (expand-file-name "*" my/elpa-dir)))
+  (when (and (file-directory-p dir)
+             (not (member (file-name-nondirectory dir) '("archives" "gnupg"))))
+    (add-to-list 'load-path dir)))
+
+(defun my/install-package (pkg)
+  "Install PKG from ELPA into `my/elpa-dir'.  Loads package.el on demand."
+  (require 'package)
+  (setq package-user-dir my/elpa-dir
+        package-archives '(("gnu"    . "https://elpa.gnu.org/packages/")
+                           ("nongnu" . "https://elpa.nongnu.org/nongnu/")))
+  (package-initialize)
+  (package-refresh-contents)
+  (package-install pkg))
+
+;;; Evil (vi keybindings), off by default -------------------------------------
+
+;; Compatibility shim.  Evil 1.15 reads `evil-mode-buffers', a variable the
+;; globalized-minor-mode machinery defined in Emacs <= 31 but Emacs 32 no
+;; longer does.  Without it, Evil signals (void-variable evil-mode-buffers)
+;; from `post-command-hook' after commands.  Nil means "no buffer is being
+;; initialized", which is the right answer outside Evil's own setup code.
+;; Covered by tests/ert/evil.el; remove once Evil supports Emacs 32.
+(defvar evil-mode-buffers nil
+  "Compatibility shim for Evil on Emacs 32; see init.el.")
+
+(defun my/toggle-evil ()
+  "Toggle Evil (vi emulation) globally.
+Evil is loaded on first use, so it costs nothing until then.  If it is not
+installed, offer to install it from NonGNU ELPA."
+  (interactive)
+  (unless (require 'evil nil t)
+    (if (y-or-n-p "Evil (vi keys) is not installed.  Install from NonGNU ELPA? ")
+        (progn (my/install-package 'evil)
+               (require 'evil))
+      (user-error "Evil is not installed")))
+  (evil-mode (if evil-mode -1 1))
+  (message "Evil mode %s" (if evil-mode "enabled" "disabled")))
+
 ;;; Keys ---------------------------------------------------------------------
 
+(global-set-key (kbd "C-c v") #'my/toggle-evil)
 (global-set-key (kbd "C-x C-b") #'ibuffer)
 (global-set-key (kbd "M-o") #'other-window)
 (global-set-key (kbd "C-c r") #'recentf-open)

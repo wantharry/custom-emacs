@@ -8,3 +8,7 @@
 /config/*
 !/config/init.el
 !/config/early-init.el
+
+# Python bytecode from the test runner
+__pycache__/
+*.pyc

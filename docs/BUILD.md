@@ -53,6 +53,8 @@ git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src
 ```sh
 ./build.sh            # configure + make + install + prune
 ./build.sh configure  # or one step at a time: configure | make | install | prune
+./build.sh packages   # install Evil into config/elpa (network)
+./build.sh test       # run the test suite
 ```
 
 ### What `build.sh` configures
@@ -109,6 +111,7 @@ To open a window from a script, run it in the background:
 | A file in `emacs-src/lisp/` | `./build.sh make` (recompiles only that file) |
 | A file in `emacs-src/src/` | `./build.sh make` (rebuilds and relinks only what changed) |
 | `prune.list` | `./build.sh install && ./build.sh prune` (see below) |
+| Anything | `./build.sh test`, **always** (see [TESTING.md](TESTING.md)) |
 
 Changing `prune.list` to keep something that was pruned needs a fresh
 `./build.sh install`, because pruning deletes files from `install/`.

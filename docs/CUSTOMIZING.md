@@ -40,10 +40,20 @@ ignored on purpose; see `.gitignore`.
 | Editing | 4-space indentation with spaces, matching parens, delete-selection, auto-revert, save-place, recent files, minibuffer history. Backups and auto-saves go to `config/backups/` and no lock files are created |
 | Completion | Built-in only: vertical `fido` minibuffer, flexible matching, inline completion preview, `which-key` |
 | Coding | `treesit-font-lock-level 4`; Eglot (built-in LSP client) is available but not auto-started |
-| Keys | `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files |
+| Packages | Puts installed packages (only Evil) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
+| Evil | `C-c v` toggles vi-style editing; Evil loads on first use. Includes a one-line compatibility shim (below) |
+| Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
 | Startup report | Prints Emacs version, load time and GC count to the echo area once |
 
-No third-party packages are installed or required.
+The only third-party package is **Evil**, and it is optional: it is installed by
+`./build.sh packages` (or offered on first use of `C-c v`) into `config/elpa/`, which
+is gitignored. Nothing else is installed.
+
+**Evil on Emacs 32.** Evil 1.15 reads a variable, `evil-mode-buffers`, that Emacs 32
+no longer defines. Without a shim every command raised `(void-variable
+evil-mode-buffers)` from `post-command-hook`. `init.el` defines the variable as `nil`.
+The regression test `evil/no-post-command-hook-errors-on-emacs-32` guards it; delete the
+shim once Evil supports Emacs 32.
 
 ## Adding a theme
 

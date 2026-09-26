@@ -27,10 +27,11 @@ EMACS = os.path.join(ROOT, "build", "src", "emacs")
 
 def read_manifest():
     pats = []
-    for line in open(MANIFEST):
-        line = line.split("#", 1)[0].strip()
-        if line:
-            pats.append(line)
+    with open(MANIFEST) as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                pats.append(line)
     return pats
 
 
@@ -65,7 +66,9 @@ def needs(path):
     """
     hard, soft = set(), set()
     prev = ""
-    for l in open(path, errors="replace"):
+    with open(path, errors="replace") as fh:
+        lines = fh.readlines()
+    for l in lines:
         stripped = l.lstrip()
         if stripped.startswith(";") or COMPILE_ONLY.search(l):
             prev = l

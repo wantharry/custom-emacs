@@ -18,7 +18,8 @@ the pruning tool. The Emacs source itself is cloned separately into
 |---|---|
 | Linux build (Ubuntu 24.04 on WSL2, GTK/Wayland) | **Verified.** Builds, launches a GUI window, all smoke tests pass |
 | Native compilation, tree-sitter, SQLite, HarfBuzz | **Verified** enabled and working |
-| Starter config (`config/`) | **Verified** loads cleanly. No theme, no external packages |
+| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only package is Evil, optional, toggled with `C-c v` |
+| Test suite | **250 tests, all pass in about 5 seconds** (`./build.sh test`); checked to catch six kinds of deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
 | Windows build | *Untested.* Placeholder in `build.sh` only |
 | macOS build | *Untested.* Placeholder in `build.sh` only |
@@ -42,6 +43,9 @@ git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src
 
 # 4. run it
 install/bin/emacs --init-directory=$PWD/config
+
+# 5. run the tests (do this after every change)
+./build.sh test
 ```
 
 Details and alternatives: [docs/BUILD.md](docs/BUILD.md).
@@ -55,6 +59,7 @@ research-emacs/
 ├── prune.list           which built-in Lisp to remove (edit this)
 ├── prune.py             dependency-aware pruning tool
 ├── tools/               verification scripts for a pruned build
+├── tests/               the automated test suite (run it after every change)
 ├── config/
 │   ├── early-init.el    runs before the window exists (startup speed)
 │   └── init.el          the actual configuration
@@ -73,6 +78,8 @@ research-emacs/
 | [docs/CUSTOMIZING.md](docs/CUSTOMIZING.md) | The config files, adding a theme/fonts, live editing, profiling |
 | [docs/PRUNING.md](docs/PRUNING.md) | Removing unused packages: method, results, limits, how to test |
 | [docs/CROSS-PLATFORM.md](docs/CROSS-PLATFORM.md) | Plan for Windows and macOS and CI (untested) |
+| [docs/KEYBOARD.md](docs/KEYBOARD.md) | Learning Emacs: movement, editing, search, Dired, help, Evil. Every key is machine-checked |
+| [docs/TESTING.md](docs/TESTING.md) | The test suite: what it covers, how to run it, how to add tests |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problems hit while building this, and their fixes |
 
 ## Key numbers (measured)
@@ -83,7 +90,7 @@ research-emacs/
 | Elisp in `lisp/` | ~2.03 M lines |
 | C in `src/` | ~567 K lines |
 | Startup, headless, bare `-Q` | 0.03 s |
-| Startup, headless, with our config | 0.07 s |
+| Startup, headless, with our config | 0.05 s |
 | Install size, unpruned → pruned | 308 MB → 258 MB |
 | Native-compiled files, unpruned → pruned | 1,627 → 1,228 |
 | Built-in packages loading, unpruned → pruned | 512/513 → 476/513 (the 36 missing are the removed ones; `nxml` fails in both) |
