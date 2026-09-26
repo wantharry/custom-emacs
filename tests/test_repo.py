@@ -41,6 +41,13 @@ class Docs(unittest.TestCase):
                     if anchor:
                         self.assertIn(anchor, anchors.get(target, set()), "missing anchor")
 
+    def test_practice_file_has_all_its_exercises_and_is_linked(self):
+        practice = read(rel("docs", "practice.txt"))
+        for n in range(1, 11):
+            with self.subTest(exercise=n):
+                self.assertRegex(practice, rf"(?m)^EXERCISE {n}\b")
+        self.assertIn("practice.txt", read(rel("docs", "TYPING.md")))
+
     def test_readme_lists_every_guide(self):
         readme = read(rel("README.md"))
         for f in glob.glob(rel("docs", "*.md")):

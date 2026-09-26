@@ -21,7 +21,7 @@ the pruning tool. The Emacs source itself is cloned separately into
 | Starter config (`config/`) | **Verified** loads cleanly. No theme; the only package is Evil, optional, toggled with `C-c v` |
 | Read-only files | **Verified.** Every file opens read-only; `C-c e e` or `M-x allow-editing` is the one deliberate way to edit (a three-key chord, so no slip can do it) |
 | Java and Rust | **Verified.** Tree-sitter modes plus `rust-analyzer` and `jdtls` via Eglot, started by hand (`M-x eglot`); no measurable startup cost |
-| Test suite | **311 tests offline (about 5 s), 348 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
+| Test suite | **320 tests offline (about 5 s), 357 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
 | Windows build | *Untested.* Placeholder in `build.sh` only |
 | macOS build | *Untested.* Placeholder in `build.sh` only |
@@ -83,6 +83,7 @@ research-emacs/
 | [docs/PRUNING.md](docs/PRUNING.md) | Removing unused packages: method, results, limits, how to test |
 | [docs/CROSS-PLATFORM.md](docs/CROSS-PLATFORM.md) | Plan for Windows and macOS and CI (untested) |
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust: what is installed, what it costs (measured), how to use and extend it |
+| [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |
 | [docs/KEYBOARD.md](docs/KEYBOARD.md) | Learning Emacs: movement, editing, search, Dired, help, Evil. Every key is machine-checked |
 | [docs/TESTING.md](docs/TESTING.md) | The test suite: what it covers, how to run it, how to add tests |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problems hit while building this, and their fixes |

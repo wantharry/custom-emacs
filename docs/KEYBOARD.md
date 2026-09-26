@@ -4,6 +4,10 @@ A working guide to the keyboard, for learning Emacs by using it. Every key in th
 tables below is **checked against this Emacs build** by `tests/ert/keybindings.el`
 (it reads this file), so the tables cannot silently be wrong.
 
+> New to pressing Control and Meta, or want to get faster? Read [TYPING.md](TYPING.md): keyboard
+> setup, which finger presses what, holding Control through a chord, the `Esc` method, and a
+> four-week practice plan.
+
 ## How to read the notation
 
 | Written | Means |

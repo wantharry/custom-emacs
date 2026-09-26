@@ -7,17 +7,26 @@
 (require 'dired) (require 'wdired) (require 'ibuffer) (require 'isearch)
 
 (defun kb--rows ()
-  "Return a list of (MAP KEY COMMAND LINE) parsed from docs/KEYBOARD.md."
-  (with-temp-buffer
-    (insert-file-contents (expand-file-name "docs/KEYBOARD.md" test-root))
-    (let ((map "global") rows (n 0))
-      (dolist (line (split-string (buffer-string) "\n"))
-        (setq n (1+ n))
-        (cond ((string-match "<!-- keymap: \\([^ ]+\\) -->" line)
-               (setq map (match-string 1 line)))
-              ((string-match "\\`| `\\([^`]+\\)` | `\\([^`]+\\)` |" line)
-               (push (list map (match-string 1 line) (match-string 2 line) n) rows))))
-      (nreverse rows))))
+  "Return a list of (MAP KEY COMMAND LINE) parsed from the key tables in the guides
+(docs/KEYBOARD.md and docs/TYPING.md).  A row whose command cell contains a space
+(such as `Esc x') is not a command and is skipped."
+  (let (rows)
+    ;; A <!-- keymap: none --> marker switches checking off until the next marker, for
+    ;; tables that are not "key, command" (for example keys pressed after a chord).
+    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md"))
+      (with-temp-buffer
+        (insert-file-contents (expand-file-name doc test-root))
+        (let ((map "global") (n 0))
+          (dolist (line (split-string (buffer-string) "\n"))
+            (setq n (1+ n))
+            (cond ((string-match "<!-- keymap: \\([^ ]+\\) -->" line)
+                   (setq map (match-string 1 line)))
+                  ((and (not (equal map "none"))
+                        (string-match "\\`| `\\([^`]+\\)` | `\\([^` ]+\\)` |" line))
+                   (push (list map (match-string 1 line) (match-string 2 line)
+                               (format "%s:%d" doc n))
+                         rows)))))))
+    (nreverse rows)))
 
 (defun kb--binding (map key)
   "The command KEY runs in the mode/keymap named MAP.
@@ -51,7 +60,7 @@ would see them."
       (when (equal (car r) map)
         (let ((got (kb--binding map (nth 1 r))) (want (intern (nth 2 r))))
           (unless (eq got want)
-            (push (format "line %d: %s %s -> documented %s, actual %S"
+            (push (format "%s: %s %s -> documented %s, actual %S"
                           (nth 3 r) map (nth 1 r) want got)
                   bad)))))
     (nreverse bad)))
@@ -74,7 +83,7 @@ would see them."
       (let ((cmd (intern (nth 2 r))))
         (unless (or (commandp cmd) (fboundp cmd)
                     (and (string-prefix-p "evil-" (nth 2 r)) (not (locate-library "evil"))))
-          (push (format "line %d: %s is not a command" (nth 3 r) cmd) bad))))
+          (push (format "%s: %s is not a command" (nth 3 r) cmd) bad))))
     (should-not bad)))
 
 (ert-deftest keys/global-keys-match-the-guide ()
@@ -108,5 +117,39 @@ would see them."
   (skip-unless (locate-library "evil"))
   (require 'evil)
   (should-not (kb--mismatches "evil-normal")))
+
+
+;;; Facts the typing guide (docs/TYPING.md) states in prose
+
+(ert-deftest keys/typing-guide-alternatives-to-modifier-keys ()
+  (should (eq (key-binding (kbd "C-@")) 'set-mark-command))            ; when C-SPC is taken
+  (should (equal (kbd "C-[") (kbd "ESC")))                             ; C-[ is Esc
+  (should (eq (key-binding (kbd "ESC x")) 'execute-extended-command))  ; Esc x is M-x
+  (should (eq (key-binding (kbd "ESC ESC ESC")) 'keyboard-escape-quit))
+  (should (eq (key-binding (kbd "C-]")) 'abort-recursive-edit)))
+
+(ert-deftest keys/typing-guide-slip-recovery-keys ()
+  (should (eq (key-binding (kbd "C-z")) 'suspend-frame))
+  (should (eq (key-binding (kbd "C-x C-c")) 'save-buffers-kill-terminal))
+  (should (eq (key-binding (kbd "C-x z")) 'repeat)))
+
+(ert-deftest keys/typing-guide-hint-after-m-x ()
+  (should (eq (default-value 'suggest-key-bindings) t)))
+
+(ert-deftest keys/typing-guide-repeat-mode-maps ()
+  (require 'repeat)
+  (should (commandp 'repeat-mode))
+  (should (eq (lookup-key other-window-repeat-map "o") 'other-window))
+  (should (eq (lookup-key other-window-repeat-map "O") 'other-window-backward))
+  (should (eq (lookup-key undo-repeat-map "u") 'undo))
+  (should (eq (lookup-key next-error-repeat-map "n") 'next-error))
+  (should (eq (lookup-key next-error-repeat-map "p") 'previous-error))
+  ;; the guide says it is not on by default in this config
+  (should-not (bound-and-true-p repeat-mode)))
+
+(ert-deftest keys/typing-guide-mentions-the-facts-it-relies-on ()
+  (let ((text (with-temp-buffer (insert-file-contents (expand-file-name "docs/TYPING.md" test-root)) (buffer-string))))
+    (dolist (s '("C-@" "Esc Esc Esc" "C-[" "repeat-mode" "Caps Lock" "PowerToys" "C-h l"))
+      (should (string-match-p (regexp-quote s) text)))))
 
 ;;; keybindings.el ends here

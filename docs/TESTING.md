@@ -61,7 +61,7 @@ the tooling.
 | `evil.el` | The `C-c v` toggle: on, off, repeatable, states, motions and operators, restores plain Emacs keys, Emacs keys still work, and a regression test for the Emacs 32 incompatibility |
 | `evil-missing.el` | The toggle when Evil is not installed: declining, and accepting the install |
 | `readonly.el` | Every kind of file (existing, new, symlinked) opens read-only; the disk is never touched; `allow-editing`/`stop-editing` work and only saving reaches the disk; nothing can unlock a buffer behind our back; `C-x C-q` twenty mistyped editing shortcuts change nothing (including under Evil); the `C-c e e` / `C-c e l` chords work in every mode (Dired, ibuffer, Java, Rust, Evil) and nothing shorter unlocks a file; Customize, recent files and file operations keep working |
-| `keybindings.el` | **Every key in `docs/KEYBOARD.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
+| `keybindings.el` | **Every key in `docs/KEYBOARD.md` and `docs/TYPING.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
 | `languages-java-rust.el` | Java and Rust: tree-sitter modes, parsing, highlighting, indentation, imenu, server setup, no servers started on open, the toolchains compile and run; with `--lsp`, real `rust-analyzer` and `jdtls` sessions through Eglot |
 | `pruning.el` | Removed packages are gone, coding essentials and deliberate exceptions are present, removed features fail cleanly, no native code left for them |
 | `network-live.el` | Real HTTPS fetch, package refresh, package install (only with `--network`) |

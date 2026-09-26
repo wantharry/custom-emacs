@@ -1,0 +1,94 @@
+PRACTICE FILE FOR LEARNING EMACS KEYS
+=====================================
+Copy this file first, so you can edit it freely and start fresh whenever you like:
+
+    cp docs/practice.txt /tmp/practice.txt
+
+Open the copy in Emacs:   C-x C-f  /tmp/practice.txt  RET
+Every file opens read-only in this config, so unlock it first:   C-c e e
+Save with C-x C-s. Cancel anything with C-g. Keys are explained in docs/TYPING.md.
+Do the exercises with the keyboard only: no mouse, no arrow keys.
+
+
+EXERCISE 1  -  move a character and a line at a time     (C-f C-b C-n C-p C-a C-e)
+-----------------------------------------------------------------------------------
+Put the cursor on the X below, using only the keys above, starting from here.
+Then move to the start of the line and then to the end.
+
+first line of the exercise
+second line
+third line has the target: X
+fourth line
+
+
+EXERCISE 2  -  move a word at a time                      (M-f M-b M-d)
+-----------------------------------------------------------------------------------
+Move to the word "brown" with M-f only. Cut it with M-d. Then undo with C-/ .
+
+the quick brown fox jumps over the lazy dog
+
+
+EXERCISE 3  -  cut, copy and paste                        (C-k C-w M-w C-y M-y C-SPC)
+-----------------------------------------------------------------------------------
+Move the line "CUT ME" so it appears after "HERE". Use C-k to cut, then C-y to paste.
+Then copy the line "COPY ME" with C-SPC, a move, and M-w, and paste it twice.
+
+CUT ME
+one
+two
+HERE
+three
+COPY ME
+
+
+EXERCISE 4  -  fix a typo without deleting the whole word (C-t M-t C-d)
+-----------------------------------------------------------------------------------
+Fix the swapped letters with C-t. Fix the swapped words with M-t.
+
+teh word order is wrong hree ;  and  cat the sat
+
+
+EXERCISE 5  -  search and replace                         (C-s C-r M-%)
+-----------------------------------------------------------------------------------
+Find "needle" with C-s (press C-s again for the next one). Then replace "cat" with "dog"
+everywhere using M-% ; answer y / n, or ! to do all of them.
+
+hay hay needle hay hay
+cat and cat and another cat
+hay needle hay
+
+
+EXERCISE 6  -  jump around                                (M-< M-> M-g g C-l)
+-----------------------------------------------------------------------------------
+Jump to the top of the file, to the bottom, then to line 100 with M-g g.
+Press C-l several times and watch how the view moves.
+
+
+EXERCISE 7  -  case and tidy up                           (M-u M-l M-c)
+-----------------------------------------------------------------------------------
+Make the first line ALL CAPS, the second all lower case, the third Capitalized,
+each one word at a time.
+
+make this loud
+MAKE THIS QUIET
+capitalise this sentence properly
+
+
+EXERCISE 8  -  two windows                                (C-x 3 C-x 2 C-x o C-x 1 C-x 0)
+-----------------------------------------------------------------------------------
+Split the window in two with C-x 3. Move to the other pane with C-x o (or M-o).
+Open a different file there with C-x C-f. Come back to one pane with C-x 1.
+
+
+EXERCISE 9  -  undo and redo                              (C-/ C-?)
+-----------------------------------------------------------------------------------
+Type a sentence here, delete a word, then undo twice with C-/ and redo once with C-? .
+
+(type here)
+
+
+EXERCISE 10  -  the loop to do every day, in under a minute
+-----------------------------------------------------------------------------------
+Quit Emacs (C-x C-c), start it again on this file, unlock it (C-c e e), change one word,
+save (C-x C-s), and quit. Keyboard only. Time yourself. It should get smoother every day.
+
