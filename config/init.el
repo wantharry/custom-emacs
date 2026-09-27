@@ -417,6 +417,18 @@ installed, offer to install it from NonGNU ELPA."
 (require 'startpage my/start-library)
 (setq initial-buffer-choice #'my/start-initial-buffer)
 
+;;; Documentation buffer ----------------------------------------------------------
+
+;; Every guide (README.md and docs/*.md) concatenated into one buffer, *docs*, built once
+;; at startup so it is always there to read, with no network and no re-finding a file.
+;; It does not pop up on its own: `C-c d' shows it, `C-c D' rebuilds it.  Reading and
+;; building it takes about 2 ms for 290 KB of text, so this runs at startup, not lazily.
+;; See config/docsbuffer.el and docs/CUSTOMIZING.md.
+(require 'docsbuffer (expand-file-name "docsbuffer" user-emacs-directory))
+(my/docs-rebuild)
+(global-set-key (kbd "C-c d") #'my/docs)
+(global-set-key (kbd "C-c D") #'my/docs-rebuild)
+
 ;;; Magit ------------------------------------------------------------------------
 
 ;; Git in a keyboard-driven interface: `C-x g' opens the status of the current repository

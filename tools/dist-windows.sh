@@ -98,7 +98,11 @@ rm -rf "$STAGE/tools/jdk/jmods" "$STAGE/tools/jdk/lib/src.zip"
 # the language server: only the Windows part (it is started by Emacs with java directly, no Python needed)
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el} "$STAGE/config/"
+# text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
+# layout as the git repository, so no code needs to know it is running from a bundle
+cp "$ROOT/README.md" "$STAGE/README.md"
+mkdir -p "$STAGE/docs" && cp "$ROOT"/docs/*.md "$STAGE/docs/"
 mkdir -p "$STAGE/config/tree-sitter"; cp "$CACHE"/gram/*.dll "$STAGE/config/tree-sitter/"
 cp -r "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"
@@ -125,8 +129,9 @@ Custom Emacs, portable, for Windows 10/11 (64-bit).
 
 Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
-  config\\  your settings and the packages Evil and Magit, and tree-sitter grammars for Java and Rust
+  config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java and Rust
   tools\\   ripgrep and fd (fast search and file finding), a portable Git (for Magit), and Java 21 with the Java language server
+  docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
 
@@ -135,6 +140,7 @@ native compilation (the official Windows build ships without it), so it runs byt
 Java works out of the box: M-x eglot in a Java project (definitions, references, implementations).
 Rust's rust-analyzer is a separate program and is not included.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
+Press C-c d for every guide in one buffer (README.md and docs\\*.md), built the moment Emacs starts.
 GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2
 (tools\\git\\LICENSE.txt) and ripgrep under MIT/Unlicense. Full guide: DISTRIBUTION.md.
 EOF

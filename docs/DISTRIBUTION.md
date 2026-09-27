@@ -43,7 +43,7 @@ Everything else behaves as in the Linux guides: Java highlighted by tree-sitter,
 custom-emacs-windows-x64/
 ├── Emacs.exe          the launcher you double-click (76 KB; source: tools/windows-launcher.c)
 ├── emacs/             GNU Emacs 31.1 for Windows, the official unmodified build, with all its libraries
-├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el
+├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el, docsbuffer.el
 │   ├── elpa/          Evil, Magit, Treemacs and Consult (and their helpers), compiled by the Windows Emacs
 │   └── tree-sitter/   Java and Rust grammars for Windows
 ├── tools/
@@ -52,7 +52,9 @@ custom-emacs-windows-x64/
 │   ├── fd/            fd: file finding for Consult (`C-c s f`)
 │   ├── jdk/           Temurin JDK 21 (without src.zip and jmods): java, javac
 │   └── jdtls/         the Java language server, started directly with that Java
-├── README.txt
+├── docs/              every guide, plain text, read from inside Emacs with `C-c d` (see below)
+├── README.md          this project's own overview (also inside the `C-c d` buffer)
+├── README.txt         this bundle's own quick-start
 └── DISTRIBUTION.md    this guide
 ```
 
@@ -60,6 +62,11 @@ What `Emacs.exe` does when you start it: finds its own folder; puts the bundled 
 `PATH`; sets `HOME` to your user profile if it is not set, so `~` means `C:\Users\you`; and starts
 `emacs\bin\runemacs.exe` (Emacs without a console window) pointing at `config\`. Files or options you give
 `Emacs.exe` are passed on to Emacs, so `Emacs.exe notes.txt` opens that file.
+
+**Every guide is inside Emacs itself.** Press `C-c d` for a single buffer, `*docs*`, holding this project's
+README and every `docs\*.md` guide, folded with `outline-mode` and with a clickable table of contents. It is
+built the moment Emacs starts (about 2 ms; measured identical content on Windows and Linux, 257,570
+characters), so it is there even with no network. See [CUSTOMIZING.md](CUSTOMIZING.md).
 
 **Your changes are saved in the bundle's `config\` folder**: recent files, the folder and project history,
 backups and anything `M-x customize` saves. Copying or moving the whole folder moves them with it. It also
@@ -96,7 +103,7 @@ Everything here was run on the actual bundle, unzipped fresh with Windows' own e
 | Evil and Magit load | Yes |
 | **A real commit through Magit**: stage, `c c`, the message buffer opens (1.6 s), it is editable, `C-c C-c` commits, `git log` shows it, and the source file is still read-only afterwards | Yes |
 | Whole-drive index (859,000 files on this PC) | built in 1.6 s, queries 67 to 495 ms |
-| Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **409 tests: 391 pass, 1 fail (a known real-`jdtls` timing flake under full parallel load, confirmed 27/27 pass alone), 17 skipped** |
+| Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **424 tests: 406 pass, 1 fail (a known real-`jdtls` timing flake under full parallel load, confirmed 27/27 pass alone), 17 skipped** |
 | Contents of the zip (files present, settings identical to the repository, no personal history, packages compiled for Emacs 31) | 12 automated tests in `tests/test_dist.py` |
 
 `java-navigation`'s real-`jdtls` tests all pass on Windows (**27 of 27**, run with `LSP=1 tools/test-windows.sh`).

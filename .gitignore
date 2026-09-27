@@ -10,6 +10,7 @@
 !/config/early-init.el
 !/config/fastfind.el
 !/config/startpage.el
+!/config/docsbuffer.el
 
 # Python bytecode from the test runner
 __pycache__/

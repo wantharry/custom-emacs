@@ -278,6 +278,8 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c s g` | `consult-ripgrep` | **this config:** search project text (ripgrep), with a live preview |
 | `C-c s f` | `consult-fd` | **this config:** find a project file by name (fd), with a live preview |
 | `C-c s b` | `consult-buffer` | **this config:** switch to a buffer, recent file or bookmark |
+| `C-c d` | `my/docs` | **this config:** show every guide in one buffer, built at startup |
+| `C-c D` | `my/docs-rebuild` | **this config:** rebuild it after a guide changes |
 | `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable ([START-SCREEN.md](START-SCREEN.md)) |
 | `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
 | `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |

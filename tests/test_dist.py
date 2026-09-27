@@ -13,7 +13,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ZIP = os.path.join(ROOT, "dist", "custom-emacs-windows-x64.zip")
 TOP = "custom-emacs-windows-x64/"
-CONFIG_FILES = ["early-init.el", "init.el", "fastfind.el", "startpage.el"]
+CONFIG_FILES = ["early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el"]
 
 
 class Scripts(unittest.TestCase):
@@ -70,11 +70,11 @@ class WindowsBundle(unittest.TestCase):
         cls.z.close()
 
     def test_everything_needed_to_run_is_inside(self):
-        for f in ["Emacs.exe", "README.txt", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
+        for f in ["Emacs.exe", "README.txt", "README.md", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
                   "emacs/bin/emacsclient.exe", "emacs/bin/libtree-sitter-0.26.dll",
                   "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe", "tools/fd/fd.exe",
                   "tools/jdk/bin/java.exe", "tools/jdk/bin/javac.exe", "tools/jdk/release",
-                  "tools/jdtls/config_win/config.ini",
+                  "tools/jdtls/config_win/config.ini", "docs/SEARCHING.md", "docs/EGLOT.md",
                   "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
@@ -85,6 +85,13 @@ class WindowsBundle(unittest.TestCase):
                 with open(os.path.join(ROOT, "config", f), "rb") as fh:
                     self.assertEqual(self.z.read(TOP + "config/" + f), fh.read(),
                                      f"{f} in the bundle differs from config/{f}: rebuild the bundle")
+
+    def test_every_doc_guide_is_included_for_the_in_emacs_docs_buffer(self):
+        real = {f"docs/{n}" for n in os.listdir(os.path.join(ROOT, "docs")) if n.endswith(".md")}
+        self.assertTrue(real, "no docs/*.md found in the repository itself")
+        for f in real:
+            with self.subTest(file=f):
+                self.assertIn(TOP + f, self.names)
 
     def test_the_java_language_server_and_its_launcher_jar_are_there(self):
         self.assertTrue(any(n.startswith(TOP + "tools/jdtls/plugins/org.eclipse.equinox.launcher_") and n.endswith(".jar")
