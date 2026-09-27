@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ZIP = os.path.join(ROOT, "dist", "custom-emacs-windows-x64.zip")
 TOP = ""  # the zip has no wrapping top-level folder (fixed 2026-09-27: it doubled on Windows' own
           # "Extract All", which proposes a same-named destination folder)
-CONFIG_FILES = ["early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el"]
+CONFIG_FILES = ["early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el", "gitfolders.el"]
 
 
 class Scripts(unittest.TestCase):

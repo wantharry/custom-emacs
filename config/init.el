@@ -450,11 +450,21 @@ installed, offer to install it from NonGNU ELPA."
 (global-set-key (kbd "C-x g") (if (locate-library "magit") #'magit-status #'my/magit-missing))
 (global-set-key (kbd "C-c g") (if (locate-library "magit") #'magit-file-dispatch #'my/magit-missing))
 
+;;; Finding git repositories --------------------------------------------------------
+
+;; `C-c f p' lists every git repository on the Linux side; `C-u C-c f p' also scans every
+;; mounted Windows drive (much slower).  Runs tools/find-repos.sh in the background, so
+;; Emacs is never blocked while it searches.  Nothing loads until first use.
+;; See config/gitfolders.el.
+(autoload 'my/find-git-repos (expand-file-name "gitfolders" user-emacs-directory)
+  "Show every git repository on this computer." t)
+
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c f f") #'my/ff-find-file)
 (global-set-key (kbd "C-c f g") #'my/ff-find-file-global)
 (global-set-key (kbd "C-c f r") #'my/ff-reindex)
+(global-set-key (kbd "C-c f p") #'my/find-git-repos)
 (global-set-key (kbd "C-c v") #'my/toggle-evil)
 (global-set-key (kbd "C-x C-b") #'ibuffer)
 (global-set-key (kbd "M-o") #'other-window)

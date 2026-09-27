@@ -11,6 +11,7 @@
 !/config/fastfind.el
 !/config/startpage.el
 !/config/docsbuffer.el
+!/config/gitfolders.el
 
 # Python bytecode from the test runner
 __pycache__/

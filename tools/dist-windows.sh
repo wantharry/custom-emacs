@@ -98,7 +98,7 @@ rm -rf "$STAGE/tools/jdk/jmods" "$STAGE/tools/jdk/lib/src.zip"
 # the language server: only the Windows part (it is started by Emacs with java directly, no Python needed)
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
 # layout as the git repository, so no code needs to know it is running from a bundle
 cp "$ROOT/README.md" "$STAGE/README.md"

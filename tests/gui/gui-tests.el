@@ -399,6 +399,42 @@ the end it is aborted."
         (dolist (x (buffer-list)) (when (buffer-file-name x) (kill-buffer x)))
         (ignore b)))))
 
+;;; Finding git repositories
+
+(gui-deftest gui/c-c-f-p-lists-a-repository-and-clicking-it-opens-magit
+  (skip-unless (locate-library "magit"))
+  (require 'gitfolders (expand-file-name "gitfolders" user-emacs-directory))
+  (test-with-temp-dir stub-dir
+    (test-with-temp-dir repo-dir
+      (let ((default-directory repo-dir))
+        (call-process "git" nil nil nil "init" "-q"))
+      (let ((my/git-repos-script (concat stub-dir "stub.sh"))
+            (repo (directory-file-name repo-dir)))
+        (test-write-file my/git-repos-script (format "#!/usr/bin/env bash\necho '== Linux =='\necho %s\n" repo))
+        (set-file-modes my/git-repos-script #o755)
+        (unwind-protect
+            (let ((info (gui--feed (kbd "C-c f p") 1.5
+                                   (lambda ()
+                                     (with-current-buffer "*git repos*"
+                                       (list buffer-read-only (buffer-string)))))))
+              (should (car info))
+              (should (string-match-p (regexp-quote repo) (cadr info)))
+              ;; a real window switch, not just `with-current-buffer': the button's action
+              ;; (`magit-status') switches the SELECTED window's buffer, as a real click would
+              (switch-to-buffer "*git repos*")
+              (goto-char (point-min))
+              (search-forward repo)
+              (backward-char 2)
+              (push-button)
+              (sit-for 0.5)
+              (should (string-match-p (format "magit: %s" (regexp-quote (file-name-nondirectory repo)))
+                                      (buffer-name (window-buffer (selected-window))))))
+          (when (get-buffer "*git repos*")
+            (with-current-buffer "*git repos*"
+              (when (process-live-p my/git-repos--process) (delete-process my/git-repos--process)))
+            (kill-buffer "*git repos*"))
+          (dolist (b (buffer-list)) (when (string-prefix-p "magit" (buffer-name b)) (kill-buffer b))))))))
+
 ;;; Evil and the pointer
 
 (gui-deftest gui/evil-cursor-follows-the-state

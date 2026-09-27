@@ -103,7 +103,7 @@ class GitRules(unittest.TestCase):
                 self.assertTrue(self.ignored(p))
 
     def test_our_own_files_are_not_ignored(self):
-        for p in ["config/init.el", "config/early-init.el", "config/fastfind.el", "config/startpage.el", "config/docsbuffer.el", "prune.list", "prune.py",
+        for p in ["config/init.el", "config/early-init.el", "config/fastfind.el", "config/startpage.el", "config/docsbuffer.el", "config/gitfolders.el", "prune.list", "prune.py",
                   "tests/run-all.sh", "tests/ert/config.el", "docs/BUILD.md"]:
             with self.subTest(path=p):
                 self.assertFalse(self.ignored(p))
