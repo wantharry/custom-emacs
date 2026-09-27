@@ -26,7 +26,7 @@ inventory; that page is the manual.
 | **Buffers, recent files, places** | `switch-to-buffer`, `ibuffer`, project buffers, `recentf`, minibuffer history search, bookmarks, registers | the start screen (last 5 files, folders, projects); `savehist` on; **`consult-buffer`** (`C-c s b`) | `consult-recent-file`, `consult-bookmark`, `consult-mark` (all part of the `consult` package, already installed, just not bound to a key) |
 | **Commands, keys, help** | `M-x`, the `apropos` family, `describe-*`, Info, `man`, `shortdoc`, `finder-by-keyword` | `which-key` on, vertical minibuffer list with loose matching, inline completion preview | `marginalia`, `embark`, `vertico`, `orderless` (`consult` itself needs none of these), `ivy`+`counsel`, `helm` |
 | **Git history** | `vc-print-log`, `vc-log-search`, `vc-git-grep`, `vc-annotate`, `vc-dir` | **Magit** (`C-x g`) | Forge (GitHub) and Magit add-ons |
-| **Find every git repository on this computer** | project.el's own remembered list (`C-x p p`), `M-x magit-list-repositories` (needs `magit-repository-directories` configured first) | `C-c f p`: a real disk scan (Linux, and `C-u` for Windows drives too), async, clickable results | none needed |
+| **Find every git repository on this computer** | project.el's own remembered list (`C-x p p`), `M-x magit-list-repositories` (needs `magit-repository-directories` configured first) | `C-c f p`: a real disk scan (works on Linux/WSL and on the Windows bundle), async, clickable results | none needed |
 | **The web and dictionaries** | `eww-search-words`, `webjump`, `eww`, `dictionary` | none | none needed |
 
 The rest of this page fills in each cell.
@@ -187,7 +187,7 @@ Also built in and switched on: **inline completion preview** (a grey suggestion 
 | **Treemacs**: the project as a tree | `C-c t`, `C-c T` | package | [TREEMACS.md](TREEMACS.md) |
 | **Magit**: git, with its log and status | `C-x g` | package | [MAGIT.md](MAGIT.md) |
 | **Consult**: one search box, live preview (this buffer, project text, file names, buffers) | `C-c s l/g/f/b` | package (needs `rg`, `fd`) | [SEARCHING.md](SEARCHING.md#10-consult-one-search-box-for-several-of-the-above) |
-| **Find every git repository on this computer**: an async disk scan, clickable results | `C-c f p` (`C-u` also scans Windows drives) | `config/gitfolders.el` + `tools/find-repos.sh` (our own code, no package; needs `fd`, falls back to `find`) | this page |
+| **Find every git repository on this computer**: an async disk scan, clickable results | `C-c f p`. On Linux/WSL, `C-u` also scans the Windows drives; on Windows, every local drive is already included | `config/gitfolders.el`, and on Linux/WSL `tools/find-repos.sh` (our own code, no package; needs `fd`, falls back to `find`). On Windows it runs the bundled `fd.exe` directly, no script needed | this page |
 | **Eglot set up** for Java and Rust; right-click menu; Ctrl+Click | `M-x eglot` | `init.el` | [EGLOT.md](EGLOT.md) |
 | **Evil**: vi keys, with vi's search (below) | `C-c v` | package, optional | [KEYBOARD.md](KEYBOARD.md) |
 | **Tree-sitter grammars** for Java and Rust (accurate `imenu`, highlighting) | | `config/tree-sitter/` | [LANGUAGES.md](LANGUAGES.md) |

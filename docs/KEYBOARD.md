@@ -356,7 +356,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c f f` | `my/ff-find-file` | **this config:** instant fuzzy file finder (project, or whole disk outside one) |
 | `C-c f g` | `my/ff-find-file-global` | **this config:** the same over the whole disk |
 | `C-c f r` | `my/ff-reindex` | **this config:** rebuild the whole-disk file index |
-| `C-c f p` | `my/find-git-repos` | **this config:** list every git repository on this computer; `C-u C-c f p` also scans the Windows drives (Linux/WSL only) |
+| `C-c f p` | `my/find-git-repos` | **this config:** list every git repository on this computer. On Linux/WSL, `C-u C-c f p` also scans the Windows drives; on Windows every local drive is already included, so `C-u` has no extra effect there |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

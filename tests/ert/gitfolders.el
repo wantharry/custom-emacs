@@ -59,21 +59,55 @@ containing SCRIPT-TEXT, instead of the real (slow, whole-disk) one."
         (setq best (min best (- (float-time) t0)))))
     (should (< best 0.5))))
 
-;;; The two ways this declines gracefully instead of erroring: on Windows, or with no script
+;;; The pure, parameterized functions: safe and meaningful to test on every platform, since
+;;; neither one reads `system-type' (or anything else) from a live global itself.
 
-(ert-deftest gitfolders/declines-clearly-on-windows-instead-of-trying-to-run-bash ()
-  ;; Only meaningful on a real Windows Emacs: binding `system-type' to fake it on Linux makes
-  ;; Emacs's own file-name code reach for real w32-only primitives that do not exist here,
-  ;; which is a worse test than simply running for real where it matters.
-  (skip-unless (eq system-type 'windows-nt))
-  (let (msg)
-    (cl-letf (((symbol-function 'message) (lambda (fmt &rest a) (setq msg (apply #'format fmt a)))))
-      (my/find-git-repos))
-    (should (string-match-p "Windows bundle" msg))
-    (should-not (get-buffer my/git-repos-buffer-name))))
+(ert-deftest gitfolders/command-on-linux-is-the-script-plus-an-optional-windows-flag ()
+  (should (equal (my/git-repos--command 'gnu/linux nil "tools/find-repos.sh" nil nil)
+                 '("tools/find-repos.sh")))
+  (should (equal (my/git-repos--command 'gnu/linux t "tools/find-repos.sh" nil nil)
+                 '("tools/find-repos.sh" "--windows"))))
 
-(ert-deftest gitfolders/declines-clearly-when-the-script-is-missing ()
-  ;; On Windows the platform check above always fires first, regardless of the script path.
+(ert-deftest gitfolders/command-on-windows-runs-fd-across-every-drive-with-exclusions ()
+  (let ((cmd (my/git-repos--command 'windows-nt nil "any-script" "fd.exe" '("C:/" "D:/"))))
+    (should (equal (car cmd) "fd.exe"))
+    (should (member "C:/" cmd))
+    (should (member "D:/" cmd))
+    (should (member "^\\.git$" cmd))
+    (dolist (n my/git-repos-windows-excluded-names)
+      (should (member n cmd)))
+    ;; the (Linux-only) prefix argument makes no difference on Windows: every local drive is
+    ;; already included either way, there is no separate "other side" to add
+    (should (equal cmd (my/git-repos--command 'windows-nt t "any-script" "fd.exe" '("C:/" "D:/"))))))
+
+(ert-deftest gitfolders/command-on-windows-is-nil-without-fd-or-without-any-drive ()
+  (should-not (my/git-repos--command 'windows-nt nil "s" nil '("C:/")))
+  (should-not (my/git-repos--command 'windows-nt nil "s" "fd.exe" nil)))
+
+(ert-deftest gitfolders/windows-drives-only-includes-letters-that-really-exist ()
+  (cl-letf (((symbol-function 'file-directory-p) (lambda (d) (member d '("C:/" "E:/")))))
+    (should (equal (my/git-repos--windows-drives) '("C:/" "E:/")))))
+
+;;; The two ways this declines gracefully instead of erroring: no `fd' on Windows, or no
+;;; script on Linux.  Both go through parameterized functions, so both are safe and
+;;; meaningful to test on every platform: nothing here touches the real `system-type'.
+
+(ert-deftest gitfolders/declines-clearly-when-fd-is-missing-on-windows ()
+  (should (string-match-p "fd.exe was not found" (my/git-repos--unavailable-reason 'windows-nt "s" nil)))
+  (should-not (my/git-repos--unavailable-reason 'windows-nt "s" "fd.exe")))
+
+(ert-deftest gitfolders/declines-clearly-when-the-script-is-missing-on-linux ()
+  ;; A nonexistent file is "not executable" under any OS's rules, so this half is safe
+  ;; everywhere; whether the real script itself counts as "executable" is a genuine
+  ;; Unix-only notion (`file-executable-p' on Windows goes by file extension, not a real
+  ;; script), so that half has its own test below, guarded accordingly.
+  (should (string-match-p "is missing" (my/git-repos--unavailable-reason 'gnu/linux "/does/not/exist.sh" nil))))
+
+(ert-deftest gitfolders/the-real-script-counts-as-available-on-linux ()
+  (gr-need-unix)
+  (should-not (my/git-repos--unavailable-reason 'gnu/linux (gr--real-script) nil)))
+
+(ert-deftest gitfolders/my-find-git-repos-shows-the-real-message-and-opens-no-buffer-when-unavailable ()
   (gr-need-unix)
   (let ((my/git-repos-script "/does/not/exist.sh") msg)
     (cl-letf (((symbol-function 'message) (lambda (fmt &rest a) (setq msg (apply #'format fmt a)))))

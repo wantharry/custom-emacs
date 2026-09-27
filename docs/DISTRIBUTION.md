@@ -23,7 +23,9 @@ That is all. It opens on the start screen ([START-SCREEN.md](START-SCREEN.md)):
 ![the start screen on Windows](images/windows-1-start-screen.png)
 
 Everything else behaves as in the Linux guides: Java highlighted by tree-sitter, the fast finder on
-`C-c f f`, Magit on `C-x g`, and Consult on `C-c s l/g/f/b`.
+`C-c f f`, Magit on `C-x g`, Consult on `C-c s l/g/f/b`, and finding every git repository on the computer
+with `C-c f p` — on Windows this runs the bundled `fd.exe` directly across every local drive letter,
+no shell script needed (found 36 real repositories on the machine this was tested on).
 
 ![Java on Windows](images/windows-2-java.png)
 
@@ -35,6 +37,10 @@ Everything else behaves as in the Linux guides: Java highlighted by tree-sitter,
 
 *`C-c s g area`: the same live-preview results list as on Linux, using the bundled `rg`.*
 
+![C-c f p on Windows: every git repository found, no shell script](images/windows-6-gitrepos.png)
+
+*`C-c f p`: the bundled `fd.exe` found 36 real repositories across this machine's drives; clicking one opens Magit.*
+
 *These are real screenshots of the unpacked bundle. The demo project and history are examples.*
 
 ### What is inside
@@ -43,13 +49,13 @@ Everything else behaves as in the Linux guides: Java highlighted by tree-sitter,
 custom-emacs-windows-x64/
 ├── Emacs.exe          the launcher you double-click (76 KB; source: tools/windows-launcher.c)
 ├── emacs/             GNU Emacs 31.1 for Windows, the official unmodified build, with all its libraries
-├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el, docsbuffer.el
+├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el, docsbuffer.el, gitfolders.el
 │   ├── elpa/          Evil, Magit, Treemacs and Consult (and their helpers), compiled by the Windows Emacs
 │   └── tree-sitter/   Java and Rust grammars for Windows
 ├── tools/
 │   ├── git/           MinGit 2.55: Git for Magit, with its own small shell
 │   ├── rg/            ripgrep: the fast finder, project text search, and Consult
-│   ├── fd/            fd: file finding for Consult (`C-c s f`)
+│   ├── fd/            fd: file finding for Consult (`C-c s f`) and for finding git repositories (`C-c f p`)
 │   ├── jdk/           Temurin JDK 21 (without src.zip and jmods): java, javac
 │   └── jdtls/         the Java language server, started directly with that Java
 ├── docs/              every guide, plain text, read from inside Emacs with `C-c d` (see below)
@@ -103,14 +109,17 @@ Everything here was run on the actual bundle, unzipped fresh with Windows' own e
 | Evil and Magit load | Yes |
 | **A real commit through Magit**: stage, `c c`, the message buffer opens (1.6 s), it is editable, `C-c C-c` commits, `git log` shows it, and the source file is still read-only afterwards | Yes |
 | Whole-drive index (859,000 files on this PC) | built in 1.6 s, queries 67 to 495 ms |
-| Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **424 tests: 406 pass, 1 fail (a known real-`jdtls` timing flake under full parallel load, confirmed 27/27 pass alone), 17 skipped** |
+| **Finding every git repository** (`C-c f p`), no shell script, the bundled `fd.exe` directly | Yes: **36 real repositories** found on this PC; clicking one opens a real Magit status on it |
+| Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **448 tests: 417 pass, 0 fail, 31 skipped** |
 | Contents of the zip (files present, settings identical to the repository, no personal history, packages compiled for Emacs 31) | 12 automated tests in `tests/test_dist.py` |
 
 `java-navigation`'s real-`jdtls` tests all pass on Windows (**27 of 27**, run with `LSP=1 tools/test-windows.sh`).
-Consult's `rg`- and `fd`-backed tests also pass (**14 of 14**). The 17 skips could not apply there: 4 need a Rust
-toolchain, 3 are network tests you switch on yourself, 4 check the pruned Linux install, 4 check the Linux build
-(Emacs 32, native compilation), and 2 need symbolic links (Windows allows them only in Developer Mode or as
-administrator; the tests skip themselves when the system refuses).
+Consult's `rg`- and `fd`-backed tests also pass (**14 of 14**), and so does finding git repositories
+(**10 of 10** that are meaningful there; the other 14 in that file are Linux/WSL-only, since the Linux side
+still uses `tools/find-repos.sh`, a bash script). The 31 skips could not apply there: 14 are that Linux/WSL-only
+half, 4 need a Rust toolchain, 3 are network tests you switch on yourself, 4 check the pruned Linux install,
+4 check the Linux build (Emacs 32, native compilation), and 2 need symbolic links (Windows allows them only in
+Developer Mode or as administrator; the tests skip themselves when the system refuses).
 
 **Not run on Windows:** the real-window and real-terminal tests (they use a Linux windowing setup and
 `tmux`). Instead the checks in the table above were scripted inside the real window, and the screenshots
