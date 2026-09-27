@@ -4,7 +4,7 @@
 ;; checks that KEY really runs `command` in the keymap named by the preceding
 ;; <!-- keymap: NAME --> marker (default: global, with our config loaded).
 
-(require 'dired) (require 'wdired) (require 'ibuffer) (require 'isearch) (require 'xref) (require 'project)
+(require 'grep) (require 'dired) (require 'wdired) (require 'ibuffer) (require 'isearch) (require 'xref) (require 'project)
 
 (defun kb--rows ()
   "Return a list of (MAP KEY COMMAND LINE) parsed from the key tables in the guides
@@ -13,7 +13,7 @@
   (let (rows)
     ;; A <!-- keymap: none --> marker switches checking off until the next marker, for
     ;; tables that are not "key, command" (for example keys pressed after a chord).
-    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md" "docs/START-SCREEN.md" "docs/MAGIT.md"))
+    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md" "docs/START-SCREEN.md" "docs/MAGIT.md" "docs/TREEMACS.md" "docs/SEARCHING.md" "docs/EGLOT.md"))
       (with-temp-buffer
         (insert-file-contents (expand-file-name doc test-root))
         (let ((map "global") (n 0))
@@ -24,8 +24,10 @@
                   ((and (not (equal map "none"))
                         (string-match "\\`| `\\([^`]+\\)` | `\\([^` ]+\\)` |" line))
                    ;; rows about Magit are only checked where Magit is installed
-                   (unless (and (string-match-p "\\`\\(?:magit\\|with-editor\\)" (match-string 2 line))
-                                (not (locate-library "magit")))
+                   (unless (and (or (and (string-match-p "\\`\\(?:magit\\|with-editor\\)" (match-string 2 line))
+                                             (not (locate-library "magit")))
+                                        (and (string-match-p "\\`treemacs" (match-string 2 line))
+                                             (not (locate-library "treemacs")))))
                      (push (list map (match-string 1 line) (match-string 2 line)
                                  (format "%s:%d" doc n))
                            rows))))))))
@@ -82,6 +84,7 @@ would see them."
 (ert-deftest keys/every-documented-command-exists ()
   (when (locate-library "evil") (require 'evil))
   (when (locate-library "magit") (require 'magit) (require 'with-editor))
+  (when (locate-library "treemacs") (require 'treemacs))
   (let (bad)
     (dolist (r (kb--rows))
       (let ((cmd (intern (nth 2 r))))
@@ -103,6 +106,10 @@ would see them."
   (when (locate-library "magit") (require 'magit) (require 'with-editor))
   (should-not (kb--mismatches "magit-status-mode-map"))
   (should-not (kb--mismatches "with-editor-mode-map")))
+
+(ert-deftest keys/treemacs-keys-match-the-guide ()
+  (when (locate-library "treemacs") (require 'treemacs))
+  (should-not (kb--mismatches "treemacs-mode-map")))
 
 (ert-deftest keys/dired-keys-match-the-guide ()
   (should-not (kb--mismatches "dired-mode-map")))

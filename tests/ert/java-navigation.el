@@ -197,7 +197,9 @@
 
 (defun jn--skip-unless-lsp ()
   (unless (getenv "RUN_LSP_TESTS") (ert-skip "set RUN_LSP_TESTS=1 (run-all.sh --lsp) to start jdtls"))
-  (unless (executable-find "jdtls") (ert-skip "jdtls is not installed"))
+  (unless (or (executable-find "jdtls")
+              (and (my/bundled-jdtls-dir) (file-directory-p (my/bundled-jdtls-dir))))   ; the Windows bundle's
+    (ert-skip "jdtls is not installed"))
   (unless (treesit-language-available-p 'java) (ert-skip "Java grammar not installed")))
 
 (defvar jn--proj nil "Root of the project currently under test.")

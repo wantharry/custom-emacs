@@ -6,10 +6,12 @@
 (require 'package)
 (setq package-user-dir (expand-file-name "elpa" user-emacs-directory)
       package-archives '(("gnu"    . "https://elpa.gnu.org/packages/")
-                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")))
+                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                         ;; Treemacs is only published here
+                         ("melpa"  . "https://melpa.org/packages/")))
 (package-initialize)
 
-(defconst my/packages '(evil magit)
+(defconst my/packages '(evil magit treemacs)
   "Packages this configuration uses.  Everything else is built in.")
 
 (let ((missing (seq-remove #'package-installed-p my/packages)))

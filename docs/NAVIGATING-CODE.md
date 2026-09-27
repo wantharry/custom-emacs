@@ -1,5 +1,7 @@
 # Finding files and navigating code
 
+> The complete guide to every kind of search is [SEARCHING.md](SEARCHING.md), and the language server has its own guide, [EGLOT.md](EGLOT.md). This page goes deep on the fast finder and on Java navigation.
+
 How to find a file in a project, search across it, and (for Java) click a method to see its
 definition, its implementations and everything that uses it. Everything here uses features
 built into Emacs plus the language server for Java, which is already set up

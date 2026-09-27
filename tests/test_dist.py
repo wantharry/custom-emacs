@@ -37,7 +37,7 @@ class Scripts(unittest.TestCase):
     def test_the_launcher_source_passes_the_arguments_on_and_sets_the_settings_folder(self):
         with open(os.path.join(ROOT, "tools", "windows-launcher.c")) as fh:
             src = fh.read()
-        for needle in ["--init-directory=", "runemacs.exe", "GetCommandLineW", "CUSTOM_EMACS_PORTABLE",
+        for needle in ["--init-directory=", "runemacs.exe", "GetCommandLineW", "CUSTOM_EMACS_PORTABLE", "CUSTOM_EMACS_HOME", "JAVA_HOME",
                        "tools\\\\git\\\\cmd", "tools\\\\rg"]:
             with self.subTest(needle=needle):
                 self.assertIn(needle, src)
@@ -73,6 +73,8 @@ class WindowsBundle(unittest.TestCase):
         for f in ["Emacs.exe", "README.txt", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
                   "emacs/bin/emacsclient.exe", "emacs/bin/libtree-sitter-0.26.dll",
                   "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe",
+                  "tools/jdk/bin/java.exe", "tools/jdk/bin/javac.exe", "tools/jdk/release",
+                  "tools/jdtls/config_win/config.ini",
                   "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
@@ -84,8 +86,18 @@ class WindowsBundle(unittest.TestCase):
                     self.assertEqual(self.z.read(TOP + "config/" + f), fh.read(),
                                      f"{f} in the bundle differs from config/{f}: rebuild the bundle")
 
+    def test_the_java_language_server_and_its_launcher_jar_are_there(self):
+        self.assertTrue(any(n.startswith(TOP + "tools/jdtls/plugins/org.eclipse.equinox.launcher_") and n.endswith(".jar")
+                            for n in self.names), "no jdtls launcher jar")
+        self.assertTrue(any(n.startswith(TOP + "tools/jdtls/plugins/org.eclipse.jdt.ls.core_") for n in self.names))
+
+    def test_the_jdk_is_trimmed_but_still_compiles(self):
+        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/jmods/")], "jmods should be removed")
+        self.assertNotIn(TOP + "tools/jdk/lib/src.zip", self.names)
+        self.assertIn(TOP + "tools/jdk/lib/modules", self.names)
+
     def test_evil_and_magit_are_there_and_compiled(self):
-        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama"]:
+        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture"]:
             with self.subTest(package=pkg):
                 self.assertTrue(any(n.startswith(f"{TOP}config/elpa/{pkg}-") and n.endswith(".elc")
                                     for n in self.names), f"{pkg} has no compiled files")

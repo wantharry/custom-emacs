@@ -84,11 +84,14 @@
 ;; the buffer writable again.  Emacs's own writers still work: `customize' saves
 ;; with `inhibit-read-only', and package/recentf/savehist write through temporary
 ;; buffers rather than visited files.
-;; The one exception: the message files Git asks you to write (a commit message, a merge
-;; message, a tag, the rebase list), which Magit opens for you.  Locking them would make
-;; committing impossible, and they only ever exist because you asked to commit.
+;; The exceptions: the message files Git asks you to write (a commit message, a merge message,
+;; a tag, the rebase list), which Magit opens for you: locking them would make committing
+;; impossible, and they only exist because you asked to commit.  And the file Treemacs uses to
+;; remember its projects, which the program itself writes.
 (defvar my/always-editable-file-regexp
-  "/\\.git/\\(?:.*/\\)?\\(?:COMMIT_EDITMSG\\|MERGE_MSG\\|TAG_EDITMSG\\|NOTES_EDITMSG\\|PULLREQ_EDITMSG\\|EDIT_DESCRIPTION\\|git-rebase-todo\\)\\'"
+  (concat "/\\.git/\\(?:.*/\\)?\\(?:COMMIT_EDITMSG\\|MERGE_MSG\\|TAG_EDITMSG\\|NOTES_EDITMSG\\|PULLREQ_EDITMSG\\|EDIT_DESCRIPTION\\|git-rebase-todo\\)\\'"
+          ;; Treemacs keeps its list of projects in a small file it opens and writes itself
+          "\\|/\\.cache/treemacs-persist\\(?:-at-last-error\\)?\\'")
   "Files whose buffers are left editable by the read-only lock.")
 
 (defun my/make-file-buffer-read-only ()
@@ -216,6 +219,41 @@ installed, offer to install it from NonGNU ELPA."
 (when (treesit-language-available-p 'java)
   (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode)))
 
+;; Windows bundle: it carries Java and the Java language server (tools\jdk, tools\jdtls) instead of
+;; expecting them to be installed.  Eglot's own entry looks for a program called `jdtls' (a Python
+;; script), so tell it to start the server with the bundled Java directly.  Only used when the
+;; launcher (Emacs.exe) says where the bundle is; anywhere else Eglot's normal entry applies.
+(defun my/bundled-jdtls-dir ()
+  (let ((home (getenv "CUSTOM_EMACS_HOME")))
+    (and home (expand-file-name "tools/jdtls/" home))))
+
+(defun my/bundled-jdtls-command (&rest _)
+  "The command line that runs the bundled jdtls on the bundled (or your own) Java."
+  (let* ((dir (my/bundled-jdtls-dir))
+         (java (or (executable-find "java")
+                   (expand-file-name "tools/jdk/bin/java.exe" (getenv "CUSTOM_EMACS_HOME"))))
+         (jar (car (file-expand-wildcards (expand-file-name "plugins/org.eclipse.equinox.launcher_*.jar" dir))))
+         (root (file-name-as-directory
+                (expand-file-name (or (and (fboundp 'project-current) (when-let* ((pr (project-current)))
+                                                                     (project-root pr)))
+                                      default-directory))))
+         ;; one workspace folder per project, kept with the settings (it must be writable)
+         (data (expand-file-name (concat "jdtls-workspaces/" (md5 root)) user-emacs-directory)))
+    (list java
+          "-Declipse.application=org.eclipse.jdt.ls.core.id1"
+          "-Dosgi.bundles.defaultStartLevel=4"
+          "-Declipse.product=org.eclipse.jdt.ls.core.product"
+          "-Xmx1G" "--add-modules=ALL-SYSTEM"
+          "--add-opens" "java.base/java.util=ALL-UNNAMED"
+          "--add-opens" "java.base/java.lang=ALL-UNNAMED"
+          "-jar" jar
+          "-configuration" (expand-file-name "config_win" dir)
+          "-data" data)))
+
+(when (and (eq system-type 'windows-nt) (my/bundled-jdtls-dir) (file-directory-p (my/bundled-jdtls-dir)))
+  (with-eval-after-load 'eglot
+    (add-to-list 'eglot-server-programs '((java-mode java-ts-mode) . my/bundled-jdtls-command))))
+
 ;; Language servers (rust-analyzer, jdtls) are started by hand with M-x eglot and
 ;; never automatically: a JVM-based server takes seconds and a large amount of
 ;; memory, and most editing does not need it.  Skip logging every protocol message.
@@ -302,6 +340,50 @@ installed, offer to install it from NonGNU ELPA."
 (defvar my/ff-auto-refresh t)
 (when my/ff-auto-refresh
   (run-with-idle-timer 90 nil (lambda () (require 'fastfind my/ff-library) (my/ff-maybe-refresh))))
+
+;;; Treemacs: a file tree in a sidebar ------------------------------------------------
+
+;; `C-c t' shows the file tree of the project you are in (and hides it if it is showing);
+;; `C-c T' also moves to the current file in it.  Treemacs's own `treemacs' command asks for a
+;; folder the first time; these find the project by themselves.  Installed into config/elpa by
+;; `./build.sh packages'; nothing loads until first use, so it costs nothing at startup.
+;; See docs/TREEMACS.md.
+(defun my/treemacs ()
+  "Show the file tree of the current project, or hide it if it is already showing."
+  (interactive)
+  (require 'treemacs)
+  (cond
+   ((eq (treemacs-current-visibility) 'visible) (treemacs))         ; hide
+   ((treemacs-workspace->is-empty?)
+    ;; the first time: use this buffer's project, or else its folder, so there is no prompt
+    (let ((root (or (treemacs--find-current-user-project) default-directory)))
+      (treemacs-do-add-project-to-workspace (treemacs-canonical-path root)
+                                            (file-name-nondirectory (directory-file-name root)))
+      (treemacs-select-window)))
+   (t (treemacs))))
+
+(defun my/treemacs-reveal ()
+  "Show the file tree and move into it, on the file of this buffer."
+  (interactive)
+  (require 'treemacs)
+  ;; first time: add this buffer's project (without leaving this window, since
+  ;; `treemacs-find-file' reads the file from the current buffer)
+  (when (treemacs-workspace->is-empty?) (save-selected-window (my/treemacs)))
+  (treemacs-find-file)          ; marks this file in the tree, showing the tree if it was hidden
+  (treemacs-select-window))
+
+(with-eval-after-load 'treemacs
+  ;; Many Treemacs commands (delete, create, rename, the follow modes...) are only autoload stubs in its
+  ;; autoloads file, which this config does not load at startup.  Load it now that Treemacs is in use.
+  (when-let* ((f (locate-library "treemacs-autoloads"))) (load f nil t))
+  (treemacs-follow-mode 1)            ; keep the current file highlighted in the tree
+  (treemacs-project-follow-mode 1))   ; show the project of the buffer you move to
+
+(defun my/treemacs-missing ()
+  (interactive)
+  (message "Treemacs is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-c t") (if (locate-library "treemacs") #'my/treemacs #'my/treemacs-missing))
+(global-set-key (kbd "C-c T") (if (locate-library "treemacs") #'my/treemacs-reveal #'my/treemacs-missing))
 
 ;;; Start screen ---------------------------------------------------------------
 

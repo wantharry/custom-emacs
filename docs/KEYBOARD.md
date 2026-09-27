@@ -270,6 +270,8 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x <left>` | `previous-buffer` | previous buffer |
 | `C-x <right>` | `next-buffer` | next buffer |
 | `C-c r` | `recentf-open` | **this config:** open a recent file |
+| `C-c t` | `my/treemacs` | **this config:** show or hide the project file tree ([TREEMACS.md](TREEMACS.md)) |
+| `C-c T` | `my/treemacs-reveal` | **this config:** show the tree and move to the current file in it |
 | `C-x g` | `magit-status` | **this config:** Git status, stage and commit with single keys ([MAGIT.md](MAGIT.md)) |
 | `C-c g` | `magit-file-dispatch` | **this config:** Git commands for this file |
 | `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable ([START-SCREEN.md](START-SCREEN.md)) |
@@ -334,7 +336,7 @@ Inside Info: `SPC` next page, `DEL` previous, `n`/`p` next/previous node, `u` up
 
 ## Programming
 
-For finding files, searching a project and clicking through Java code, see [NAVIGATING-CODE.md](NAVIGATING-CODE.md).
+For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the language server, [EGLOT.md](EGLOT.md); for clicking through Java code, [NAVIGATING-CODE.md](NAVIGATING-CODE.md).
 
 | Key | Command | What it does |
 |---|---|---|

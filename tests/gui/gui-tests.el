@@ -332,6 +332,31 @@ the end it is aborted."
         (dolist (x (buffer-list)) (when (string-match-p "\\`magit" (buffer-name x)) (kill-buffer x)))
         (kill-buffer b)))))
 
+;;; Treemacs
+
+(gui-deftest gui/treemacs-c-c-t-shows-the-project-tree-beside-the-file
+  (skip-unless (locate-library "treemacs"))
+  (test-with-temp-dir d
+    (let* ((default-directory d) (files (gui--ff-project d))
+           (b (find-file files))
+           (info (gui--feed (listify-key-sequence (kbd "C-c t")) 2.5
+                            (lambda ()
+                              (list (mapcar (lambda (w) (buffer-name (window-buffer w))) (window-list))
+                                    (minibuffer-depth)
+                                    (ignore-errors (with-current-buffer (treemacs-get-local-buffer)
+                                                     (buffer-substring-no-properties (point-min) (point-max)))))))))
+      (unwind-protect
+          (progn (should (= 0 (nth 1 info)))                                   ; no prompt for a folder
+                 (should (cl-some (lambda (n) (string-prefix-p " *Treemacs" n)) (nth 0 info)))
+                 (should (string-match-p (regexp-quote (file-name-nondirectory (directory-file-name d)))
+                                         (nth 2 info))))
+        (ignore-errors (treemacs-kill-buffer))
+        (dolist (x (buffer-list)) (when (string-prefix-p " *Treemacs" (buffer-name x)) (kill-buffer x)))
+        (when (treemacs-current-workspace)
+          (dolist (p (copy-sequence (treemacs-workspace->projects (treemacs-current-workspace))))
+            (treemacs-do-remove-project-from-workspace p t)))
+        (kill-buffer b)))))
+
 ;;; Evil and the pointer
 
 (gui-deftest gui/evil-cursor-follows-the-state

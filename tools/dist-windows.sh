@@ -15,6 +15,8 @@ STAGE="$DIST/stage/$NAME"
 EMACS_ZIP=emacs-31.1_1.zip
 EMACS_URL=https://ftp.gnu.org/gnu/emacs/windows/emacs-31
 RG_VERSION="${RG_VERSION:-14.1.1}"
+JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
+JDK_FEATURE="${JDK_FEATURE:-21}"               # the Java it runs on (jdtls needs 21 or newer)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
 ZIG=("$DIST/.venv/bin/python" -m ziglang)
 [ -x "$DIST/.venv/bin/python" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
@@ -36,6 +38,19 @@ got="$(sha256sum "$CACHE/$EMACS_ZIP" | cut -d' ' -f1)"
 echo "   $EMACS_ZIP matches the checksum published by GNU"
 fetch "$MINGIT_URL" MinGit-64.zip
 fetch "https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/ripgrep-$RG_VERSION-x86_64-pc-windows-msvc.zip" rg-win.zip
+
+echo "== Java: a JDK and the Java language server (so M-x eglot works with nothing installed)"
+read -r JDK_NAME JDK_URL JDK_SHA <<<"$(curl -fsSL "https://api.adoptium.net/v3/assets/latest/$JDK_FEATURE/hotspot?architecture=x64&image_type=jdk&os=windows" \
+  | python3 -c 'import json,sys; b=json.load(sys.stdin)[0]["binary"]["package"]; print(b["name"], b["link"], b["checksum"])')"
+fetch "$JDK_URL" "$JDK_NAME"
+[ "$(sha256sum "$CACHE/$JDK_NAME" | cut -d' ' -f1)" = "$JDK_SHA" ] || { echo "CHECKSUM MISMATCH for $JDK_NAME" >&2; exit 1; }
+echo "   $JDK_NAME matches the checksum published by Adoptium"
+JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
+JDTLS_FILE="$(curl -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
+fetch "$JDTLS_BASE/$JDTLS_FILE" "$JDTLS_FILE"
+[ "$(sha256sum "$CACHE/$JDTLS_FILE" | cut -d' ' -f1)" = "$(curl -fsSL "$JDTLS_BASE/$JDTLS_FILE.sha256" | cut -d' ' -f1 | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $JDTLS_FILE" >&2; exit 1; }
+echo "   $JDTLS_FILE matches the checksum published by Eclipse"
 
 echo "== tree-sitter grammars for Windows (cross-compiled with zig, same versions as on Linux)"
 mkdir -p "$CACHE/gram"
@@ -59,6 +74,12 @@ rm -rf "$STAGE"; mkdir -p "$STAGE"/{config,tools/rg}
 unzip -q "$CACHE/$EMACS_ZIP" -d "$STAGE/emacs"
 unzip -q "$CACHE/MinGit-64.zip" -d "$STAGE/tools/git"
 unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
+# Java: the JDK without its sources and jmods (about 140 MB that only jlink needs; java and javac work)
+mkdir -p "$STAGE/tools/.jdk-unpack" && unzip -q "$CACHE/$JDK_NAME" -d "$STAGE/tools/.jdk-unpack"
+mv "$STAGE/tools/.jdk-unpack"/* "$STAGE/tools/jdk" && rmdir "$STAGE/tools/.jdk-unpack"
+rm -rf "$STAGE/tools/jdk/jmods" "$STAGE/tools/jdk/lib/src.zip"
+# the language server: only the Windows part (it is started by Emacs with java directly, no Python needed)
+mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el} "$STAGE/config/"
 mkdir -p "$STAGE/config/tree-sitter"; cp "$CACHE"/gram/*.dll "$STAGE/config/tree-sitter/"
@@ -88,13 +109,14 @@ Custom Emacs, portable, for Windows 10/11 (64-bit).
 Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
   config\\  your settings and the packages Evil and Magit, and tree-sitter grammars for Java and Rust
-  tools\\   ripgrep (fast search) and a portable Git (for Magit)
+  tools\\   ripgrep (fast search), a portable Git (for Magit), and Java 21 with the Java language server
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
 
 Notes: this is Emacs 31.1, not the Emacs 32 development build the Linux version uses, and it has no
 native compilation (the official Windows build ships without it), so it runs byte-compiled code.
-Language servers (Java's jdtls, Rust's rust-analyzer) are separate programs and are not included.
+Java works out of the box: M-x eglot in a Java project (definitions, references, implementations).
+Rust's rust-analyzer is a separate program and is not included.
 GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2
 (tools\\git\\LICENSE.txt) and ripgrep under MIT/Unlicense. Full guide: DISTRIBUTION.md.
 EOF

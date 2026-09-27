@@ -201,6 +201,23 @@ graphical window does not.
   (`install/bin/emacsclient`). A build without it, or starting Emacs by a different path, breaks that. Check
   with `M-x with-editor-debug`.
 
+## Treemacs
+
+### `C-c t` asks "Project root:"
+
+- That is Treemacs's own `treemacs` command. `C-c t` here is `my/treemacs`, which fills an empty tree from the current
+  buffer's project or folder. If you still see the prompt, you are running a config without that section.
+
+### "[Treemacs] Error (buffer-read-only treemacs-persist) when persisting workspace"
+
+- The read-only lock stopped Treemacs saving its project list. Fixed by an exception for `.cache/treemacs-persist` in
+  `my/always-editable-file-regexp` (`init.el`). Seen only in a real window: a batch test does not save it.
+
+### "Symbol's function definition is void: treemacs-project-follow-mode"
+
+- Treemacs's autoload file is not loaded by this config (that is how startup stays fast), so the two follow modes are
+  required by name when Treemacs loads. Fixed in `init.el`.
+
 ## Windows bundle
 
 ### Windows says "Windows protected your PC" when I open `Emacs.exe`

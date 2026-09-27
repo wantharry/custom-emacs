@@ -5,10 +5,10 @@ anywhere and open `Emacs.exe`. Nothing is installed and nothing is downloaded.
 
 | Bundle | File | Status |
 |---|---|---|
-| **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (128 MB zipped, 384 MB unpacked) | **Built and tested**, described below |
+| **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 245 MB zipped, 635 MB unpacked, with Java) | **Built and tested**, described below |
 | Linux x86-64 | not packaged yet | Next. The Linux build here is Emacs 32, which needs its libraries carried along; see [Linux](#linux) |
 
-The zip is in `dist/` after `./build.sh dist windows` and is **not** committed to git (it is 128 MB and
+The zip is in `dist/` after `./build.sh dist windows` and is **not** committed to git (it is about 245 MB and
 rebuilt from what is in git).
 
 ## Windows
@@ -40,11 +40,13 @@ custom-emacs-windows-x64/
 ├── Emacs.exe          the launcher you double-click (76 KB; source: tools/windows-launcher.c)
 ├── emacs/             GNU Emacs 31.1 for Windows, the official unmodified build, with all its libraries
 ├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el
-│   ├── elpa/          Evil and Magit (and Magit's helpers), compiled by the Windows Emacs
+│   ├── elpa/          Evil, Magit and Treemacs (and their helpers), compiled by the Windows Emacs
 │   └── tree-sitter/   Java and Rust grammars for Windows
 ├── tools/
 │   ├── git/           MinGit 2.55: Git for Magit, with its own small shell
-│   └── rg/            ripgrep: the fast finder and project text search
+│   ├── rg/            ripgrep: the fast finder and project text search
+│   ├── jdk/           Temurin JDK 21 (without src.zip and jmods): java, javac
+│   └── jdtls/         the Java language server, started directly with that Java
 ├── README.txt
 └── DISTRIBUTION.md    this guide
 ```
@@ -67,7 +69,8 @@ means the folder must be writable, so do not put it under `C:\Program Files`.
 | Speed | startup 0.05 s (measured, headless) | 0.23 s until the window is ready, measured in a real window |
 | Line endings for new files | LF | LF: the config sets UTF-8 with LF on Windows (Windows Emacs would otherwise write CRLF). Files that already have CRLF keep them |
 | Whole-disk file index | the whole `/`, minus system folders | the drive of your home folder (normally `C:\`), minus `Windows`, `Program Files`, `ProgramData` and a few noisy `AppData` folders |
-| Language servers | you install them | you install them (not included: jdtls and rust-analyzer are large and need a JDK or Rust) |
+| Java | install a JDK and `jdtls` yourself | **included**: Temurin JDK 21 and `jdtls`, so `M-x eglot` works on a fresh PC ([EGLOT.md](EGLOT.md)) |
+| Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain) |
 
 The version difference is deliberate: nobody publishes a Windows build of the Emacs 32 development version,
 and compiling one needs a Windows toolchain. Emacs 31.1 runs the same configuration; the test results below
@@ -90,10 +93,12 @@ Everything here was run on the actual bundle, unzipped fresh with Windows' own e
 | Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **378 tests: 349 pass, 0 fail, 29 skipped** |
 | Contents of the zip (files present, settings identical to the repository, no personal history, packages compiled for Emacs 31) | 12 automated tests in `tests/test_dist.py` |
 
-The 29 skipped tests cannot apply there: 11 need a real `jdtls` and 4 more need language servers, 3 are
-network tests you switch on yourself, 4 check the pruned Linux install, 4 check the Linux build (Emacs 32,
-native compilation), and 2 need symbolic links (Windows allows them only in Developer Mode or as
-administrator; the tests skip themselves when the system refuses).
+That total was measured before Java and Treemacs were added to the bundle. Since then: with the bundled Java,
+the `java-navigation` tests that talk to a **real language server** also pass on Windows (**27 of 27**, run with
+`LSP=1 tools/test-windows.sh`), which were 11 skips before. The skipped tests in that total could not apply there: 4 more
+need language servers (Rust), 3 are network tests you switch on yourself, 4 check the pruned Linux install, 4 check
+the Linux build (Emacs 32, native compilation), and 2 need symbolic links (Windows allows them only in Developer
+Mode or as administrator; the tests skip themselves when the system refuses).
 
 **Not run on Windows:** the real-window and real-terminal tests (they use a Linux windowing setup and
 `tmux`). Instead the checks in the table above were scripted inside the real window, and the screenshots

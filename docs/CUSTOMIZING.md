@@ -40,9 +40,10 @@ ignored on purpose; see `.gitignore`.
 | Editing | 4-space indentation with spaces, matching parens, delete-selection, auto-revert, save-place, recent files, minibuffer history. Backups and auto-saves go to `config/backups/` and no lock files are created |
 | Completion | Built-in only: vertical `fido` minibuffer, flexible matching, inline completion preview, `which-key` |
 | Coding | `treesit-font-lock-level 4`; Eglot (built-in LSP client) is available but not auto-started |
-| Packages | Puts installed packages (Evil and Magit) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
+| Packages | Puts installed packages (Evil, Magit and Treemacs) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
 | Project text search | `C-x p g` uses ripgrep when installed (4 to 10 times faster than grep, measured), applied only when xref loads |
 | Clicking through code | Turns on the right-click menu (Find Definition, Find References, and our Find Implementations and Find Type Definition when a language server is running), Ctrl+Click for definitions, `repeat-mode`, and the Java source-path default. See [NAVIGATING-CODE.md](NAVIGATING-CODE.md) |
+| Treemacs | `C-c t` shows the project as a tree in a sidebar, `C-c T` moves into it on the current file. Autoloaded; its two follow modes come on when it loads; its own project-list file is exempt from the read-only lock. See [TREEMACS.md](TREEMACS.md) |
 | Magit | `C-x g` opens Git status, `C-c g` file commands. Autoloaded (nothing loads at startup). Also the one exception to the read-only lock: Git's commit-message files open editable. See [MAGIT.md](MAGIT.md) |
 | Start screen | What opens when Emacs starts without a file: the last 5 files, folders and projects as links, each expandable. `C-c h` brings it back. From `config/startpage.el`. See [START-SCREEN.md](START-SCREEN.md) |
 | Windows tweaks | On Windows only: new files are saved as UTF-8 with LF line endings (not CRLF), and the mode line does not print "(Unix)". Nothing else differs |
@@ -53,7 +54,7 @@ ignored on purpose; see `.gitignore`.
 | Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
 | Startup report | Prints Emacs version, load time and GC count to the echo area once |
 
-The only third-party packages are **Evil** and **Magit**, and both are optional: they are installed by
+The only third-party packages are **Evil**, **Magit** and **Treemacs** (with its helpers), and all are optional: they are installed by
 `./build.sh packages` (or offered on first use of `C-c v`) into `config/elpa/`, which
 is gitignored. Nothing else is installed.
 

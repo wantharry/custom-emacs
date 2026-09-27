@@ -2,6 +2,7 @@
 # Run the offline ERT tests with the Windows Emacs from an unpacked bundle, from WSL.
 #
 #   tools/test-windows.sh BUNDLE_DIR [FILTER]     BUNDLE_DIR is on the Windows drive (/mnt/c/...)
+#   LSP=1 tools/test-windows.sh ...               also starts the bundled Java language server
 #
 # Prints one line per test file (tests, passed, failed, skipped).  The logs are kept in
 # dist/win-test-logs/.  Many tests assume Unix (symlinks, /tmp, sh); see docs/DISTRIBUTION.md.
@@ -26,6 +27,9 @@ for f in "$ROOT"/tests/ert/*.el; do
     echo "set \"ROOT=$(W "$WT")\""
     echo "set \"EMACS_BIN=$BW\\emacs\\bin\\emacs.exe\""
     echo "set \"CUSTOM_EMACS_PORTABLE=1\""
+    echo "set \"CUSTOM_EMACS_HOME=$BW\""
+    echo "set \"PATH=%PATH%;$BW\\tools\\jdk\\bin\""
+    [ -n "${LSP:-}" ] && echo "set \"RUN_LSP_TESTS=1\""
     case "$harness" in
       bare) echo "\"%EMACS_BIN%\" -Q --batch -l \"%ROOT%\\tests\\ert\\helper.el\" -l \"%ROOT%\\tests\\ert\\$name.el\" -f ert-run-tests-batch-and-exit > \"$(W "$log")\" 2>&1" ;;
       *)

@@ -18,7 +18,7 @@ the pruning tool. The Emacs source itself is cloned separately into
 |---|---|
 | Linux build (Ubuntu 24.04 on WSL2, GTK/Wayland) | **Verified.** Builds, launches a GUI window, all smoke tests pass |
 | Native compilation, tree-sitter, SQLite, HarfBuzz | **Verified** enabled and working |
-| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only packages are Evil (optional, `C-c v`) and Magit (`C-x g`) |
+| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only packages are Evil (optional, `C-c v`), Magit (`C-x g`) and Treemacs (`C-c t`) |
 | Read-only files | **Verified.** Every file opens read-only; `C-c e e` or `M-x allow-editing` is the one deliberate way to edit (a three-key chord, so no slip can do it) |
 | Magit | **Verified**, including a real commit typed through its message buffer in a real terminal. Loads only on first use (0.5 s once, then 0.05 s per status). See [docs/MAGIT.md](docs/MAGIT.md) |
 | Project search and Java navigation | **Verified** with a real `jdtls`: `C-x p f` (files), `C-x p g` (text, via ripgrep), definitions, implementations and references from keys, Ctrl+Click and right-click. Instant fuzzy file finder with a whole-disk index and a live fallback, no package: `C-c f f`, `C-c f g` (checked in a real window and terminal, with screenshots) |
@@ -87,6 +87,9 @@ research-emacs/
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust: what is installed, what it costs (measured), how to use and extend it |
 | [docs/START-SCREEN.md](docs/START-SCREEN.md) | The screen Emacs opens on: your last 5 files, folders and projects as links, expandable, and `C-c h` to get back to it |
 | [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Portable bundles: unzip and run. The Windows zip (built and tested), what is inside, how it differs from the Linux build, limits, how to rebuild it |
+| [docs/SEARCHING.md](docs/SEARCHING.md) | Finding anything: files (the fast finder, recent, tree, Dired), text (in a file, a project, a folder), code by meaning, help. Every key checked, with measured speeds and screenshots |
+| [docs/EGLOT.md](docs/EGLOT.md) | Code intelligence from a language server: start it, definitions, references, implementations, diagnostics, rename; how the Windows bundle runs Java with nothing installed |
+| [docs/TREEMACS.md](docs/TREEMACS.md) | The file tree sidebar (`C-c t`): keys, how it fits with the finder and Dired, and how it works with the read-only lock |
 | [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
 | [docs/NAVIGATING-CODE.md](docs/NAVIGATING-CODE.md) | Find a file in a project, search across it, and in Java click a method to see its definition, implementations and references (measured on a real server) |
 | [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |

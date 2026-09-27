@@ -36,10 +36,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
   DWORD len = GetEnvironmentVariableW(L"PATH", oldpath, 32768);
   if (len == 0 || len >= 32768) oldpath[0] = 0;
   wchar_t newpath[32768 + 1024];
-  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\emacs\\bin;%s",
-           self, self, self, self, oldpath);
+  /* The bundled JDK goes last: a Java you already have wins, ours is the fallback. */
+  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\emacs\\bin;%s;%s\\tools\\jdk\\bin",
+           self, self, self, self, oldpath, self);
   SetEnvironmentVariableW(L"PATH", newpath);
   SetEnvironmentVariableW(L"CUSTOM_EMACS_PORTABLE", L"1");
+  SetEnvironmentVariableW(L"CUSTOM_EMACS_HOME", self);   /* where tools\\jdk and tools\\jdtls are found */
 
   /* Make "~" mean the user's profile folder, like it does in a normal shell. */
   wchar_t tmp[MAX_PATH];
@@ -47,6 +49,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
     wchar_t up[MAX_PATH * 2];
     if (GetEnvironmentVariableW(L"USERPROFILE", up, MAX_PATH * 2) > 0)
       SetEnvironmentVariableW(L"HOME", up);
+  }
+
+  /* JAVA_HOME only if you have not set one. */
+  if (GetEnvironmentVariableW(L"JAVA_HOME", tmp, MAX_PATH) == 0) {
+    wchar_t jh[MAX_PATH * 2];
+    swprintf(jh, MAX_PATH * 2, L"%s\\tools\\jdk", self);
+    SetEnvironmentVariableW(L"JAVA_HOME", jh);
   }
 
   wchar_t *args = skip_program_name(GetCommandLineW());
