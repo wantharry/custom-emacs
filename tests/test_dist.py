@@ -74,9 +74,12 @@ class WindowsBundle(unittest.TestCase):
         for f in ["Emacs.exe", "README.txt", "README.md", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
                   "emacs/bin/emacsclient.exe", "emacs/bin/libtree-sitter-0.26.dll",
                   "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe", "tools/fd/fd.exe",
-                  "tools/jdk/bin/java.exe", "tools/jdk/bin/javac.exe", "tools/jdk/release",
                   "tools/jdtls/config_win/config.ini", "docs/SEARCHING.md", "docs/EGLOT.md",
-                  "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll"]:
+                  "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll",
+                  "config/tree-sitter/libtree-sitter-html.dll", "config/tree-sitter/libtree-sitter-css.dll",
+                  "config/tree-sitter/libtree-sitter-javascript.dll", "config/tree-sitter/libtree-sitter-jsdoc.dll",
+                  "config/tree-sitter/libtree-sitter-typescript.dll", "config/tree-sitter/libtree-sitter-tsx.dll",
+                  "config/tree-sitter/libtree-sitter-json.dll"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
 
@@ -99,10 +102,10 @@ class WindowsBundle(unittest.TestCase):
                             for n in self.names), "no jdtls launcher jar")
         self.assertTrue(any(n.startswith(TOP + "tools/jdtls/plugins/org.eclipse.jdt.ls.core_") for n in self.names))
 
-    def test_the_jdk_is_trimmed_but_still_compiles(self):
-        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/jmods/")], "jmods should be removed")
-        self.assertNotIn(TOP + "tools/jdk/lib/src.zip", self.names)
-        self.assertIn(TOP + "tools/jdk/lib/modules", self.names)
+    def test_no_jdk_is_bundled(self):
+        # Java needs its own JDK installed, the same as Rust needs rust-analyzer installed;
+        # see my/bundled-jdtls-command in config/init.el.
+        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/")], "no tools/jdk/ should be shipped")
 
     def test_evil_and_magit_are_there_and_compiled(self):
         for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult"]:

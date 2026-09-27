@@ -222,7 +222,14 @@ installed, offer to install it from NonGNU ELPA."
 ;; them with `./build.sh grammars' or `M-x treesit-install-language-grammar'.
 (setq treesit-language-source-alist
       '((java "https://github.com/tree-sitter/tree-sitter-java" "v0.23.5")
-        (rust "https://github.com/tree-sitter/tree-sitter-rust" "v0.23.2")))
+        (rust "https://github.com/tree-sitter/tree-sitter-rust" "v0.23.2")
+        (html "https://github.com/tree-sitter/tree-sitter-html" "v0.23.2")
+        (css "https://github.com/tree-sitter/tree-sitter-css" "v0.23.2")
+        (javascript "https://github.com/tree-sitter/tree-sitter-javascript" "v0.23.1")
+        (jsdoc "https://github.com/tree-sitter/tree-sitter-jsdoc" "v0.23.2")
+        (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "typescript/src")
+        (tsx "https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "tsx/src")
+        (json "https://github.com/tree-sitter/tree-sitter-json" "v0.23.0")))
 
 ;; Rust: Emacs 32 already opens .rs files in `rust-ts-mode' when its grammar exists.
 ;; Java: .java opens in the older `java-mode' unless remapped, so remap it, but only
@@ -230,19 +237,37 @@ installed, offer to install it from NonGNU ELPA."
 (when (treesit-language-available-p 'java)
   (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode)))
 
-;; Windows bundle: it carries Java and the Java language server (tools\jdk, tools\jdtls) instead of
-;; expecting them to be installed.  Eglot's own entry looks for a program called `jdtls' (a Python
-;; script), so tell it to start the server with the bundled Java directly.  Only used when the
-;; launcher (Emacs.exe) says where the bundle is; anywhere else Eglot's normal entry applies.
+;; Web/UI languages: same idea as Java.  .ts/.tsx already open in `typescript-ts-mode'/
+;; `tsx-ts-mode' automatically (core Emacs has no legacy TypeScript mode to fall back to,
+;; so those two fall back to plain `fundamental-mode', not highlighted, until their
+;; grammar is installed); .js/.css/.html need the same explicit remap Java does, since
+;; each has a working legacy mode that would otherwise stay in charge forever.  .js/.jsx
+;; are remapped from `javascript-mode' (what `auto-mode-alist' actually opens them in,
+;; an alias of `js-mode'), not `js-mode' itself, or the remap silently never applies.
+(when (treesit-language-available-p 'javascript)
+  (add-to-list 'major-mode-remap-alist '(javascript-mode . js-ts-mode)))
+(when (treesit-language-available-p 'css)
+  (add-to-list 'major-mode-remap-alist '(css-mode . css-ts-mode)))
+(when (treesit-language-available-p 'html)
+  (add-to-list 'major-mode-remap-alist '(mhtml-mode . mhtml-ts-mode)))
+(when (treesit-language-available-p 'json)
+  (add-to-list 'major-mode-remap-alist '(js-json-mode . json-ts-mode)))
+
+;; Windows bundle: it carries the Java language server itself (tools\jdtls), but no JDK ---
+;; Java needs one installed, the same way Rust needs rust-analyzer installed (neither is
+;; bundled).  Eglot's own entry looks for a program called `jdtls' (a Python script), so
+;; tell it to start the bundled jdtls with whatever `java' it finds on PATH or JAVA_HOME
+;; instead.  Only used when the launcher (Emacs.exe) says where the bundle is; anywhere
+;; else Eglot's normal entry applies.
 (defun my/bundled-jdtls-dir ()
   (let ((home (getenv "CUSTOM_EMACS_HOME")))
     (and home (expand-file-name "tools/jdtls/" home))))
 
 (defun my/bundled-jdtls-command (&rest _)
-  "The command line that runs the bundled jdtls on the bundled (or your own) Java."
+  "The command line that runs the bundled jdtls on your own Java (none is bundled)."
   (let* ((dir (my/bundled-jdtls-dir))
          (java (or (executable-find "java")
-                   (expand-file-name "tools/jdk/bin/java.exe" (getenv "CUSTOM_EMACS_HOME"))))
+                   (user-error "No Java found.  Install a JDK (17+) so `java' is on PATH or JAVA_HOME, then try M-x eglot again")))
          (jar (car (file-expand-wildcards (expand-file-name "plugins/org.eclipse.equinox.launcher_*.jar" dir))))
          (root (file-name-as-directory
                 (expand-file-name (or (and (fboundp 'project-current) (when-let* ((pr (project-current)))

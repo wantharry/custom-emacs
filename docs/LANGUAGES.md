@@ -1,6 +1,6 @@
-# Java and Rust
+# Java and Rust (full support), and HTML/CSS/JS/TS/JSX/JSON (editing only, so far)
 
-Status as of 2026-09-25, on Ubuntu 24.04 (WSL2), Emacs 32.0.50. Everything below marked
+Status as of 2026-09-27, on Ubuntu 24.04 (WSL2), Emacs 32.0.50. Everything below marked
 *measured* was run here.
 
 ## What is set up
@@ -116,6 +116,34 @@ with `./build.sh test --lsp` (about 5 seconds for these two; the Java navigation
 seconds to analyze). A separate test **fails** (it does not skip)
 if a grammar is missing, so a broken install cannot hide behind skipped tests.
 
+## HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON: editing only, so far
+
+These get accurate, fast tree-sitter highlighting, indentation and imenu the same way Java and
+Rust do --- but **no language server yet** (no autocomplete, no go-to-definition). The servers
+that would provide that (`typescript-language-server`, `vscode-html/css-language-server`) are
+npm packages needing a Node.js runtime, which this project does not bundle; see `git log` for
+the tradeoffs considered. Pending that, this is a real, complete phase on its own:
+
+| Piece | Grammar | Mode (needs the grammar) | Remap needed? |
+|---|---|---|---|
+| HTML | `html` v0.23.2 | `mhtml-ts-mode` | yes (`mhtml-mode` has a working legacy mode) |
+| CSS | `css` v0.23.2 | `css-ts-mode` | yes (`css-mode` has a working legacy mode) |
+| JavaScript/JSX | `javascript` v0.23.1 (+ `jsdoc` v0.23.2, for comments) | `js-ts-mode` | yes, from `javascript-mode` (the real mode `.js`/`.jsx` open in, not `js-mode` itself) |
+| TypeScript | `typescript` v0.23.2 | `typescript-ts-mode` | **no** --- core Emacs has no legacy TypeScript mode, so `.ts` maps straight to this |
+| TSX | `tsx` v0.23.2 | `tsx-ts-mode` | **no**, same as TypeScript |
+| JSON | `json` v0.23.0 | `json-ts-mode` | yes (`js-json-mode` has a working legacy mode) |
+
+Without its grammar installed, `.ts`/`.tsx` fall back to plain `fundamental-mode` (no
+highlighting at all) --- a strictly worse fallback than Java/Rust/JS/CSS/HTML/JSON get, since
+core Emacs ships no legacy TypeScript mode to fall back to.
+
+All seven grammars install at parser ABI 14, matching the same library ceiling as Java and
+Rust; see `tests/ert/languages-web.el` for real parse/highlight/indent/comment/imenu checks
+(26 tests, a hard failure rather than a skip if a grammar is missing) and
+`tests/gui/gui-tests.el`'s `gui/web-languages-source-is-drawn-in-color` for a real colored
+window. Verified for real on the Windows bundle too (correct mode and real tree-sitter parsers
+for `.js`/`.ts`/`.css`/`.html`), which carries the same grammars, cross-compiled with zig.
+
 ## Known limits
 
 - Highlighting and indentation were checked by tests, **not by eye**; look at a real file.
@@ -125,4 +153,6 @@ if a grammar is missing, so a broken install cannot hide behind skipped tests.
   for `src/main/java` and `src`; other layouts need a `.dir-locals.el` (see
   [NAVIGATING-CODE.md](NAVIGATING-CODE.md)). Projects with a `pom.xml` or `build.gradle` should not
   need it, but that path was not tested here.
-- Grammars and servers are per platform. Nothing here has been tried on Windows or macOS.
+- Grammars and servers are per platform. This page's own measurements are Linux/WSL only; the
+  Windows bundle carries the same grammars (cross-compiled) and `jdtls`, verified separately
+  (see [DISTRIBUTION.md](DISTRIBUTION.md)). Nothing here has been tried on macOS.

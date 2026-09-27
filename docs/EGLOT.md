@@ -134,7 +134,7 @@ All in `config/init.el`, sections "Languages" and "Clicking through code":
 | `(context-menu-mode 1)`, `global-xref-mouse-mode` | right-click menu and Ctrl+Click for definitions |
 | `my/context-menu-eglot` | adds Find Implementations and Find Type Definition to the right-click menu while a server runs |
 | `eglot-autoshutdown` | left at Emacs's default: the server stops with the project's last buffer |
-| **Windows bundle only:** `my/bundled-jdtls-command` | starts the bundled `jdtls` on the bundled Java (below) |
+| **Windows bundle only:** `my/bundled-jdtls-command` | starts the bundled `jdtls` on your own Java (below) |
 
 **Project layout.** `jdtls` needs to know where the source files start. With a `pom.xml` or `build.gradle` it reads that.
 Without one, this config tells it `src/main/java` or `src`. If your sources are somewhere else, references to a
@@ -158,19 +158,20 @@ Every file opens read-only in this config. **Reading and navigating never need e
   `eglot-confirm-server-edits` is set to confirm with a summary.)
 - Diagnostics, hover text, definitions, references and implementations only read.
 
-## 6. Windows: nothing to install
+## 6. Windows: the server is bundled, the JDK is not
 
-The Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)) carries **Temurin JDK 21** (`tools\jdk`) and **`jdtls` 1.61.0** (`tools\jdtls`). Eglot's own
+The Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)) carries **`jdtls` 1.61.0** (`tools\jdtls`), but no JDK ---
+install one yourself (17 or newer), the same as Rust needs its own `rust-analyzer` installed. Eglot's own
 entry for Java looks for a program called `jdtls`, which is a Python script and would need Python; the bundle
-skips that and starts the server directly:
+skips that and starts the server directly with whatever `java` it finds on `PATH` or `JAVA_HOME`:
 
 ```
-tools\jdk\bin\java.exe -Declipse.application=org.eclipse.jdt.ls.core.id1 ... -jar tools\jdtls\plugins\org.eclipse.equinox.launcher_*.jar
+java -Declipse.application=org.eclipse.jdt.ls.core.id1 ... -jar tools\jdtls\plugins\org.eclipse.equinox.launcher_*.jar
     -configuration tools\jdtls\config_win  -data config\jdtls-workspaces\<one folder per project>
 ```
 
-- **Your own Java wins.** `Emacs.exe` puts the bundled JDK **last** on `PATH` and sets `JAVA_HOME` only if you have not, so an
-  installed Java is used in preference (it must be 21 or newer for `jdtls`).
+- If no `java` is found, `M-x eglot` fails with a clear message telling you to install a JDK first, rather than
+  a confusing Eglot error.
 - The per-project workspace lives in `config\jdtls-workspaces\`. Deleting a project's folder there forces a clean start.
 - `java` and `javac` are on that `PATH` too, so a shell you open inside Emacs (`M-x shell`) should find them (I did not try it).
 - **Rust is not bundled.** `rust-analyzer` needs a Rust toolchain; install one and Eglot uses it as on Linux.

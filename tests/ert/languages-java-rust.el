@@ -240,21 +240,32 @@
 ;;; The Windows bundle starts its own Java language server
 
 (ert-deftest langs/bundled-jdtls-command-is-built-from-the-bundle-folder ()
+  ;; No JDK is bundled (see init.el): this uses whatever `java' it finds on PATH, here a
+  ;; fake one, standing in for a real JDK the user installed themselves.
   (test-with-temp-dir home
     (make-directory (concat home "tools/jdtls/plugins") t)
     (make-directory (concat home "tools/jdtls/config_win") t)
-    (make-directory (concat home "tools/jdk/bin") t)
+    (make-directory (concat home "bin") t)
     (test-write-file (concat home "tools/jdtls/plugins/org.eclipse.equinox.launcher_1.7.0.jar") "")
-    (test-write-file (concat home "tools/jdk/bin/java.exe") "")
+    (test-write-file (concat home "bin/java") "")
+    (set-file-modes (concat home "bin/java") #o755)
     (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment))
-          (exec-path nil))          ; no other Java on the path: the bundled one is used
+          (exec-path (list (concat home "bin"))))
       (let ((cmd (my/bundled-jdtls-command)))
-        (should (string-suffix-p "tools/jdk/bin/java.exe" (car cmd)))
+        (should (string-suffix-p "bin/java" (car cmd)))
         (should (member "-Declipse.application=org.eclipse.jdt.ls.core.id1" cmd))
         (should (cl-some (lambda (a) (string-match-p "org.eclipse.equinox.launcher_1.7.0.jar\\'" a)) cmd))
         (should (string-suffix-p "config_win" (cadr (member "-configuration" cmd))))
         ;; the workspace is under the settings folder, one per project
         (should (string-match-p "jdtls-workspaces/[0-9a-f]\\{32\\}\\'" (cadr (member "-data" cmd))))))))
+
+(ert-deftest langs/bundled-jdtls-command-errors-clearly-with-no-java-found ()
+  (test-with-temp-dir home
+    (make-directory (concat home "tools/jdtls/plugins") t)
+    (test-write-file (concat home "tools/jdtls/plugins/org.eclipse.equinox.launcher_1.jar") "")
+    (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment))
+          (exec-path nil))          ; no Java anywhere on the path
+      (should-error (my/bundled-jdtls-command) :type 'user-error))))
 
 (ert-deftest langs/bundled-jdtls-workspace-differs-per-project ()
   (test-with-temp-dir home
@@ -263,6 +274,7 @@
     (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment))
           (exec-path (list (concat home "bin"))))
       (make-directory (concat home "bin") t) (test-write-file (concat home "bin/java") "")
+      (set-file-modes (concat home "bin/java") #o755)
       (let ((a (let ((default-directory (concat home "a/"))) (make-directory default-directory t) (cadr (member "-data" (my/bundled-jdtls-command)))))
             (b (let ((default-directory (concat home "b/"))) (make-directory default-directory t) (cadr (member "-data" (my/bundled-jdtls-command))))))
         (should-not (equal a b))))))

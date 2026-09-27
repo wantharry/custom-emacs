@@ -53,13 +53,12 @@ custom-emacs-windows-x64/
 ├── emacs/             GNU Emacs 31.1 for Windows, the official unmodified build, with all its libraries
 ├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el, docsbuffer.el, gitfolders.el
 │   ├── elpa/          Evil, Magit, Treemacs and Consult (and their helpers), compiled by the Windows Emacs
-│   └── tree-sitter/   Java and Rust grammars for Windows
+│   └── tree-sitter/   grammars for Windows: Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON
 ├── tools/
 │   ├── git/           MinGit 2.55: Git for Magit, with its own small shell
 │   ├── rg/            ripgrep: the fast finder, project text search, and Consult
 │   ├── fd/            fd: file finding for Consult (`C-c s f`) and for finding git repositories (`C-c f p`)
-│   ├── jdk/           Temurin JDK 21 (without src.zip and jmods): java, javac
-│   └── jdtls/         the Java language server, started directly with that Java
+│   └── jdtls/         the Java language server (needs your own JDK 17+ on PATH/JAVA_HOME; not bundled)
 ├── docs/              every guide, plain text, read from inside Emacs with `C-c d` (see below)
 ├── README.md          this project's own overview (also inside the `C-c d` buffer)
 ├── README.txt         this bundle's own quick-start
@@ -89,8 +88,9 @@ means the folder must be writable, so do not put it under `C:\Program Files`.
 | Speed | startup 0.05 s (measured, headless) | 0.23 s until the window is ready, measured in a real window |
 | Line endings for new files | LF | LF: the config sets UTF-8 with LF on Windows (Windows Emacs would otherwise write CRLF). Files that already have CRLF keep them |
 | Whole-disk file index | the whole `/`, minus system folders | the drive of your home folder (normally `C:\`), minus `Windows`, `Program Files`, `ProgramData` and a few noisy `AppData` folders |
-| Java | install a JDK and `jdtls` yourself | **included**: Temurin JDK 21 and `jdtls`, so `M-x eglot` works on a fresh PC ([EGLOT.md](EGLOT.md)) |
-| Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain) |
+| Java | install a JDK and `jdtls` yourself | `jdtls` **included**; install your own JDK (17+) so `java` is on PATH/JAVA_HOME ([EGLOT.md](EGLOT.md)) |
+| Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain), same as Java's JDK |
+| HTML/CSS/JS/TS/JSX/JSON editing (tree-sitter) | install grammars yourself | **included**: fast highlighting/indent/imenu, no language server yet (see [LANGUAGES.md](LANGUAGES.md)) |
 | `fd` (for Consult's `C-c s f`) | download yourself (no `apt`/`sudo` route; see [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md#9-setting-up-rg-and-fd-again)) | **included** |
 
 The version difference is deliberate: nobody publishes a Windows build of the Emacs 32 development version,

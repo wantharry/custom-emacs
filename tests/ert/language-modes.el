@@ -1,7 +1,11 @@
 ;;; language-modes.el --- programming-language and file-type modes  -*- lexical-binding: t; -*-
 ;; harness: config
-;; Tree-sitter grammars are not installed yet, so classic modes are expected;
-;; each check also accepts the -ts- variant so installing grammars later is fine.
+;; Most of these languages have no pinned tree-sitter grammar (python/c/sh), so their
+;; classic mode is expected; each check also accepts the -ts- variant so installing a
+;; grammar for one later is fine.  js/css/json/html DO have a pinned, installed grammar
+;; (see languages-web.el for real parse/highlight/indent coverage of those) and so are
+;; expected to already be in their tree-sitter mode here; the `memq' is kept anyway, so
+;; this file still passes in an environment where `./build.sh grammars' was never run.
 
 (defun lm--open-mode (name content)
   "Visit a temporary file NAME containing CONTENT and return its major mode."

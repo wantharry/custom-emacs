@@ -17,7 +17,7 @@ EMACS_URL=https://ftp.gnu.org/gnu/emacs/windows/emacs-31
 RG_VERSION="${RG_VERSION:-14.1.1}"
 FD_VERSION="${FD_VERSION:-10.5.0}"
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
-JDK_FEATURE="${JDK_FEATURE:-21}"               # the Java it runs on (jdtls needs 21 or newer)
+                                                # (needs a JDK 21+ on PATH or JAVA_HOME; none is bundled)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
 ZIG=("$DIST/.venv/bin/python" -m ziglang)
 [ -x "$DIST/.venv/bin/python" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
@@ -55,12 +55,7 @@ else
   echo "   (could not fetch a published checksum for fd-win.zip; proceeding without one)"
 fi
 
-echo "== Java: a JDK and the Java language server (so M-x eglot works with nothing installed)"
-read -r JDK_NAME JDK_URL JDK_SHA <<<"$(curl -fsSL "https://api.adoptium.net/v3/assets/latest/$JDK_FEATURE/hotspot?architecture=x64&image_type=jdk&os=windows" \
-  | python3 -c 'import json,sys; b=json.load(sys.stdin)[0]["binary"]["package"]; print(b["name"], b["link"], b["checksum"])')"
-fetch "$JDK_URL" "$JDK_NAME"
-[ "$(sha256sum "$CACHE/$JDK_NAME" | cut -d' ' -f1)" = "$JDK_SHA" ] || { echo "CHECKSUM MISMATCH for $JDK_NAME" >&2; exit 1; }
-echo "   $JDK_NAME matches the checksum published by Adoptium"
+echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
 JDTLS_FILE="$(curl -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
 fetch "$JDTLS_BASE/$JDTLS_FILE" "$JDTLS_FILE"
@@ -70,16 +65,28 @@ echo "   $JDTLS_FILE matches the checksum published by Eclipse"
 
 echo "== tree-sitter grammars for Windows (cross-compiled with zig, same versions as on Linux)"
 mkdir -p "$CACHE/gram"
-build_grammar() {   # build_grammar LANG TAG
-  local l="$1" tag="$2" d="$CACHE/gram/ts-$1"
+build_grammar() {   # build_grammar LANG TAG [SUBDIR] [REPO]
+  # SUBDIR (default "src") and REPO (default tree-sitter-LANG) are only needed for a
+  # grammar repo that holds more than one language, like tree-sitter-typescript's
+  # typescript/src and tsx/src --- both from the same repo, so it is only cloned once.
+  local l="$1" tag="$2" sub="${3:-src}" repo="${4:-tree-sitter-$1}"
+  local d="$CACHE/gram/ts-$repo-$tag"
   [ -f "$CACHE/gram/libtree-sitter-$l.dll" ] && return
-  [ -d "$d" ] || git clone -q --depth=1 --branch "$tag" "https://github.com/tree-sitter/tree-sitter-$l" "$d"
-  local srcs=("$d/src/parser.c"); [ -f "$d/src/scanner.c" ] && srcs+=("$d/src/scanner.c")
-  "${ZIG[@]}" cc -target x86_64-windows-gnu -shared -O2 -I "$d/src" "${srcs[@]}" -o "$CACHE/gram/libtree-sitter-$l.dll"
+  [ -d "$d" ] || git clone -q --depth=1 --branch "$tag" "https://github.com/tree-sitter/$repo" "$d"
+  local srcdir="$d/$sub"
+  local srcs=("$srcdir/parser.c"); [ -f "$srcdir/scanner.c" ] && srcs+=("$srcdir/scanner.c")
+  "${ZIG[@]}" cc -target x86_64-windows-gnu -shared -O2 -I "$srcdir" "${srcs[@]}" -o "$CACHE/gram/libtree-sitter-$l.dll"
 }
 # keep these in step with `treesit-language-source-alist' in config/init.el
 build_grammar java v0.23.5
 build_grammar rust v0.23.2
+build_grammar html v0.23.2
+build_grammar css v0.23.2
+build_grammar javascript v0.23.1
+build_grammar jsdoc v0.23.2
+build_grammar typescript v0.23.2 typescript/src tree-sitter-typescript
+build_grammar tsx v0.23.2 tsx/src tree-sitter-typescript
+build_grammar json v0.23.0
 
 echo "== launcher (Emacs.exe)"
 "${ZIG[@]}" cc -target x86_64-windows-gnu -municode -O2 -s -Wl,--subsystem,windows \
@@ -91,11 +98,8 @@ unzip -q "$CACHE/$EMACS_ZIP" -d "$STAGE/emacs"
 unzip -q "$CACHE/MinGit-64.zip" -d "$STAGE/tools/git"
 unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
 unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
-# Java: the JDK without its sources and jmods (about 140 MB that only jlink needs; java and javac work)
-mkdir -p "$STAGE/tools/.jdk-unpack" && unzip -q "$CACHE/$JDK_NAME" -d "$STAGE/tools/.jdk-unpack"
-mv "$STAGE/tools/.jdk-unpack"/* "$STAGE/tools/jdk" && rmdir "$STAGE/tools/.jdk-unpack"
-rm -rf "$STAGE/tools/jdk/jmods" "$STAGE/tools/jdk/lib/src.zip"
-# the language server: only the Windows part (it is started by Emacs with java directly, no Python needed)
+# the language server: only the Windows part (it is started with whatever `java' the user has on
+# PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el} "$STAGE/config/"
@@ -129,16 +133,18 @@ Custom Emacs, portable, for Windows 10/11 (64-bit).
 
 Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
-  config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java and Rust
-  tools\\   ripgrep and fd (fast search and file finding), a portable Git (for Magit), and Java 21 with the Java language server
+  config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
+  tools\\   ripgrep and fd (fast search and file finding), a portable Git (for Magit), and the Java
+            language server (needs your own JDK 17+ on PATH or JAVA_HOME; not bundled)
   docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
 
 Notes: this is Emacs 31.1, not the Emacs 32 development build the Linux version uses, and it has no
 native compilation (the official Windows build ships without it), so it runs byte-compiled code.
-Java works out of the box: M-x eglot in a Java project (definitions, references, implementations).
-Rust's rust-analyzer is a separate program and is not included.
+Java: the language server (jdtls) is included, but not a JDK --- install one yourself (17+), so
+"java" is on PATH or JAVA_HOME, then M-x eglot in a Java project (definitions, references, etc.).
+Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
 Press C-c d for every guide in one buffer (README.md and docs\\*.md), built the moment Emacs starts.
 GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2

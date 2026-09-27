@@ -28,7 +28,8 @@ for f in "$ROOT"/tests/ert/*.el; do
     echo "set \"EMACS_BIN=$BW\\emacs\\bin\\emacs.exe\""
     echo "set \"CUSTOM_EMACS_PORTABLE=1\""
     echo "set \"CUSTOM_EMACS_HOME=$BW\""
-    echo "set \"PATH=%PATH%;$BW\\tools\\jdk\\bin\""
+    # No JDK is bundled (see config/init.el's my/bundled-jdtls-command): LSP=1 needs a
+    # real JDK already on this machine's own PATH or JAVA_HOME.
     [ -n "${LSP:-}" ] && echo "set \"RUN_LSP_TESTS=1\""
     case "$harness" in
       bare) echo "\"%EMACS_BIN%\" -Q --batch -l \"%ROOT%\\tests\\ert\\helper.el\" -l \"%ROOT%\\tests\\ert\\$name.el\" -f ert-run-tests-batch-and-exit > \"$(W "$log")\" 2>&1" ;;

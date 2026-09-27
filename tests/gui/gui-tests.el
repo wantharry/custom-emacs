@@ -127,6 +127,14 @@ the end it is aborted."
       (should (eq face 'font-lock-keyword-face))
       (should-not (equal (face-foreground face nil t) (face-foreground 'default nil t))))))
 
+(gui-deftest gui/web-languages-source-is-drawn-in-color
+  (skip-unless (treesit-language-available-p 'javascript))
+  (gui-with-file (b "a.js" "function add(a, b) {\n  return a + b;\n}\n")
+    (font-lock-ensure)
+    (let ((face (car (ensure-list (get-text-property 1 'face)))))
+      (should (eq face 'font-lock-keyword-face))
+      (should-not (equal (face-foreground face nil t) (face-foreground 'default nil t))))))
+
 ;;; The window: mode line, line numbers, highlight, scrolling, splitting
 
 (gui-deftest gui/mode-line-shows-the-read-only-flag-and-the-modes
