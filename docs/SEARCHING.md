@@ -187,6 +187,10 @@ numbers. The same list opens from inside a search with `M-s o`.
 | `e` | `occur-edit-mode` | edit the matching lines **in the list** (they change in the file); `C-c C-c` finishes |
 <!-- keymap: global -->
 
+**To close the list:** `q` does nothing here (Occur has no quit key bound). Put the cursor in that
+window and press `C-x 0` (`delete-window`); it closes just that window, leaving Treemacs, other
+windows and the buffer itself untouched.
+
 Other line-oriented commands, by name: `M-x how-many` (count the matches after the cursor), `M-x keep-lines` and
 `M-x flush-lines` (keep or delete the lines that match, from the cursor on or in the region; they change the
 text, so unlock the file first), `M-x multi-occur-in-matching-buffers` (search several open files).
@@ -232,6 +236,10 @@ The results list is the same one used for references and implementations (sectio
 | `C-o` | `xref-show-location-at-point` | show it in the other window, keeping the list |
 | `r` | `xref-query-replace-in-results` | replace across every match in the list |
 <!-- keymap: global -->
+
+**To close the list:** `q` does nothing here either. `TAB` closes it **and** jumps to the match under
+the cursor in one step; to close it without going anywhere, put the cursor in that window and press
+`C-x 0`.
 
 With the mouse: a left click on a result opens it, a middle click shows it and keeps the list.
 

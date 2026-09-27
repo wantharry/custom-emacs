@@ -148,5 +148,11 @@ cp "$ROOT/docs/DISTRIBUTION.md" "$STAGE/DISTRIBUTION.md" 2>/dev/null || true
 
 echo "== zip"
 rm -f "$DIST/$NAME.zip"
-( cd "$DIST/stage" && 7z a -tzip -mx=6 -bso0 -bsp0 "$DIST/$NAME.zip" "$NAME" )
+# The zip's own top-level entries are the files themselves (Emacs.exe, emacs/, config/, ...), not
+# one more "$NAME/" wrapping them.  Zipping "$NAME" as a single entry (the previous approach) meant
+# that Windows' "Extract All" wizard, which proposes a destination folder named after the zip
+# minus ".zip" (i.e. also "$NAME"), extracted that one folder INTO a second folder of the same
+# name: "$NAME\$NAME\Emacs.exe" instead of "$NAME\Emacs.exe". Zipping the contents directly avoids
+# the doubling regardless of what the person names the folder they extract into.
+( cd "$STAGE" && 7z a -tzip -mx=6 -bso0 -bsp0 "$DIST/$NAME.zip" * )
 ls -lh "$DIST/$NAME.zip"; du -sh "$STAGE"
