@@ -5,10 +5,10 @@ anywhere and open `Emacs.exe`. Nothing is installed and nothing is downloaded.
 
 | Bundle | File | Status |
 |---|---|---|
-| **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 245 MB zipped, 635 MB unpacked, with Java) | **Built and tested**, described below |
+| **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 247 MB zipped, 644 MB unpacked, with Java) | **Built and tested**, described below |
 | Linux x86-64 | not packaged yet | Next. The Linux build here is Emacs 32, which needs its libraries carried along; see [Linux](#linux) |
 
-The zip is in `dist/` after `./build.sh dist windows` and is **not** committed to git (it is about 245 MB and
+The zip is in `dist/` after `./build.sh dist windows` and is **not** committed to git (it is about 247 MB and
 rebuilt from what is in git).
 
 ## Windows
@@ -23,13 +23,17 @@ That is all. It opens on the start screen ([START-SCREEN.md](START-SCREEN.md)):
 ![the start screen on Windows](images/windows-1-start-screen.png)
 
 Everything else behaves as in the Linux guides: Java highlighted by tree-sitter, the fast finder on
-`C-c f f`, Magit on `C-x g`.
+`C-c f f`, Magit on `C-x g`, and Consult on `C-c s l/g/f/b`.
 
 ![Java on Windows](images/windows-2-java.png)
 
 ![the finder on Windows](images/windows-4-finder.png)
 
 ![Magit on Windows](images/windows-3-magit.png)
+
+![consult-ripgrep on Windows, live preview](images/windows-5-consult.png)
+
+*`C-c s g area`: the same live-preview results list as on Linux, using the bundled `rg`.*
 
 *These are real screenshots of the unpacked bundle. The demo project and history are examples.*
 
@@ -40,18 +44,19 @@ custom-emacs-windows-x64/
 ├── Emacs.exe          the launcher you double-click (76 KB; source: tools/windows-launcher.c)
 ├── emacs/             GNU Emacs 31.1 for Windows, the official unmodified build, with all its libraries
 ├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el
-│   ├── elpa/          Evil, Magit and Treemacs (and their helpers), compiled by the Windows Emacs
+│   ├── elpa/          Evil, Magit, Treemacs and Consult (and their helpers), compiled by the Windows Emacs
 │   └── tree-sitter/   Java and Rust grammars for Windows
 ├── tools/
 │   ├── git/           MinGit 2.55: Git for Magit, with its own small shell
-│   ├── rg/            ripgrep: the fast finder and project text search
+│   ├── rg/            ripgrep: the fast finder, project text search, and Consult
+│   ├── fd/            fd: file finding for Consult (`C-c s f`)
 │   ├── jdk/           Temurin JDK 21 (without src.zip and jmods): java, javac
 │   └── jdtls/         the Java language server, started directly with that Java
 ├── README.txt
 └── DISTRIBUTION.md    this guide
 ```
 
-What `Emacs.exe` does when you start it: finds its own folder; puts the bundled Git and ripgrep first on
+What `Emacs.exe` does when you start it: finds its own folder; puts the bundled Git, ripgrep and fd first on
 `PATH`; sets `HOME` to your user profile if it is not set, so `~` means `C:\Users\you`; and starts
 `emacs\bin\runemacs.exe` (Emacs without a console window) pointing at `config\`. Files or options you give
 `Emacs.exe` are passed on to Emacs, so `Emacs.exe notes.txt` opens that file.
@@ -71,6 +76,7 @@ means the folder must be writable, so do not put it under `C:\Program Files`.
 | Whole-disk file index | the whole `/`, minus system folders | the drive of your home folder (normally `C:\`), minus `Windows`, `Program Files`, `ProgramData` and a few noisy `AppData` folders |
 | Java | install a JDK and `jdtls` yourself | **included**: Temurin JDK 21 and `jdtls`, so `M-x eglot` works on a fresh PC ([EGLOT.md](EGLOT.md)) |
 | Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain) |
+| `fd` (for Consult's `C-c s f`) | download yourself (no `apt`/`sudo` route; see [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md#9-setting-up-rg-and-fd-again)) | **included** |
 
 The version difference is deliberate: nobody publishes a Windows build of the Emacs 32 development version,
 and compiling one needs a Windows toolchain. Emacs 31.1 runs the same configuration; the test results below
@@ -90,15 +96,14 @@ Everything here was run on the actual bundle, unzipped fresh with Windows' own e
 | Evil and Magit load | Yes |
 | **A real commit through Magit**: stage, `c c`, the message buffer opens (1.6 s), it is editable, `C-c C-c` commits, `git log` shows it, and the source file is still read-only afterwards | Yes |
 | Whole-drive index (859,000 files on this PC) | built in 1.6 s, queries 67 to 495 ms |
-| Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **378 tests: 349 pass, 0 fail, 29 skipped** |
+| Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **409 tests: 391 pass, 1 fail (a known real-`jdtls` timing flake under full parallel load, confirmed 27/27 pass alone), 17 skipped** |
 | Contents of the zip (files present, settings identical to the repository, no personal history, packages compiled for Emacs 31) | 12 automated tests in `tests/test_dist.py` |
 
-That total was measured before Java and Treemacs were added to the bundle. Since then: with the bundled Java,
-the `java-navigation` tests that talk to a **real language server** also pass on Windows (**27 of 27**, run with
-`LSP=1 tools/test-windows.sh`), which were 11 skips before. The skipped tests in that total could not apply there: 4 more
-need language servers (Rust), 3 are network tests you switch on yourself, 4 check the pruned Linux install, 4 check
-the Linux build (Emacs 32, native compilation), and 2 need symbolic links (Windows allows them only in Developer
-Mode or as administrator; the tests skip themselves when the system refuses).
+`java-navigation`'s real-`jdtls` tests all pass on Windows (**27 of 27**, run with `LSP=1 tools/test-windows.sh`).
+Consult's `rg`- and `fd`-backed tests also pass (**14 of 14**). The 17 skips could not apply there: 4 need a Rust
+toolchain, 3 are network tests you switch on yourself, 4 check the pruned Linux install, 4 check the Linux build
+(Emacs 32, native compilation), and 2 need symbolic links (Windows allows them only in Developer Mode or as
+administrator; the tests skip themselves when the system refuses).
 
 **Not run on Windows:** the real-window and real-terminal tests (they use a Linux windowing setup and
 `tmux`). Instead the checks in the table above were scripted inside the real window, and the screenshots
@@ -115,6 +120,10 @@ Running the existing tests on Windows found real problems in code that had only 
 - The index build asked Emacs for a pseudo-terminal, and ripgrep then printed colored paths. It now uses a
   plain pipe (this affected Linux too, once the shell was removed).
 - New files were saved with CRLF line endings. Now LF.
+- `consult-fd`'s own file-name matching is untouched by the ripgrep fix above (it calls `fd` directly, not through
+  our finder), so its test asserted a forward-slash path and failed against `fd`'s native `\` output on Windows;
+  the test now compares paths with separators normalized, which is the correct fix (Emacs itself opens a
+  backslash path on Windows without trouble).
 
 ### Limits and things to know
 
@@ -139,10 +148,11 @@ From WSL (or any Linux with `7z` and the ability to run `cmd.exe`; the compile s
 ./build.sh packages                 # once: Evil and Magit into config/elpa
 ./build.sh dist windows             # about 1 minute; downloads about 130 MB the first time
 tools/test-windows.sh /mnt/c/path/to/unzipped/custom-emacs-windows-x64      # optional: run the offline tests with it
+LSP=1 tools/test-windows.sh /mnt/c/path/to/unzipped/custom-emacs-windows-x64 java-navigation   # optional: with a real jdtls too
 ```
 
 `./build.sh dist windows` does, in order: downloads the official Emacs 31.1 zip and checks it against GNU's
-published checksum; downloads MinGit and ripgrep; **cross-compiles** the Java and Rust grammars and
+published checksum; downloads MinGit, ripgrep and fd (fd's checksum is fetched from GitHub's own release API); **cross-compiles** the Java and Rust grammars and
 `Emacs.exe` for Windows with the `zig` compiler (installed into `dist/.venv`, not on your system);
 copies in the four config files and `elpa/`; **recompiles the packages with the bundled Windows Emacs**
 (compiled files must come from the Emacs that runs them); and zips. The downloads are cached in

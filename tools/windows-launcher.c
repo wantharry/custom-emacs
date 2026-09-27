@@ -37,8 +37,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
   if (len == 0 || len >= 32768) oldpath[0] = 0;
   wchar_t newpath[32768 + 1024];
   /* The bundled JDK goes last: a Java you already have wins, ours is the fallback. */
-  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\emacs\\bin;%s;%s\\tools\\jdk\\bin",
-           self, self, self, self, oldpath, self);
+  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\tools\\fd;%s\\emacs\\bin;%s;%s\\tools\\jdk\\bin",
+           self, self, self, self, self, oldpath, self);
   SetEnvironmentVariableW(L"PATH", newpath);
   SetEnvironmentVariableW(L"CUSTOM_EMACS_PORTABLE", L"1");
   SetEnvironmentVariableW(L"CUSTOM_EMACS_HOME", self);   /* where tools\\jdk and tools\\jdtls are found */

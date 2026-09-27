@@ -18,14 +18,14 @@ the pruning tool. The Emacs source itself is cloned separately into
 |---|---|
 | Linux build (Ubuntu 24.04 on WSL2, GTK/Wayland) | **Verified.** Builds, launches a GUI window, all smoke tests pass |
 | Native compilation, tree-sitter, SQLite, HarfBuzz | **Verified** enabled and working |
-| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only packages are Evil (optional, `C-c v`), Magit (`C-x g`) and Treemacs (`C-c t`) |
+| Starter config (`config/`) | **Verified** loads cleanly. No theme; the only packages are Evil (optional, `C-c v`), Magit (`C-x g`), Treemacs (`C-c t`) and Consult (`C-c s l/g/f/b`) |
 | Read-only files | **Verified.** Every file opens read-only; `C-c e e` or `M-x allow-editing` is the one deliberate way to edit (a three-key chord, so no slip can do it) |
 | Magit | **Verified**, including a real commit typed through its message buffer in a real terminal. Loads only on first use (0.5 s once, then 0.05 s per status). See [docs/MAGIT.md](docs/MAGIT.md) |
 | Project search and Java navigation | **Verified** with a real `jdtls`: `C-x p f` (files), `C-x p g` (text, via ripgrep), definitions, implementations and references from keys, Ctrl+Click and right-click. Instant fuzzy file finder with a whole-disk index and a live fallback, no package: `C-c f f`, `C-c f g` (checked in a real window and terminal, with screenshots) |
 | Java and Rust | **Verified.** Tree-sitter modes plus `rust-analyzer` and `jdtls` via Eglot, started by hand (`M-x eglot`); no measurable startup cost |
-| Test suite | **378 tests offline (about 5 s), 425 with `--gui` (about 20 s)**, all passing: headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
+| Test suite | **409 tests offline (about 7 s), 443 with `--gui` (about 50 s)**, all passing except one expected, self-explaining failure (`test_dist.py` correctly reports the Windows zip is stale after adding Consult; see [DISTRIBUTION.md](docs/DISTRIBUTION.md)): headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
-| Windows | **Verified as a portable bundle**: unzip and double-click `Emacs.exe` (official Emacs 31.1 + these settings, Evil, Magit, grammars, ripgrep, Git). 0 test failures on Windows, a real Magit commit checked, with screenshots. Building Emacs 32 itself for Windows is *untested*. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) |
+| Windows | **Verified as a portable bundle**: unzip and double-click `Emacs.exe` (official Emacs 31.1 + these settings, Evil, Magit, Treemacs, Consult, grammars, ripgrep, fd, Git, a JDK and the Java language server). A real Magit commit and real Java navigation checked, with screenshots. Building Emacs 32 itself for Windows is *untested*. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) |
 | macOS build | *Untested.* Placeholder in `build.sh` only |
 | CI (GitHub Actions) for all three OSes | *Not written yet* |
 | Theme, mode line, final fonts | *Deliberately deferred* (see [Customizing](docs/CUSTOMIZING.md)) |
@@ -87,6 +87,7 @@ research-emacs/
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust: what is installed, what it costs (measured), how to use and extend it |
 | [docs/START-SCREEN.md](docs/START-SCREEN.md) | The screen Emacs opens on: your last 5 files, folders and projects as links, expandable, and `C-c h` to get back to it |
 | [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Portable bundles: unzip and run. The Windows zip (built and tested), what is inside, how it differs from the Linux build, limits, how to rebuild it |
+| [docs/SEARCH-OPTIONS.md](docs/SEARCH-OPTIONS.md) | The inventory of every way to search in Emacs: what is built in, what was added here, what was pruned, and which packages exist but are not installed (with versions and overlap) |
 | [docs/SEARCHING.md](docs/SEARCHING.md) | Finding anything: files (the fast finder, recent, tree, Dired), text (in a file, a project, a folder), code by meaning, help. Every key checked, with measured speeds and screenshots |
 | [docs/EGLOT.md](docs/EGLOT.md) | Code intelligence from a language server: start it, definitions, references, implementations, diagnostics, rename; how the Windows bundle runs Java with nothing installed |
 | [docs/TREEMACS.md](docs/TREEMACS.md) | The file tree sidebar (`C-c t`): keys, how it fits with the finder and Dired, and how it works with the read-only lock |

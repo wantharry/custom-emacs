@@ -357,6 +357,47 @@ the end it is aborted."
             (treemacs-do-remove-project-from-workspace p t)))
         (kill-buffer b)))))
 
+;;; Consult
+
+(gui-deftest gui/consult-fd-finds-a-file-by-name-and-opens-it-read-only
+  (skip-unless (locate-library "consult"))
+  (skip-unless (executable-find "fd"))
+  (test-with-temp-dir d
+    (let* ((default-directory d) (files (gui--ff-project d))
+           (b (find-file files))
+           ;; fd runs as a real subprocess: type the query, let its async output populate the
+           ;; candidates, THEN press RET (queuing everything at once can send RET before fd answers).
+           (opened (gui--drive (append (listify-key-sequence (kbd "C-c s f")) (listify-key-sequence "Circle"))
+                               (list (cons 1.5 (lambda () (setq unread-command-events (listify-key-sequence (kbd "RET")))))
+                                     (cons 2.2 (lambda () (buffer-file-name (window-buffer (selected-window)))))))))
+      (unwind-protect
+          (progn (should (equal opened (concat d "src/demo/Circle.java")))
+                 (should (buffer-local-value 'buffer-read-only (find-buffer-visiting opened))))
+        (dolist (x (buffer-list)) (when (buffer-file-name x) (kill-buffer x)))
+        (ignore b)))))
+
+(gui-deftest gui/consult-ripgrep-shows-a-live-preview-of-the-real-match
+  (skip-unless (locate-library "consult"))
+  (skip-unless (executable-find "rg"))
+  (test-with-temp-dir d
+    (make-directory (concat d "src/demo") t)
+    (test-write-file (concat d "src/demo/Shape.java") "interface Shape {\n  double area();\n}\n")
+    (test-write-file (concat d "src/demo/Circle.java") "class Circle {\n  double area() { return 1; }\n}\n")
+    (let ((default-directory d)) (call-process "git" nil nil nil "init" "-q"))
+    (let* ((b (find-file (concat d "src/demo/Shape.java")))
+           (info (gui--feed (append (listify-key-sequence (kbd "C-c s g")) (listify-key-sequence "area")) 2.5
+                            (lambda ()
+                              (list (with-current-buffer (window-buffer (minibuffer-window)) (buffer-string))
+                                    (mapcar (lambda (w) (buffer-name (window-buffer w))) (window-list)))))))
+      (unwind-protect
+          (progn (should (string-match-p "\\`Ripgrep" (nth 0 info)))
+                 ;; the preview shows the other matching file without leaving the minibuffer
+                 (should (cl-some (lambda (n) (string-match-p "\\`Preview:\\|Circle\\.java\\|Shape\\.java" n)) (nth 1 info))))
+        (setq unread-command-events (listify-key-sequence (kbd "C-g")))
+        (sit-for 0.5)
+        (dolist (x (buffer-list)) (when (buffer-file-name x) (kill-buffer x)))
+        (ignore b)))))
+
 ;;; Evil and the pointer
 
 (gui-deftest gui/evil-cursor-follows-the-state

@@ -72,7 +72,7 @@ class WindowsBundle(unittest.TestCase):
     def test_everything_needed_to_run_is_inside(self):
         for f in ["Emacs.exe", "README.txt", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
                   "emacs/bin/emacsclient.exe", "emacs/bin/libtree-sitter-0.26.dll",
-                  "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe",
+                  "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe", "tools/fd/fd.exe",
                   "tools/jdk/bin/java.exe", "tools/jdk/bin/javac.exe", "tools/jdk/release",
                   "tools/jdtls/config_win/config.ini",
                   "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll"]:
@@ -97,7 +97,7 @@ class WindowsBundle(unittest.TestCase):
         self.assertIn(TOP + "tools/jdk/lib/modules", self.names)
 
     def test_evil_and_magit_are_there_and_compiled(self):
-        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture"]:
+        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult"]:
             with self.subTest(package=pkg):
                 self.assertTrue(any(n.startswith(f"{TOP}config/elpa/{pkg}-") and n.endswith(".elc")
                                     for n in self.names), f"{pkg} has no compiled files")

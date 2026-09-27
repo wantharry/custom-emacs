@@ -15,6 +15,7 @@ STAGE="$DIST/stage/$NAME"
 EMACS_ZIP=emacs-31.1_1.zip
 EMACS_URL=https://ftp.gnu.org/gnu/emacs/windows/emacs-31
 RG_VERSION="${RG_VERSION:-14.1.1}"
+FD_VERSION="${FD_VERSION:-10.5.0}"
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
 JDK_FEATURE="${JDK_FEATURE:-21}"               # the Java it runs on (jdtls needs 21 or newer)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
@@ -38,6 +39,21 @@ got="$(sha256sum "$CACHE/$EMACS_ZIP" | cut -d' ' -f1)"
 echo "   $EMACS_ZIP matches the checksum published by GNU"
 fetch "$MINGIT_URL" MinGit-64.zip
 fetch "https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/ripgrep-$RG_VERSION-x86_64-pc-windows-msvc.zip" rg-win.zip
+FD_ASSET="fd-v$FD_VERSION-x86_64-pc-windows-msvc.zip"
+fetch "https://github.com/sharkdp/fd/releases/download/v$FD_VERSION/$FD_ASSET" fd-win.zip
+FD_SHA="$(curl -fsSL "https://api.github.com/repos/sharkdp/fd/releases/tags/v$FD_VERSION" | python3 -c "
+import json, sys
+name = sys.argv[1]
+for a in json.load(sys.stdin)['assets']:
+    if a['name'] == name:
+        print(a['digest'].split(':')[1]); break
+" "$FD_ASSET")"
+if [ -n "$FD_SHA" ]; then
+  [ "$(sha256sum "$CACHE/fd-win.zip" | cut -d' ' -f1)" = "$FD_SHA" ] || { echo "CHECKSUM MISMATCH for fd-win.zip" >&2; exit 1; }
+  echo "   fd-win.zip matches the checksum published by GitHub"
+else
+  echo "   (could not fetch a published checksum for fd-win.zip; proceeding without one)"
+fi
 
 echo "== Java: a JDK and the Java language server (so M-x eglot works with nothing installed)"
 read -r JDK_NAME JDK_URL JDK_SHA <<<"$(curl -fsSL "https://api.adoptium.net/v3/assets/latest/$JDK_FEATURE/hotspot?architecture=x64&image_type=jdk&os=windows" \
@@ -70,10 +86,11 @@ echo "== launcher (Emacs.exe)"
   "$ROOT/tools/windows-launcher.c" -o "$CACHE/Emacs.exe"
 
 echo "== assemble"
-rm -rf "$STAGE"; mkdir -p "$STAGE"/{config,tools/rg}
+rm -rf "$STAGE"; mkdir -p "$STAGE"/{config,tools/rg,tools/fd}
 unzip -q "$CACHE/$EMACS_ZIP" -d "$STAGE/emacs"
 unzip -q "$CACHE/MinGit-64.zip" -d "$STAGE/tools/git"
 unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
+unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
 # Java: the JDK without its sources and jmods (about 140 MB that only jlink needs; java and javac work)
 mkdir -p "$STAGE/tools/.jdk-unpack" && unzip -q "$CACHE/$JDK_NAME" -d "$STAGE/tools/.jdk-unpack"
 mv "$STAGE/tools/.jdk-unpack"/* "$STAGE/tools/jdk" && rmdir "$STAGE/tools/.jdk-unpack"
@@ -109,7 +126,7 @@ Custom Emacs, portable, for Windows 10/11 (64-bit).
 Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
   config\\  your settings and the packages Evil and Magit, and tree-sitter grammars for Java and Rust
-  tools\\   ripgrep (fast search), a portable Git (for Magit), and Java 21 with the Java language server
+  tools\\   ripgrep and fd (fast search and file finding), a portable Git (for Magit), and Java 21 with the Java language server
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
 
@@ -117,6 +134,7 @@ Notes: this is Emacs 31.1, not the Emacs 32 development build the Linux version 
 native compilation (the official Windows build ships without it), so it runs byte-compiled code.
 Java works out of the box: M-x eglot in a Java project (definitions, references, implementations).
 Rust's rust-analyzer is a separate program and is not included.
+Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
 GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2
 (tools\\git\\LICENSE.txt) and ripgrep under MIT/Unlicense. Full guide: DISTRIBUTION.md.
 EOF

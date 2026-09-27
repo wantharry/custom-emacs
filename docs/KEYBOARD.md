@@ -274,6 +274,10 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c T` | `my/treemacs-reveal` | **this config:** show the tree and move to the current file in it |
 | `C-x g` | `magit-status` | **this config:** Git status, stage and commit with single keys ([MAGIT.md](MAGIT.md)) |
 | `C-c g` | `magit-file-dispatch` | **this config:** Git commands for this file |
+| `C-c s l` | `consult-line` | **this config:** search this buffer, with a live preview ([SEARCHING.md](SEARCHING.md#10-consult-one-search-box-for-several-of-the-above)) |
+| `C-c s g` | `consult-ripgrep` | **this config:** search project text (ripgrep), with a live preview |
+| `C-c s f` | `consult-fd` | **this config:** find a project file by name (fd), with a live preview |
+| `C-c s b` | `consult-buffer` | **this config:** switch to a buffer, recent file or bookmark |
 | `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable ([START-SCREEN.md](START-SCREEN.md)) |
 | `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
 | `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |

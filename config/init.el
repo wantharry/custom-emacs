@@ -385,6 +385,29 @@ installed, offer to install it from NonGNU ELPA."
 (global-set-key (kbd "C-c t") (if (locate-library "treemacs") #'my/treemacs #'my/treemacs-missing))
 (global-set-key (kbd "C-c T") (if (locate-library "treemacs") #'my/treemacs-reveal #'my/treemacs-missing))
 
+;;; Consult: search built on the completion list -----------------------------------
+
+;; A handful of `consult' commands, each a fast, previewed search over one kind of thing:
+;; `C-c s l' this buffer, `C-c s g' text across the project (ripgrep), `C-c s f' files by
+;; name across the project (fd), `C-c s b' buffers, recent files and bookmarks in one list.
+;; Moving to a candidate shows it at once in the window (the preview); `RET' or click stays
+;; there, `C-g' returns to where you were.  Installed into config/elpa by `./build.sh
+;; packages'; nothing loads until first use.  Needs `rg' and `fd' for the fastest results;
+;; without them `consult-ripgrep'/`consult-fd' fall back to slower built-in tools.
+;; See docs/SEARCHING.md and docs/SEARCH-OPTIONS.md.
+(when (locate-library "consult")
+  (autoload 'consult-line "consult" "Search this buffer, with a live preview." t)
+  (autoload 'consult-ripgrep "consult" "Search project text with ripgrep, with a live preview." t)
+  (autoload 'consult-fd "consult" "Find a project file by name with fd, with a live preview." t)
+  (autoload 'consult-buffer "consult" "Switch to a buffer, recent file or bookmark." t))
+(defun my/consult-missing ()
+  (interactive)
+  (message "Consult is not installed.  Run ./build.sh packages"))
+(dolist (binding '(("C-c s l" . consult-line) ("C-c s g" . consult-ripgrep)
+                   ("C-c s f" . consult-fd) ("C-c s b" . consult-buffer)))
+  (global-set-key (kbd (car binding))
+                  (if (locate-library "consult") (cdr binding) #'my/consult-missing)))
+
 ;;; Start screen ---------------------------------------------------------------
 
 ;; What Emacs shows when started without a file: the last 5 files, folders and projects,

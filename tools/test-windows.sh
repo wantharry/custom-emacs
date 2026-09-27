@@ -23,7 +23,7 @@ for f in "$ROOT"/tests/ert/*.el; do
   bat="$WT/run-$name.bat"; log="$WT/$name.log"
   {
     echo "@echo off"
-    echo "set \"PATH=$BW\\tools\\git\\cmd;$BW\\tools\\git\\usr\\bin;$BW\\tools\\rg;%PATH%\""
+    echo "set \"PATH=$BW\\tools\\git\\cmd;$BW\\tools\\git\\usr\\bin;$BW\\tools\\rg;$BW\\tools\\fd;%PATH%\""
     echo "set \"ROOT=$(W "$WT")\""
     echo "set \"EMACS_BIN=$BW\\emacs\\bin\\emacs.exe\""
     echo "set \"CUSTOM_EMACS_PORTABLE=1\""

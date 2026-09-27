@@ -383,7 +383,55 @@ everything, including `node_modules` and `.git`); **very large files** (a few me
 **files on the Windows drive from WSL** (`/mnt/c`), where each file access is slow (measured: 2,000 files took
 17.9 s there against 0.08 s on the Linux disk). Work inside the Linux folders, or run the Windows bundle.
 
-## 10. Windows
+## 10. Consult: one search box for several of the above
+
+`consult` is a small package installed alongside Evil, Magit and Treemacs. It gives four commands that share
+one idea: a completion list (the same vertical list `M-x` uses) that updates **live** as you type, with the
+match **previewed** in the real window before you commit to it.
+
+<!-- keymap: global -->
+| Key | Command | Searches | Engine |
+|---|---|---|---|
+| `C-c s l` | `consult-line` | lines of **this buffer**, with a live preview as you move through matches | built in |
+| `C-c s g` | `consult-ripgrep` | text across the **project**, grouped by file | ripgrep |
+| `C-c s f` | `consult-fd` | **file names** across the project | `fd` |
+| `C-c s b` | `consult-buffer` | open buffers, recent files and bookmarks, in one list | built in |
+
+![consult-ripgrep, live preview of a real match](images/consult-1-ripgrep-area.png)
+
+*`C-c s g area`: the results list (bottom) shows every match, grouped by file, exactly like `C-x p g`; moving to a
+line shows it at once in the window above, **before** you press `RET`.*
+
+![consult-fd finding a file by name](images/consult-2-fd-geometry.png)
+
+Press `RET` (or click) to stay on the current candidate; `C-g` returns you to exactly where you were, with
+nothing changed. Every file these open is still **read-only**, like everywhere else in this config
+(`C-c e e` to edit); the preview itself never modifies a buffer.
+
+**How this compares to what you already have:**
+
+| | Consult | What you had |
+|---|---|---|
+| Search this buffer | `C-c s l`, with a live preview per match | `C-s` (incremental search) |
+| Search project text | `C-c s g`, ripgrep, same results shape as `C-x p g`, but previewed live | `C-x p g` (`project-find-regexp`) |
+| Find a file by name | `C-c s f`, `fd`, a literal/regexp match on the name | `C-c f f` (the fast finder: fuzzy, letters need not be contiguous, works from an index) |
+| Switch buffers | `C-c s b`, one list with buffers, recent files and bookmarks together | `C-x b` / `C-x C-b` / `C-c r` (separate) |
+
+None of these **replace** the originals; both keep working side by side. `consult-fd` is a plain name match, not
+fuzzy like the fast finder (`gmtry` will not find `Geometry.java` through `C-c s f`, only through `C-c f f`); use
+whichever suits the moment. `consult-ripgrep` and `project-find-regexp` use the same engine and the same smart-case
+rule (an all-lowercase query ignores case; a query with a capital becomes case-sensitive), so their matches agree.
+
+**Requires `rg` and `fd` on `PATH`.** `rg` was already installed on this machine; `fd` was not (Ubuntu ships it as
+`fd-find`/`fdfind`, and installing that needs `sudo`, so it was instead downloaded as a checksummed release
+binary into `~/.local/bin/fd`, the same way `jdtls` was — see [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md#9-setting-up-rg-and-fd-again)
+for the exact command). Without `fd`, `consult-fd` still runs (it falls back to `find`); without `rg`,
+`consult-ripgrep` falls back to `grep`.
+
+**Also on Windows.** The bundle carries `consult`, `rg` and `fd`, so all four keys work with nothing to
+install; see [DISTRIBUTION.md](DISTRIBUTION.md) for the screenshot and the test results.
+
+## 11. Windows
 
 Everything above works in the Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)): the finder, `C-x p g`
 (ripgrep is bundled), Dired, Occur and the help keys were tested there through the offline suite. Differences:
@@ -395,7 +443,7 @@ Everything above works in the Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)
 - Real-window checks on Windows covered the finder and Java navigation; `C-s`, `M-s o` and the Dired keys were
   exercised by tests, not by eye.
 
-## 11. If a search finds nothing
+## 12. If a search finds nothing
 
 | Symptom | Likely cause |
 |---|---|
@@ -409,8 +457,9 @@ Everything above works in the Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)
 | `M-?` lists things that are not the symbol | You are using text search (`C-x p g`); use `M-?` with the server running for exact results |
 | `C-s` does not find text you can see | Lax matching is off for spaces (`M-s SPC`), or the text has a different kind of space or accent |
 
-## 12. Related guides
+## 13. Related guides
 
+- [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md): the inventory: every way to search that Emacs has, what we added, and what exists but is not installed.
 - [NAVIGATING-CODE.md](NAVIGATING-CODE.md): the finder, in depth, and Java navigation with measured answers.
 - [EGLOT.md](EGLOT.md): the language server client: definitions, references, implementations, diagnostics, rename.
 - [TREEMACS.md](TREEMACS.md): the file tree.
