@@ -194,7 +194,78 @@
     (should (eq (key-binding (kbd "RET")) 'push-button))
     (should (eq (key-binding (kbd "g")) 'my/start-refresh))
     (should (eq (key-binding (kbd "3")) 'my/start-open-nth-file))
-    (should (eq (key-binding (kbd "f")) 'my/start-find-in-project))))
+    (should (eq (key-binding (kbd "f")) 'my/start-find-in-project))
+    (should (eq (key-binding (kbd "m")) 'my/start-open-magit))
+    (should (eq (key-binding (kbd "d")) 'my/start-open-dired))
+    (should (eq (key-binding (kbd "t")) 'my/start-open-treemacs))))
+
+;;; m/d/t: Magit, Dired and Treemacs directly on any entry (a file, folder or project),
+;;; the same three actions as the git-repos list (see gitfolders.el's own tests).
+
+(ert-deftest start/m-opens-magit-on-a-projects-own-folder ()
+  (sp-with-state
+    (let* ((f (car (sp--make-tree sp-dir 1))) opened (real-fboundp (symbol-function 'fboundp)))
+      (my/start-remember (file-name-directory f))
+      (cl-letf (((symbol-function 'magit-status) (lambda (dir) (setq opened dir)))
+                ((symbol-function 'fboundp) (lambda (fn) (if (eq fn 'magit-status) t (funcall real-fboundp fn)))))
+        (with-current-buffer (my/start-buffer)
+          (goto-char (point-min)) (search-forward "Projects") (forward-button 1)
+          (my/start-open-magit)))
+      (should (equal opened (concat sp-dir "proj00/"))))))
+
+(ert-deftest start/m-on-a-file-opens-magit-on-its-containing-folder ()
+  (sp-with-state
+    (let* ((f (car (sp--make-tree sp-dir 1))) opened (real-fboundp (symbol-function 'fboundp)))
+      (setq recentf-list (list f))
+      (cl-letf (((symbol-function 'magit-status) (lambda (dir) (setq opened dir)))
+                ((symbol-function 'fboundp) (lambda (fn) (if (eq fn 'magit-status) t (funcall real-fboundp fn)))))
+        (with-current-buffer (my/start-buffer)
+          (goto-char (point-min)) (search-forward "File0.txt") (backward-char 2)
+          (my/start-open-magit)))
+      (should (equal opened (file-name-directory f))))))
+
+(ert-deftest start/d-opens-dired-on-a-folder-entry ()
+  (sp-with-state
+    (make-directory (concat sp-dir "plain/") t)
+    (my/start-remember (concat sp-dir "plain/"))
+    (let (opened)
+      (cl-letf (((symbol-function 'dired) (lambda (dir) (setq opened dir))))
+        (with-current-buffer (my/start-buffer)
+          (goto-char (point-min)) (search-forward "Folders") (forward-button 1)
+          (my/start-open-dired)))
+      (should (equal opened (concat sp-dir "plain/"))))))
+
+(ert-deftest start/off-an-entry-m-d-and-t-say-so-instead-of-erroring ()
+  (sp-with-state
+    (let (msg)
+      (cl-letf (((symbol-function 'message) (lambda (fmt &rest a) (setq msg (apply #'format fmt a)))))
+        (with-current-buffer (my/start-buffer)
+          (goto-char (point-min))
+          (my/start-open-magit)
+          (should (string-match-p "cursor on an entry" msg))
+          (setq msg nil) (my/start-open-dired)
+          (should (string-match-p "cursor on an entry" msg))
+          (setq msg nil) (my/start-open-treemacs)
+          (should (string-match-p "cursor on an entry" msg)))))))
+
+(ert-deftest start/t-adds-the-folder-to-treemacs-and-reveals-it ()
+  (sp-with-state
+    (make-directory (concat sp-dir "plain/") t)
+    (my/start-remember (concat sp-dir "plain/"))
+    (let (added-path)
+      (cl-letf (((symbol-function 'locate-library) (lambda (lib) (and (equal lib "treemacs") "fake.el")))
+                ((symbol-function 'require) (lambda (&rest _) t))
+                ((symbol-function 'treemacs-canonical-path) #'identity)
+                ((symbol-function 'treemacs--find-project-for-path) (lambda (_) nil))
+                ((symbol-function 'treemacs-do-add-project-to-workspace) (lambda (path _name) (setq added-path path)))
+                ((symbol-function 'treemacs-current-visibility) (lambda () 'none))
+                ((symbol-function 'treemacs) (lambda ()))
+                ((symbol-function 'treemacs-select-window) (lambda ()))
+                ((symbol-function 'treemacs-goto-file-node) (lambda (_path))))
+        (with-current-buffer (my/start-buffer)
+          (goto-char (point-min)) (search-forward "Folders") (forward-button 1)
+          (my/start-open-treemacs)))
+      (should (equal added-path (concat sp-dir "plain/"))))))
 
 (ert-deftest start/my-start-shows-a-single-window ()
   (sp-with-state

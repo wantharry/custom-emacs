@@ -24,6 +24,14 @@
                global-auto-revert-mode save-place-mode recentf-mode savehist-mode))
     (should (symbol-value m))))
 
+(ert-deftest config/recentf-autosaves-periodically-not-only-on-a-clean-exit ()
+  ;; Confirmed for real on the Windows bundle: without this, a forced kill (a crash, Task
+  ;; Manager, a real hang) loses the whole session's recent-files history, since `recentf'
+  ;; only saves via `kill-emacs-hook' by default.
+  (should (cl-some (lambda (tm) (and (eq (timer--function tm) #'recentf-save-list)
+                                     (timer--repeat-delay tm)))       ; non-nil: a repeating idle timer
+                   timer-idle-list)))
+
 (ert-deftest config/completion-setup ()
   (should fido-vertical-mode)
   (should global-completion-preview-mode)

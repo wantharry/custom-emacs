@@ -8,21 +8,33 @@
   ;; assumes a Unix `/', `/mnt', `.git' layout, none of which apply on the Windows bundle.
   `(skip-unless (not (eq system-type 'windows-nt))))
 
+(defmacro gr-isolated (&rest body)
+  "Run BODY with the index (`my/git-repos--list', `my/git-repos--loaded') and its
+store file all reset to fresh, throwaway state, so a test can never read, and can
+never overwrite, the real computer-wide index."
+  (declare (indent 0))
+  `(test-with-temp-dir gr-store-dir
+     (let ((my/git-repos--list nil) (my/git-repos--loaded nil)
+           (my/git-repos-store-file (concat gr-store-dir "index.eld")))
+       ,@body)))
+
 (defmacro gr-with-stub-script (script-text &rest body)
   "Run BODY with `my/git-repos-script' pointing at a small executable script
-containing SCRIPT-TEXT, instead of the real (slow, whole-disk) one."
+containing SCRIPT-TEXT, instead of the real (slow, whole-disk) one, and with the
+index isolated (see `gr-isolated')."
   (declare (indent 1))
   `(progn
      (gr-need-unix)
-     (test-with-temp-dir gr-dir
-     (let ((my/git-repos-script (concat gr-dir "stub.sh")))
-       (test-write-file my/git-repos-script (concat "#!/usr/bin/env bash\n" ,script-text))
-       (set-file-modes my/git-repos-script #o755)
-       (unwind-protect (progn ,@body)
-         (when (get-buffer my/git-repos-buffer-name)
-           (with-current-buffer my/git-repos-buffer-name
-             (when (process-live-p my/git-repos--process) (delete-process my/git-repos--process)))
-           (kill-buffer my/git-repos-buffer-name)))))))
+     (gr-isolated
+       (test-with-temp-dir gr-dir
+         (let ((my/git-repos-script (concat gr-dir "stub.sh")))
+           (test-write-file my/git-repos-script (concat "#!/usr/bin/env bash\n" ,script-text))
+           (set-file-modes my/git-repos-script #o755)
+           (unwind-protect (progn ,@body)
+             (when (get-buffer my/git-repos-buffer-name)
+               (with-current-buffer my/git-repos-buffer-name
+                 (when (process-live-p my/git-repos--process) (delete-process my/git-repos--process)))
+               (kill-buffer my/git-repos-buffer-name))))))))
 
 (defun gr--run-and-wait (&optional windows)
   "Call `my/find-git-repos', wait for the (stub) process to finish, return its buffer."
@@ -60,7 +72,7 @@ containing SCRIPT-TEXT, instead of the real (slow, whole-disk) one."
     (should (< best 0.5))))
 
 ;;; The pure, parameterized functions: safe and meaningful to test on every platform, since
-;;; neither one reads `system-type' (or anything else) from a live global itself.
+;;; none of them reads `system-type' (or anything else) from a live global itself.
 
 (ert-deftest gitfolders/command-on-linux-is-the-script-plus-an-optional-windows-flag ()
   (should (equal (my/git-repos--command 'gnu/linux nil "tools/find-repos.sh" nil nil)
@@ -87,6 +99,24 @@ containing SCRIPT-TEXT, instead of the real (slow, whole-disk) one."
 (ert-deftest gitfolders/windows-drives-only-includes-letters-that-really-exist ()
   (cl-letf (((symbol-function 'file-directory-p) (lambda (d) (member d '("C:/" "E:/")))))
     (should (equal (my/git-repos--windows-drives) '("C:/" "E:/")))))
+
+;;; The index: merging a fresh scan into what was already known.  Pure, and safe and
+;;; meaningful everywhere: `my/git-repos--merge' never reads `system-type' itself.
+
+(ert-deftest gitfolders/merge-on-windows-fresh-entirely-replaces-old ()
+  (should (equal (my/git-repos--merge '("/mnt/c/old" "/home/x") '("/home/y") nil 'windows-nt)
+                 '("/home/y"))))
+
+(ert-deftest gitfolders/merge-on-a-full-scan-fresh-entirely-replaces-old-even-on-linux ()
+  (should (equal (my/git-repos--merge '("/mnt/c/old" "/home/x") '("/home/y") t 'gnu/linux)
+                 '("/home/y"))))
+
+(ert-deftest gitfolders/merge-on-a-quick-linux-scan-keeps-old-windows-drive-entries ()
+  (should (equal (my/git-repos--merge '("/mnt/c/old" "/home/x") '("/home/y") nil 'gnu/linux)
+                 '("/home/y" "/mnt/c/old"))))
+
+(ert-deftest gitfolders/merge-removes-duplicates-and-sorts ()
+  (should (equal (my/git-repos--merge nil '("/b" "/a" "/b") nil 'gnu/linux) '("/a" "/b"))))
 
 ;;; The two ways this declines gracefully instead of erroring: no `fd' on Windows, or no
 ;;; script on Linux.  Both go through parameterized functions, so both are safe and
@@ -127,44 +157,62 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
   (should (file-executable-p (gr--real-script)))
   (should (equal (call-process "bash" nil nil nil "-n" (gr--real-script)) 0)))
 
+;;; The index file: saved and reloaded
+
+(ert-deftest gitfolders/the-index-is-saved-to-and-reloaded-from-its-store-file ()
+  (gr-isolated
+    (setq my/git-repos--list '("/tmp/a" "/tmp/b"))
+    (my/git-repos--save)
+    ;; a fresh, unloaded state, as a new Emacs session would start with
+    (setq my/git-repos--list nil my/git-repos--loaded nil)
+    (my/git-repos--load)
+    (should (equal my/git-repos--list '("/tmp/a" "/tmp/b")))))
+
+(ert-deftest gitfolders/loading-is-a-no-op-once-already-loaded ()
+  (gr-isolated
+    (test-write-file my/git-repos-store-file "(\"/tmp/on-disk\")")
+    (setq my/git-repos--list '("/tmp/in-memory")  my/git-repos--loaded t)
+    (my/git-repos--load)
+    (should (equal my/git-repos--list '("/tmp/in-memory")))))
+
 ;;; The buffer, built from a stub script (deterministic, instant)
+
+(ert-deftest gitfolders/the-buffer-shows-the-cached-index-at-once-before-the-scan-finishes ()
+  (gr-with-stub-script "sleep 5\n"
+    (setq my/git-repos--list '("/tmp/already-known"))
+    (my/find-git-repos)
+    (with-current-buffer my/git-repos-buffer-name
+      (should (string-match-p "/tmp/already-known" (buffer-string)))
+      (should (process-live-p my/git-repos--process))
+      (delete-process my/git-repos--process))))
 
 (ert-deftest gitfolders/lists-every-repo-the-script-prints ()
   (gr-with-stub-script "echo '== Linux =='\necho '/tmp/one'\necho '/tmp/two'\n"
     (with-current-buffer (gr--run-and-wait)
-      (should (string-match-p "^Linux$" (buffer-string)))
       (should (string-match-p "/tmp/one" (buffer-string)))
       (should (string-match-p "/tmp/two" (buffer-string)))
-      (should (= 2 my/git-repos--count)))))
+      (should (= 2 (length my/git-repos--list))))))
 
 (ert-deftest gitfolders/no-scanning-message-or-raw-section-marker-is-left-behind ()
   (gr-with-stub-script "echo '== Linux =='\necho '/tmp/one'\n"
     (with-current-buffer (gr--run-and-wait)
-      (should-not (string-match-p "Scanning" (buffer-string)))
+      (should-not (string-match-p "^Scanning" (buffer-string)))
       (should-not (string-match-p "== " (buffer-string))))))
 
-(ert-deftest gitfolders/a-line-split-across-two-process-filter-chunks-still-works ()
+(ert-deftest gitfolders/output-split-across-two-process-filter-chunks-is-still-collected-whole ()
   ;; A process filter can be called with a chunk that ends mid-line; simulate that directly,
   ;; since a real (fast, small) script rarely if ever triggers it.
-  (gr-need-unix)
-  (test-with-temp-dir gr-dir
-    (let ((my/git-repos-script (concat gr-dir "stub.sh")))
-      (test-write-file my/git-repos-script "#!/usr/bin/env bash\nsleep 5\n")
-      (set-file-modes my/git-repos-script #o755)
-      (unwind-protect
-          (with-current-buffer (my/git-repos-refresh nil)
-            (my/git-repos--handle-output (current-buffer) "== Linux ==\n/tmp/part")
-            (should (equal my/git-repos--pending "/tmp/part"))
-            (should-not (string-match-p "/tmp/part" (buffer-string)))   ; not inserted yet: no newline seen
-            (my/git-repos--handle-output (current-buffer) "ial-repo\n/tmp/whole\n")
-            (should (equal my/git-repos--pending ""))
-            (should (string-match-p "/tmp/partial-repo" (buffer-string)))
-            (should (string-match-p "/tmp/whole" (buffer-string)))
-            (should (= 2 my/git-repos--count)))
-        (when (get-buffer my/git-repos-buffer-name)
-          (with-current-buffer my/git-repos-buffer-name
-            (when (process-live-p my/git-repos--process) (delete-process my/git-repos--process)))
-          (kill-buffer my/git-repos-buffer-name))))))
+  (gr-with-stub-script "sleep 5\n"
+    (my/find-git-repos)
+    (with-current-buffer my/git-repos-buffer-name
+      (my/git-repos--handle-output "== Linux ==\n/tmp/part")
+      (should (equal my/git-repos--pending "/tmp/part"))
+      (should-not (member "/tmp/part" my/git-repos--found))   ; not collected yet: no newline seen
+      (my/git-repos--handle-output "ial-repo\n/tmp/whole\n")
+      (should (equal my/git-repos--pending ""))
+      (should (member "/tmp/partial-repo" my/git-repos--found))
+      (should (member "/tmp/whole" my/git-repos--found))
+      (delete-process my/git-repos--process))))
 
 (ert-deftest gitfolders/a-final-line-with-no-trailing-newline-is-not-dropped ()
   ;; `my/git-repos--flush' (called from the sentinel) must catch this, or the very last
@@ -182,6 +230,16 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
 (ert-deftest gitfolders/g-refreshes ()
   (should (eq (lookup-key my/git-repos-mode-map "g") 'my/git-repos-refresh)))
 
+(ert-deftest gitfolders/d-opens-dired-and-t-opens-treemacs ()
+  (should (eq (lookup-key my/git-repos-mode-map "d") 'my/git-repos-dired))
+  (should (eq (lookup-key my/git-repos-mode-map "t") 'my/git-repos-treemacs)))
+
+(ert-deftest gitfolders/the-header-has-a-clickable-rescan-button ()
+  (gr-with-stub-script "echo '== Linux =='\necho '/tmp/one'\n"
+    (with-current-buffer (gr--run-and-wait)
+      (goto-char (point-min))
+      (should (search-forward "[rescan]" nil t)))))
+
 (ert-deftest gitfolders/refresh-stops-an-in-flight-scan-first ()
   (gr-with-stub-script "sleep 10\n"
     (my/find-git-repos)
@@ -190,7 +248,25 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
       (my/git-repos-refresh)
       (should-not (process-live-p first-proc)))))
 
-;;; Clicking a result
+(ert-deftest gitfolders/an-old-processs-late-sentinel-does-not-clobber-a-newer-scans-results ()
+  ;; Simulate the race directly: an old process's sentinel firing after
+  ;; `my/git-repos--process' has already moved on to a newer scan must be a no-op.
+  (gr-with-stub-script "echo '== Linux =='\necho '/tmp/one'\n"
+    (with-current-buffer (gr--run-and-wait)
+      (should (equal my/git-repos--list '("/tmp/one")))
+      (let ((stale-process my/git-repos--process))
+        (unwind-protect
+            (progn
+              ;; pretend a newer scan has since taken over; the sentinel only ever
+              ;; compares this with `eq', never calls it, so a plain symbol is enough
+              (setq my/git-repos--process 'a-newer-scan-is-in-progress)
+              (funcall (process-sentinel stale-process) stale-process "finished\n")
+              (should (equal my/git-repos--list '("/tmp/one"))))
+          ;; restore a real (if exited) process object, so this test's own cleanup
+          ;; (which calls `process-live-p' on it) has something safe to look at
+          (setq my/git-repos--process stale-process))))))
+
+;;; Opening a result: RET/click (Magit), d (Dired), t (Treemacs)
 
 (ert-deftest gitfolders/clicking-a-result-opens-magit-status-there ()
   (gr-with-stub-script "echo '== Linux =='\necho '/tmp/some-repo'\n"
@@ -216,9 +292,48 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
           (push-button)))
       (should (equal opened "/tmp/some-repo")))))
 
-;;; The prefix argument
+(ert-deftest gitfolders/d-opens-dired-on-the-repository-at-point ()
+  (gr-with-stub-script "echo '== Linux =='\necho '/tmp/some-repo'\n"
+    (let (opened)
+      (cl-letf (((symbol-function 'dired) (lambda (dir) (setq opened dir))))
+        (with-current-buffer (gr--run-and-wait)
+          (goto-char (point-min))
+          (search-forward "/tmp/some-repo")
+          (backward-char 2)
+          (my/git-repos-dired)))
+      (should (equal opened "/tmp/some-repo")))))
 
-(ert-deftest gitfolders/a-prefix-argument-adds-windows-to-the-scan-command ()
+(ert-deftest gitfolders/d-off-a-repository-line-says-so-instead-of-erroring ()
+  (gr-with-stub-script "echo '== Linux =='\necho '/tmp/some-repo'\n"
+    (let (msg)
+      (cl-letf (((symbol-function 'message) (lambda (fmt &rest a) (setq msg (apply #'format fmt a)))))
+        (with-current-buffer (gr--run-and-wait)
+          (goto-char (point-min))
+          (my/git-repos-dired)))
+      (should (string-match-p "cursor on a repository line" msg)))))
+
+(ert-deftest gitfolders/t-reveals-the-repository-at-point-in-treemacs ()
+  (gr-with-stub-script "echo '== Linux =='\necho '/tmp/some-repo'\n"
+    (let (added-path)
+      (cl-letf (((symbol-function 'locate-library) (lambda (lib) (and (equal lib "treemacs") "fake.el")))
+                ((symbol-function 'require) (lambda (&rest _) t))
+                ((symbol-function 'treemacs-canonical-path) #'identity)
+                ((symbol-function 'treemacs--find-project-for-path) (lambda (_) nil))
+                ((symbol-function 'treemacs-do-add-project-to-workspace) (lambda (path _name) (setq added-path path)))
+                ((symbol-function 'treemacs-current-visibility) (lambda () 'none))
+                ((symbol-function 'treemacs) (lambda ()))
+                ((symbol-function 'treemacs-select-window) (lambda ()))
+                ((symbol-function 'treemacs-goto-file-node) (lambda (_path))))
+        (with-current-buffer (gr--run-and-wait)
+          (goto-char (point-min))
+          (search-forward "/tmp/some-repo")
+          (backward-char 2)
+          (my/git-repos-treemacs)))
+      (should (equal added-path "/tmp/some-repo")))))
+
+;;; The prefix argument, and how it feeds the merge
+
+(ert-deftest gitfolders/a-prefix-argument-adds-windows-to-the-scan-command-and-is-a-full-scan ()
   (gr-with-stub-script "echo '== Linux =='\n"
     (let (seen-command)
       (cl-letf* ((real-make-process (symbol-function 'make-process))
@@ -226,9 +341,9 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
                   (lambda (&rest args) (setq seen-command (plist-get args :command)) (apply real-make-process args))))
         (with-current-buffer (gr--run-and-wait t)
           (should (member "--windows" seen-command))
-          (should my/git-repos--windows))))))
+          (should my/git-repos--full-scan))))))
 
-(ert-deftest gitfolders/no-prefix-argument-means-linux-only ()
+(ert-deftest gitfolders/no-prefix-argument-means-linux-only-and-not-a-full-scan ()
   (gr-with-stub-script "echo '== Linux =='\n"
     (let (seen-command)
       (cl-letf* ((real-make-process (symbol-function 'make-process))
@@ -236,7 +351,7 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
                   (lambda (&rest args) (setq seen-command (plist-get args :command)) (apply real-make-process args))))
         (with-current-buffer (gr--run-and-wait nil)
           (should-not (member "--windows" seen-command))
-          (should-not my/git-repos--windows))))))
+          (should-not my/git-repos--full-scan))))))
 
 ;;; The real script, against the real disk (fast: the Linux side only, no --windows)
 

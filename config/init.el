@@ -66,6 +66,13 @@
 (global-auto-revert-mode 1)
 (save-place-mode 1)
 (recentf-mode 1)
+;; `recentf' only saves its list via `kill-emacs-hook' by default, so an unclean exit
+;; (a crash, a forced kill, a real hang needing Task Manager) loses the whole session's
+;; history --- confirmed for real on the Windows bundle: after a forced kill, the very
+;; next launch showed none of that session's files.  A periodic autosave closes most of
+;; that window, the same way `my/start-save' (startpage.el) already protects the recent
+;; folders/projects list.
+(run-with-idle-timer 30 t #'recentf-save-list)
 (savehist-mode 1)
 
 ;; Backups and auto-saves go to one place instead of littering projects.

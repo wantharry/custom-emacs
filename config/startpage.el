@@ -139,6 +139,9 @@
     (define-key m "p" #'backward-button)
     (define-key m "g" #'my/start-refresh)
     (define-key m "f" #'my/start-find-in-project)
+    (define-key m "m" #'my/start-open-magit)
+    (define-key m "d" #'my/start-open-dired)
+    (define-key m "t" #'my/start-open-treemacs)
     (dotimes (i 5) (define-key m (number-to-string (1+ i)) #'my/start-open-nth-file))
     m))
 
@@ -153,6 +156,48 @@
     (pcase kind
       ('files (find-file path))
       (_ (dired path)))))
+
+;;; Opening an entry with Magit, Dired or Treemacs directly (`m', `d', `t'): the same
+;;; three actions as on the git-repos list (see gitfolders.el), reached the same way
+;;; --- the cursor on an entry, then one key --- but working here on whichever folder
+;;; is relevant: the entry itself for a folder or project, or its containing folder
+;;; for a file, since RET on a file always opens the file itself, never Dired on it.
+
+(defun my/start--dir-at-point ()
+  (when-let* ((b (button-at (point))))
+    (let ((path (button-get b 'my-path)) (kind (button-get b 'my-kind)))
+      (if (eq kind 'files) (file-name-directory path) path))))
+
+(defun my/start--open-treemacs (dir)
+  "Reveal DIR in Treemacs, adding it as a project first if it is not one already."
+  (if (not (locate-library "treemacs"))
+      (message "Treemacs is not installed.  Run ./build.sh packages")
+    (require 'treemacs)
+    (let ((path (treemacs-canonical-path dir)))
+      (unless (treemacs--find-project-for-path path)
+        (treemacs-do-add-project-to-workspace path (file-name-nondirectory (directory-file-name dir))))
+      (unless (eq (treemacs-current-visibility) 'visible) (treemacs))
+      (treemacs-select-window)
+      (treemacs-goto-file-node path))))
+
+(defun my/start-open-magit ()
+  "Open Magit status for the entry at point (its folder, for a file)."
+  (interactive)
+  (if-let* ((dir (my/start--dir-at-point)))
+      (if (fboundp 'magit-status) (magit-status dir) (dired dir))
+    (message "Put the cursor on an entry first")))
+
+(defun my/start-open-dired ()
+  "Open Dired on the entry at point (its folder, for a file)."
+  (interactive)
+  (if-let* ((dir (my/start--dir-at-point))) (dired dir)
+    (message "Put the cursor on an entry first")))
+
+(defun my/start-open-treemacs ()
+  "Reveal the entry at point in Treemacs (its folder, for a file)."
+  (interactive)
+  (if-let* ((dir (my/start--dir-at-point))) (my/start--open-treemacs dir)
+    (message "Put the cursor on an entry first")))
 
 (defun my/start--toggle (button)
   (let ((kind (button-get button 'my-kind)))
@@ -203,6 +248,7 @@
     (my/start--insert-section 'projects "Projects")
     (dolist (l '(("RET" "open" "TAB" "next link" "g" "refresh" "q" "close")
                  ("1-5" "open that file" "f" "find a file in this project")
+                 ("m" "Magit" "d" "Dired" "t" "Treemacs (any entry)")
                  ("C-c h" "back to this screen" "C-c f f" "find any file")))
       (insert "  ")
       (while l (insert (propertize (pop l) 'face 'bold) " " (pop l) (if l "   " "")))
