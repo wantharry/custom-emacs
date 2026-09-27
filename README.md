@@ -85,7 +85,8 @@ research-emacs/
 | [docs/CUSTOMIZING.md](docs/CUSTOMIZING.md) | The config files, adding a theme/fonts, live editing, profiling, and the documentation buffer (`C-c d`) |
 | [docs/PRUNING.md](docs/PRUNING.md) | Removing unused packages: method, results, limits, how to test |
 | [docs/CROSS-PLATFORM.md](docs/CROSS-PLATFORM.md) | Plan for Windows and macOS and CI (untested) |
-| [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust: what is installed, what it costs (measured), how to use and extend it |
+| [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust (full support), and HTML/CSS/JS/TS/JSX/JSON (tree-sitter editing so far): what is installed, what it costs (measured), how to use and extend it |
+| [docs/LLM.md](docs/LLM.md) | Chatting with an LLM (`C-c a a`): the local Ollama backend, how it works, how it reaches the same Ollama from both WSL/Linux and the Windows bundle, adding a cloud backend |
 | [docs/START-SCREEN.md](docs/START-SCREEN.md) | The screen Emacs opens on: your last 5 files, folders and projects as links, expandable, and `C-c h` to get back to it |
 | [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Portable bundles: unzip and run. The Windows zip (built and tested), what is inside, how it differs from the Linux build, limits, how to rebuild it |
 | [docs/SEARCH-OPTIONS.md](docs/SEARCH-OPTIONS.md) | The inventory of every way to search in Emacs: what is built in, what was added here, what was pruned, and which packages exist but are not installed (with versions and overlap) |

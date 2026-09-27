@@ -491,6 +491,22 @@ installed, offer to install it from NonGNU ELPA."
 (autoload 'my/find-git-repos (expand-file-name "gitfolders" user-emacs-directory)
   "Show every git repository on this computer." t)
 
+;;; Chat with an LLM (gptel) ----------------------------------------------------------
+
+;; `C-c a a' opens a chat buffer: a local Ollama model, set up automatically (reading
+;; whatever `ollama list' reports right now); `C-c a m' opens gptel's own menu to switch
+;; model, backend or system prompt.  Installed into config/elpa by `./build.sh packages';
+;; nothing loads until first use.  See config/llm.el and docs/LLM.md.
+(when (locate-library "gptel")
+  (autoload 'gptel-menu "gptel-transient" "Menu: pick a model, backend or system prompt." t))
+(autoload 'my/llm-chat (expand-file-name "llm" user-emacs-directory)
+  "Open a chat buffer with the local Ollama backend." t)
+(defun my/llm-missing ()
+  (interactive)
+  (message "gptel is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-c a a") (if (locate-library "gptel") #'my/llm-chat #'my/llm-missing))
+(global-set-key (kbd "C-c a m") (if (locate-library "gptel") #'gptel-menu #'my/llm-missing))
+
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c f f") #'my/ff-find-file)

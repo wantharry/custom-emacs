@@ -3,7 +3,7 @@
 #
 #   tests/run-all.sh              offline tests (run this after every change)
 #   tests/run-all.sh --network    also tests that need internet access
-#   tests/run-all.sh --lsp        also start real language servers (rust-analyzer, jdtls)
+#   tests/run-all.sh --lsp        also start real language servers (rust-analyzer, jdtls) and a real Ollama chat request
 #   tests/run-all.sh --gui        also run inside a real Emacs window and a real terminal
 #                                 (needs a display and tmux; skipped without them)
 #   tests/run-all.sh --full       everything: network, language servers, GUI/terminal, verify-prune.sh
@@ -52,7 +52,7 @@ run_one() {   # $1 = test file
         -f ert-run-tests-batch-and-exit > "$OUT/$name.log" 2>&1 || status=$? ;;
     config|noelpa)
       local dir="$OUT/init-$name"; mkdir -p "$dir"
-      cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$dir/"
+      cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$dir/"
       [ "$harness" = config ] && [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$dir/elpa"
       [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$dir/tree-sitter"
       CONFIG_DIR="$dir" "$EMACS" --batch --init-directory="$dir" \
@@ -109,7 +109,7 @@ if [ "$GUI" = 1 ]; then
     echo "GUI (real window): SKIPPED, no display in this session"
   else
     gdir="$OUT/init-gui"; mkdir -p "$gdir"
-    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$gdir/"
+    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$gdir/"
     [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$gdir/elpa"
     [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$gdir/tree-sitter"
     gt0=$(date +%s.%N)

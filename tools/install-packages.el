@@ -11,7 +11,7 @@
                          ("melpa"  . "https://melpa.org/packages/")))
 (package-initialize)
 
-(defconst my/packages '(evil magit treemacs consult)
+(defconst my/packages '(evil magit treemacs consult gptel)
   "Packages this configuration uses.  Everything else is built in.")
 
 (let ((missing (seq-remove #'package-installed-p my/packages)))

@@ -52,11 +52,12 @@ ignored on purpose; see `.gitignore`.
 | Fast file finding | `C-c f f` / `C-c f g`: instant fuzzy file search over an `rg`-built index of the project or the whole disk, with a live search when the index has nothing. Autoloaded from `config/fastfind.el` (nothing loads or runs at startup; the index is built after 90 s idle). Options are `my/ff-*`. See [NAVIGATING-CODE.md](NAVIGATING-CODE.md) |
 | Read-only files | Every file opens read-only. `C-c e e` (`M-x allow-editing`) and `C-c e l` (`M-x stop-editing`) are the only ways to change that; the single-key `C-x C-q` just prints a reminder. The hook runs last so nothing (such as version control) can unlock a buffer. See [KEYBOARD.md](KEYBOARD.md) |
 | Evil | `C-c v` toggles vi-style editing; Evil loads on first use. Includes a one-line compatibility shim (below) |
-| Languages | Pins the Java and Rust tree-sitter grammar versions, remaps `.java` to `java-ts-mode` when its grammar exists, and keeps language servers manual. See [LANGUAGES.md](LANGUAGES.md) |
+| Languages | Pins tree-sitter grammar versions (Java, Rust, and HTML/CSS/JS/TS/JSX/JSON), remaps the built-in modes to their `-ts-` counterpart when a grammar exists, and keeps language servers manual. See [LANGUAGES.md](LANGUAGES.md) |
+| LLM chat | `C-c a a` opens a chat buffer (a local Ollama model, set up automatically), `C-c a m` its menu. See [LLM.md](LLM.md) |
 | Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
 | Startup report | Prints Emacs version, load time and GC count to the echo area once |
 
-The only third-party packages are **Evil**, **Magit**, **Treemacs** (with its helpers) and **Consult**, and all are optional: they are installed by
+The only third-party packages are **Evil**, **Magit**, **Treemacs** (with its helpers), **Consult** and **gptel**, and all are optional: they are installed by
 `./build.sh packages` (or offered on first use of `C-c v`) into `config/elpa/`, which
 is gitignored. Nothing else is installed.
 
