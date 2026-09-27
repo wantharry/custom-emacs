@@ -82,20 +82,23 @@ outside the "no extra packages" baseline, so decide it explicitly.
 ## Fonts
 
 `init.el` picks the first font from a list that fontconfig can find:
-`JetBrains Mono`, `Fira Code`, `Cascadia Code`, `DejaVu Sans Mono`, `Menlo`,
-`Consolas`, at height 120 (12 pt).
+`JetBrainsMono Nerd Font Mono`, `JetBrains Mono`, `Fira Code`, `Cascadia Code`,
+`DejaVu Sans Mono`, `Menlo`, `Consolas`, at height 120 (12 pt).
 
-**Known problem: names must match exactly.** On the WSL machine used here the
-installed font is named `JetBrainsMono Nerd Font`, which does **not** match
-`"JetBrains Mono"`, so the list falls through to DejaVu Sans Mono. Check the real
-names with:
+**Names must match exactly.** `find-font` compares the exact family string, so a name that is
+close but not exact (`"JetBrains Mono"` against an installed `JetBrainsMono Nerd Font Mono`)
+falls straight through to the next entry with no warning. This is why the real installed
+name is listed first here, checked with:
 
 ```sh
 fc-list : family | sort -u | grep -i jetbrains
 ```
 
-and put that exact name first in the list. Not installed on this machine:
-`Cascadia Code`, `Cascadia Mono`, `Fira Code`, `Consolas`, `Symbols Nerd Font`.
+Real, distinct monospace families installed on this machine (2026-09-27, checked with
+`fc-list`): `JetBrainsMono Nerd Font Mono` (and its many Nerd Font weight variants),
+`DejaVu Sans Mono`, `Ubuntu Mono`, `Liberation Mono`, `Noto Sans Mono`, `Nimbus Mono PS`.
+Not installed: `Cascadia Code`, `Cascadia Mono`, `Fira Code`, `Consolas`, `Symbols Nerd Font`
+(so mode line icon fonts still show as boxes; unrelated to this fix).
 
 Icon fonts: packages such as `nerd-icons` look for a font named
 `Symbols Nerd Font`, which is not installed here; icons would show as empty

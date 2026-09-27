@@ -33,9 +33,13 @@
 ;; No theme yet: Emacs default colors. Add `load-theme' here later.
 
 ;; Use the first available font from the list; fall back to the default.
+;; "JetBrainsMono Nerd Font Mono" comes first because that is this font's real installed name
+;; here (`fc-list`); the plain "JetBrains Mono" name never matches on this machine, so it
+;; silently fell through to DejaVu Sans Mono. Kept as a fallback for a machine that has the
+;; non-Nerd-Font release installed instead.
 (when (display-graphic-p)
   (let ((font (seq-find (lambda (f) (find-font (font-spec :name f)))
-                        '("JetBrains Mono" "Fira Code" "Cascadia Code"
+                        '("JetBrainsMono Nerd Font Mono" "JetBrains Mono" "Fira Code" "Cascadia Code"
                           "DejaVu Sans Mono" "Menlo" "Consolas"))))
     (when font
       (set-face-attribute 'default nil :font font :height 120))))

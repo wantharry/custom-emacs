@@ -83,7 +83,8 @@ the end it is aborted."
 
 (gui-deftest gui/config-picked-a-font-from-its-preference-list
   (should (member (face-attribute 'default :family)
-                  '("JetBrains Mono" "Fira Code" "Cascadia Code" "DejaVu Sans Mono" "Menlo" "Consolas")))
+                  '("JetBrainsMono Nerd Font Mono" "JetBrains Mono" "Fira Code" "Cascadia Code"
+                    "DejaVu Sans Mono" "Menlo" "Consolas")))
   (should (= 120 (face-attribute 'default :height))))
 
 (gui-deftest gui/a-monospace-fallback-font-exists

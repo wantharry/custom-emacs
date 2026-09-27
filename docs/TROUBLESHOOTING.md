@@ -296,10 +296,13 @@ graphical window does not.
 
 ### The font is not the one I expected
 
-- **Cause:** the font list matches names **exactly**. `JetBrainsMono Nerd Font`
-  does not match `JetBrains Mono`.
-- **Fix:** see [CUSTOMIZING.md](CUSTOMIZING.md#fonts). Check names with
-  `fc-list : family | sort -u`.
+- **Cause:** the font list matches names **exactly**, and a close-but-wrong name falls through
+  silently to the next entry in the list, with no warning. `init.el` now lists this machine's
+  real installed name (`JetBrainsMono Nerd Font Mono`) first, fixed 2026-09-27 (it previously
+  listed `"JetBrains Mono"`, which never matched here, so it silently fell back to `DejaVu Sans
+  Mono`; a real-window test now checks the resolved family, `gui/config-picked-a-font-from-its-preference-list`).
+- **On another machine:** check names with `fc-list : family | sort -u` and put the exact name
+  first in the list ([CUSTOMIZING.md](CUSTOMIZING.md#fonts)).
 
 ### Mode line icons are empty boxes
 
