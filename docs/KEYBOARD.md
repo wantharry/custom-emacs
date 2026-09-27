@@ -280,7 +280,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c s b` | `consult-buffer` | **this config:** switch to a buffer, recent file or bookmark |
 | `C-c d` | `my/docs` | **this config:** show every guide in one buffer, built at startup |
 | `C-c D` | `my/docs-rebuild` | **this config:** rebuild it after a guide changes |
-| `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable ([START-SCREEN.md](START-SCREEN.md)) |
+| `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable; on any entry, `m`/`d`/`t` open it with Magit/Dired/Treemacs directly ([START-SCREEN.md](START-SCREEN.md)) |
 | `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
 | `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |
 | `C-x 0` | `delete-window` | close this window |
@@ -356,7 +356,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c f f` | `my/ff-find-file` | **this config:** instant fuzzy file finder (project, or whole disk outside one) |
 | `C-c f g` | `my/ff-find-file-global` | **this config:** the same over the whole disk |
 | `C-c f r` | `my/ff-reindex` | **this config:** rebuild the whole-disk file index |
-| `C-c f p` | `my/find-git-repos` | **this config:** list every git repository on this computer. On Linux/WSL, `C-u C-c f p` also scans the Windows drives; on Windows every local drive is already included, so `C-u` has no extra effect there |
+| `C-c f p` | `my/find-git-repos` | **this config:** list every git repository on this computer, drawn instantly from a saved index and refreshed in the background (press `g`, or click [rescan], to run it again). On Linux/WSL, `C-u C-c f p` also scans the Windows drives; on Windows every local drive is already included, so `C-u` has no extra effect there. RET/click opens Magit, `d` Dired, `t` Treemacs |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

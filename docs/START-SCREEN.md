@@ -34,6 +34,9 @@ Inside the start screen:
 | `p` | `backward-button` | previous link |
 | `g` | `my/start-refresh` | redraw (to pick up something you just opened) |
 | `f` | `my/start-find-in-project` | with the cursor on a folder or project line, find a file in it by a few letters ([NAVIGATING-CODE.md](NAVIGATING-CODE.md)) |
+| `m` | `my/start-open-magit` | open Magit status for the entry at point (its folder, for a file) |
+| `d` | `my/start-open-dired` | open Dired on the entry at point (its folder, for a file) |
+| `t` | `my/start-open-treemacs` | reveal the entry at point in Treemacs (its folder, for a file) |
 | `1` | `my/start-open-nth-file` | open recent file number 1. `2` to `5` open files 2 to 5 |
 | `q` | `quit-window` | close the screen |
 <!-- keymap: global -->

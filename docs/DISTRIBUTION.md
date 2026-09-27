@@ -24,8 +24,10 @@ That is all. It opens on the start screen ([START-SCREEN.md](START-SCREEN.md)):
 
 Everything else behaves as in the Linux guides: Java highlighted by tree-sitter, the fast finder on
 `C-c f f`, Magit on `C-x g`, Consult on `C-c s l/g/f/b`, and finding every git repository on the computer
-with `C-c f p` — on Windows this runs the bundled `fd.exe` directly across every local drive letter,
-no shell script needed (found 36 real repositories on the machine this was tested on).
+with `C-c f p` — drawn instantly from a saved index (like the recent-files list), refreshed in the
+background; on Windows this runs the bundled `fd.exe` directly across every local drive letter, no
+shell script needed (found 36 real repositories on the machine this was tested on). Each result opens
+with Magit, Dired or Treemacs (`RET`/click, `d`, `t`).
 
 ![Java on Windows](images/windows-2-java.png)
 
@@ -109,7 +111,7 @@ Everything here was run on the actual bundle, unzipped fresh with Windows' own e
 | Evil and Magit load | Yes |
 | **A real commit through Magit**: stage, `c c`, the message buffer opens (1.6 s), it is editable, `C-c C-c` commits, `git log` shows it, and the source file is still read-only afterwards | Yes |
 | Whole-drive index (859,000 files on this PC) | built in 1.6 s, queries 67 to 495 ms |
-| **Finding every git repository** (`C-c f p`), no shell script, the bundled `fd.exe` directly | Yes: **36 real repositories** found on this PC; clicking one opens a real Magit status on it |
+| **Finding every git repository** (`C-c f p`), indexed and drawn instantly, no shell script, the bundled `fd.exe` directly | Yes: **36 real repositories** found on this PC; clicking one opens a real Magit status on it |
 | Offline test suite, the same tests as on Linux, run with the bundle's Emacs | **448 tests: 417 pass, 0 fail, 31 skipped** |
 | Contents of the zip (files present, settings identical to the repository, no personal history, packages compiled for Emacs 31) | 12 automated tests in `tests/test_dist.py` |
 
