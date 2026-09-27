@@ -453,6 +453,16 @@ installed, offer to install it from NonGNU ELPA."
 (require 'startpage my/start-library)
 (setq initial-buffer-choice #'my/start-initial-buffer)
 
+;;; Shortcuts reference ----------------------------------------------------------
+
+;; This configuration's own keybindings (not the built-in Emacs ones docs/KEYBOARD.md
+;; teaches), grouped by topic, foldable: `C-c k' shows it anytime; it also appears
+;; automatically, split next to the start screen, the first time Emacs opens with no
+;; file given.  Loaded at startup (like startpage.el/docsbuffer.el) since that startup
+;; split needs its content ready immediately.  See shortcuts.el and docs/KEYBOARD.md.
+(require 'shortcuts (expand-file-name "shortcuts" user-emacs-directory))
+(global-set-key (kbd "C-c k") #'my/shortcuts)
+
 ;;; Documentation buffer ----------------------------------------------------------
 
 ;; Every guide (README.md and docs/*.md) concatenated into one buffer, *docs*, built once

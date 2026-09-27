@@ -13,6 +13,7 @@
 !/config/docsbuffer.el
 !/config/gitfolders.el
 !/config/llm.el
+!/config/shortcuts.el
 
 # Python bytecode from the test runner
 __pycache__/

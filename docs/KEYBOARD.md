@@ -359,6 +359,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c f p` | `my/find-git-repos` | **this config:** list every git repository on this computer, drawn instantly from a saved index and refreshed in the background (press `g`, or click [rescan], to run it again). On Linux/WSL, `C-u C-c f p` also scans the Windows drives; on Windows every local drive is already included, so `C-u` has no extra effect there. RET/click opens Magit, `d` Dired, `t` Treemacs |
 | `C-c a a` | `my/llm-chat` | **this config:** open a chat buffer with a local Ollama model, set up automatically ([LLM.md](LLM.md)) |
 | `C-c a m` | `gptel-menu` | **this config:** pick a model, backend or system prompt |
+| `C-c k` | `my/shortcuts` | **this config:** this configuration's own keybindings, grouped by topic and foldable; shown automatically next to the start screen the first time Emacs opens with no file |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

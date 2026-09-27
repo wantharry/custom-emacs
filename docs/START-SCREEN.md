@@ -5,6 +5,13 @@ projects** you worked in. Each one is a link: press `RET` on it, or click it. A
 **`[+ N more]`** link under each list expands it in place (up to 25). `C-c h` brings the
 screen back from anywhere. Nothing to install: it is `config/startpage.el`.
 
+The window also splits to show `*shortcuts*` alongside it (see
+[KEYBOARD.md](KEYBOARD.md)'s `C-c k` row) --- this configuration's own keybindings,
+grouped by topic, so a fresh Emacs immediately shows both your recent work and what
+keys this setup itself adds. Opening a file instead (from the command line, or once you
+have moved past this screen) never triggers that split; `C-c k` brings the shortcuts
+buffer back on its own at any time.
+
 ![the start screen](images/start-1-collapsed.png)
 
 Clicking `[+ 3 more]` under Files expands only that list, and the link turns into `[- show fewer]`:
