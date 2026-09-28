@@ -75,6 +75,18 @@ always matches what is actually pulled."
     (my/llm-setup-ollama))
   (call-interactively #'gptel))
 
+;; gptel deliberately restores your previous cursor position after inserting a
+;; response (it wraps the insertion in `save-excursion', in case you were doing
+;; something else in the buffer at the time) --- so without this, you have to
+;; scroll or press `M-x gptel-end-of-response' by hand to see a reply that just
+;; streamed in.  This makes the chat buffer follow along instead, which is what
+;; you want for a straightforward back-and-forth conversation.
+(defun my/llm--follow-response (_beg end)
+  "Move point to the END of the response that just finished."
+  (goto-char end))
+(with-eval-after-load 'gptel
+  (add-hook 'gptel-post-response-functions #'my/llm--follow-response))
+
 ;;; Adding a cloud backend (Anthropic, OpenAI, ...) ------------------------------------
 ;;
 ;; This file is tracked by git: never put a real API key in it.  Instead:

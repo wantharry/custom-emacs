@@ -102,6 +102,23 @@ a blank line, then BODY, exactly the part `my/llm-ollama-models' looks for."
       (my/llm-chat)
       (should (= 1 calls)))))
 
+;;; Following a response: gptel itself restores point to wherever it was before
+;;; inserting a response (`save-excursion', in case something else was going on in
+;;; the buffer); this config moves it to the end of the response instead, so the
+;;; chat buffer follows along.
+
+(ert-deftest llm/follow-response-moves-point-to-the-responses-end ()
+  (with-temp-buffer
+    (insert "some text before, where point happened to be\n")
+    (goto-char (point-min))
+    (my/llm--follow-response (point-min) 12)
+    (should (= (point) 12))))
+
+(ert-deftest llm/follow-response-is-hooked-into-gptel ()
+  (llm-need-gptel)
+  (require 'gptel)
+  (should (memq #'my/llm--follow-response gptel-post-response-functions)))
+
 ;;; Against the real, already-running Ollama in this environment (skips if unreachable).
 ;;; Neither test needs the `ollama' command itself on PATH --- only the server, over HTTP.
 

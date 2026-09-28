@@ -75,6 +75,17 @@ the bottom of `config/llm.el` for exactly where that goes: the key lives in
 tracked by git. Two ready-to-uncomment examples are there (Anthropic, OpenAI); `C-c a m`
 then lets you switch to it per buffer.
 
+## Point follows the response
+
+gptel itself deliberately restores your cursor to wherever it was *before* a response
+was inserted (it wraps the insertion in `save-excursion`, in case you were doing
+something else in the buffer at the time) --- so by default, after asking a question,
+point stays right where you left it (typically right after what you just typed), not at
+the new reply. This config adds a small hook (`my/llm--follow-response`, on
+`gptel-post-response-functions`) that moves point to the end of the response instead,
+so the chat buffer follows along, which is what you want for a straightforward back-
+and-forth conversation. *Measured*: confirmed with a real Ollama round trip.
+
 ## Known limits
 
 - No language-server-style code assistance here; this is a general chat client, not
@@ -96,7 +107,9 @@ then lets you switch to it per buffer.
 startup), parsing Ollama's `/api/tags` response (including when the server is
 unreachable or answers with something that is not valid JSON, without needing a real
 server to test either case), backend setup (real models used when available, a
-placeholder when not), and that `C-c a a` only sets the backend up once. Two tests
+placeholder when not), that `C-c a a` only sets the backend up once, and that point
+follows a response (both the plain move-to-end logic and that the hook is really
+registered). Two tests
 touch the real, already-running Ollama in this environment: one (skips if unreachable)
 confirms its model list is readable; the other, a full request round trip, is opt-in
 only (`RUN_LSP_TESTS=1`, the same flag `languages-java-rust.el` uses for real
