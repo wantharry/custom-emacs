@@ -21,3 +21,6 @@
 __pycache__/
 *.pyc
 /dist/
+
+# Claude Code's own local session state, not project content
+/.claude/

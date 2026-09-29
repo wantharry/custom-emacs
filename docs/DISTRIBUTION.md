@@ -6,10 +6,10 @@ anywhere and open `Emacs.exe`. Nothing is installed and nothing is downloaded.
 | Bundle | File | Status |
 |---|---|---|
 | **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 247 MB zipped, 644 MB unpacked, with Java) | **Built and tested**, described below |
-| Linux x86-64 | not packaged yet | Next. The Linux build here is Emacs 32, which needs its libraries carried along; see [Linux](#linux) |
+| **Linux x86-64** | `custom-emacs-linux-x86_64.tar.gz`/`.zip` (about 146/153 MB, 410 MB unpacked) | **Built and tested**, see [Linux](#linux) |
 
-The zip is in `dist/` after `./build.sh dist windows` and is **not** committed to git (it is about 247 MB and
-rebuilt from what is in git).
+Each archive is in `dist/` after `./build.sh dist windows`/`./build.sh dist linux` and is **not** committed to
+git (each is over 100 MB and rebuilt from what is in git).
 
 ## Windows
 
@@ -181,8 +181,124 @@ To update the bundle after you change anything in `config/`: run it again, then 
 
 ## Linux
 
-Not packaged yet. The plan: the build made here (Emacs 32, the exact one you run) plus every shared library
-it needs (it links about 100, including GTK), the settings, packages, grammars and ripgrep, in one folder with
-a launcher, in `.tar.gz` and `.zip`. A first attempt exists and is being finished and tested in a clean
-Ubuntu container without GTK installed, since a bundle is only proven when it runs where nothing is
-installed. Ask for it and it is the next job.
+### Using it
+
+1. Unpack `custom-emacs-linux-x86_64.tar.gz` (`tar -xzf ...`) or `.zip` anywhere you can write.
+2. Run `./Emacs` (or double-click it, if your file manager offers "Run" for it; `./install-desktop-entry.sh`
+   adds it to your application menu instead, so you can launch it like any other app).
+
+That is all. It opens on the start screen, exactly like the Linux build and the Windows bundle. `./Emacs
+somefile` opens a file; `./Emacs -nw` runs it in the current terminal instead of opening a window.
+
+### What is inside
+
+```
+custom-emacs-linux-x86_64/
+├── Emacs                 the launcher you run (a small shell script)
+├── app/                  this exact Emacs 32 build (install/), unmodified
+├── lib/                  every shared library app/bin/emacs needs, except glibc and GPU drivers
+│   └── gdk-pixbuf/loaders/  GTK's image-loading plug-ins, with their own relocated cache file
+├── config/                your settings: early-init.el, init.el, fastfind.el, startpage.el, docsbuffer.el,
+│   │                       gitfolders.el, llm.el, llm-council.el, shortcuts.el, dictate.el
+│   ├── elpa/               Evil, Magit, Treemacs and Consult (and their helpers) -- copied as-is: this is
+│   │                       the exact Emacs that compiled them, unlike the Windows bundle, which must recompile
+│   └── tree-sitter/        grammars: Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON
+├── tools/
+│   ├── rg                  ripgrep: the fast finder, project text search, and Consult
+│   └── find-repos.sh       finding every git repository (`C-c f p`); falls back from `fd` to plain `find`
+├── share/                 GTK schemas and a bundled font, so the app does not depend on the desktop theme
+├── docs/                  every guide, plain text, read from inside Emacs with `C-c d` (see below)
+├── README.md              this project's own overview (also inside the `C-c d` buffer)
+├── README.txt             this bundle's own quick-start
+├── DISTRIBUTION.md        this guide
+└── install-desktop-entry.sh   optional: adds "Custom Emacs" to your application menu
+```
+
+What `Emacs` (the launcher) does when you run it: finds its own folder; points `GSETTINGS_SCHEMA_DIR` and
+`XDG_DATA_DIRS` at the bundled `share/`, so GTK's own settings do not depend on what is installed on this
+machine; writes a small, per-user cache file telling GTK where to find the bundled image-loading plug-ins
+(their absolute path is only known at run time, since the bundle can be unpacked anywhere); and starts
+`app/bin/emacs --init-directory=config`. Files or options you give `./Emacs` are passed straight through.
+
+**Every guide is inside Emacs itself.** Press `C-c d`, exactly as on Windows and the Linux build (see the
+Windows section above for details) --- the guide text is identical on every platform.
+
+**Your changes are saved in the bundle's `config/` folder**, same as the Windows bundle: recent files, the
+folder and project history, backups, anything `M-x customize` saves. Keep the folder somewhere writable.
+
+### How it differs from the Linux build (and from the Windows bundle)
+
+| | Linux build (this repository, run in place) | Linux bundle | Windows bundle |
+|---|---|---|---|
+| Emacs | 32.0.50 | **the exact same 32.0.50 build**, just relocated | 31.1, the official GNU build for Windows |
+| Packages | compiled here | **copied as-is**: no recompiling needed, since it is the exact same Emacs that built them | recompiled: a different Emacs (31.1) runs them |
+| `git` (for Magit) | your system's | **your system's** (not bundled; almost always already installed on Linux) | bundled (MinGit) |
+| `fd` (Consult's `C-c s f`) | your system's, if installed | **your system's, if installed**; `C-c f p`'s own script falls back to plain `find` if not | bundled |
+| Java language server (`jdtls`) | install yourself | **not bundled yet** (install `jdtls` yourself, or just use the Linux build directly) | bundled (bring your own JDK) |
+| Rust (`rust-analyzer`) | install yourself | not bundled, same as Java's JDK | not bundled, same as Java's JDK |
+
+The Linux bundle's one real gap next to the Windows one, today, is the Java language server: the Windows
+bundle carries `jdtls` itself (you only need to supply a JDK); the Linux bundle does not carry it yet, so
+Java code intelligence there needs `jdtls` installed by hand. Everything else --- Evil, Magit, Treemacs,
+Consult, tree-sitter editing for Java/Rust/HTML/CSS/JS/TS/JSX/JSON, the fast finder, finding every git
+repository --- works the same as the Linux build it was made from, because it *is* that same build.
+
+### What was verified
+
+Everything here was run for real, in this development environment (Ubuntu 24.04/WSL2 with WSLg) --- **not
+yet tried on a machine that does not already have this project's own build dependencies installed** (the
+`## System packages` list in [BUILD.md](BUILD.md)), so "does it run somewhere genuinely bare" is still open.
+
+| Check | Result |
+|---|---|
+| Relocated shared libraries: no library reported "not found" (`ldd` on `app/bin/emacs` and the other bundled binaries) | Yes |
+| A fresh, separately-unpacked copy loads its config headlessly (`--batch`) with no errors, and every package (Evil, Magit, Treemacs, Consult, gptel) resolves on `load-path` | Yes |
+| A real GUI frame opens (under Wayland/WSLg) and closes cleanly | Yes (one harmless, unrelated Gdk cursor-scale warning; no relocation/library errors) |
+| The relocated GDK pixbuf loader cache (the trickiest part of a Linux bundle --- GTK needs absolute paths to its image plug-ins, only known once unpacked) | Yes: regenerated correctly by the launcher on first run |
+| `C-c d` (the docs buffer) shows every guide, with no `(missing)` placeholders | Yes: 306,545 characters, every `docs/*.md` present |
+| `C-c f p` (finding every git repository) | Yes: script present, executable, ready to run (`my/git-repos--unavailable-reason` is `nil`) |
+| Offline test suite, the same tests as the Linux build, run against the bundle's own `app/bin/emacs` (`EMACS=.../app/bin/emacs tests/run-all.sh`) | **548 tests pass, 0 fail** (19 skipped: the same categories as always --- network tests need `--network`, real-language-server tests need `--lsp`, a Rust toolchain, or symlink support) |
+| Contents of the archives (files present, settings identical to the repository, no personal history, packages really compiled, the zip does not double-nest on extraction) | 8 automated tests in `tests/test_dist.py` (`LinuxBundle`, plus `LinuxTarball`) |
+
+### Limits and things to know
+
+- **Not yet tried on a genuinely bare machine** (a clean container/VM with none of this project's own build
+  dependencies installed) --- see "What was verified" above. That is the natural next check.
+- **No Java language server bundled yet** (see "How it differs" above): install `jdtls` yourself for Java
+  code intelligence, or use the Linux build this bundle came from.
+- **`git` and (optionally) `fd` are not bundled**: unlike Windows, this relies on your own system already
+  having `git` (for Magit) and, optionally, `fd` (for `C-c s f`; `C-c f p` falls back to plain `find` on its
+  own without it). Almost every Linux machine already has `git`.
+- **glibc and GPU drivers are never bundled** (see the `skip` list in `tools/dist-linux.sh`): they come from
+  the machine itself, so this bundle needs glibc 2.39+ (Ubuntu 24.04+, Debian 13+, Fedora 40+ or newer) and
+  will use whichever graphics drivers are already installed there.
+- **x86-64 only.** Not built for ARM (e.g. a Raspberry Pi or an ARM-based Linux laptop).
+- The bundle contains programs with their own licenses: GNU Emacs (GPL v3+), ripgrep (MIT or Unlicense),
+  DejaVu Sans/Sans Mono (bundled font, its own license, `share/fonts/DEJAVU-LICENSE`). The Emacs source is
+  at https://git.savannah.gnu.org/emacs.git.
+
+### Building it yourself
+
+```sh
+./build.sh packages                 # once: Evil, Magit, Treemacs, Consult into config/elpa
+./build.sh grammars                 # once: tree-sitter grammars
+./build.sh dist linux               # a few seconds; downloads ripgrep the first time, cached after
+EMACS=dist/stage/custom-emacs-linux-x86_64/app/bin/emacs tests/run-all.sh   # optional: run the offline
+                                                                             #   tests against the bundle itself
+```
+
+`./build.sh dist linux` (`tools/dist-linux.sh`) does, in order: copies this build's own `install/` (Emacs
+itself); finds every shared library `emacs`/`emacsclient`/`etags`/`ebrowse` (and, transitively, GTK's own
+image-loader plug-ins) actually need with `ldd`, and copies each one in, skipping glibc and GPU drivers on
+purpose (those must come from the machine that runs it); makes every copied library and binary relocatable
+with `patchelf` (`RPATH` set to `$ORIGIN`-relative paths, so nothing needs `LD_LIBRARY_PATH` set, which would
+otherwise leak into every child process Emacs starts); copies in the ten config files, `elpa/`, the
+tree-sitter grammars, `docs/*.md` and `README.md` (so `C-c d` works), and `tools/find-repos.sh` (so `C-c f p`
+works); downloads and caches ripgrep; writes the launcher script and a desktop-entry generator; and archives
+both a `.tar.gz` (wrapped in one top-level folder, the normal convention for that format) and a `.zip`
+(deliberately *not* wrapped in one, to avoid the same double-nesting bug already fixed for the Windows zip
+--- a file manager's "Extract Here" proposes its own destination folder).
+
+To update the bundle after you change anything in `config/`: run it again, then run
+`python3 -m unittest tests.test_dist`, which checks both bundles (whichever have been built) and fails if
+either one's settings differ from the repository.
