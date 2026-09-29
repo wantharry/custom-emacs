@@ -25,6 +25,18 @@
 
 (defvar my/shortcuts-buffer-name "*shortcuts*")
 
+;; WHAT: one entry per package/feature that has its own "world" once opened, as (NAME
+;; OPEN CLOSE COMMANDS).  WHY: added this session so a person can learn how to open,
+;; close, and use the handful of important commands inside each package this config
+;; wires in, without needing to already know Magit/Treemacs/gptel/newsticker by heart or
+;; go hunting through each package's own docs.  HOW: rendered by `my/shortcuts--insert-
+;; packages' below into the *shortcuts* buffer as a second, flat list of outline
+;; headings, appended after the existing topic list; COMMANDS is nil for the two entries
+;; (Dictation, Evil) where the same single key both opens and closes, so there is nothing
+;; further to list.  Every fact here (every OPEN/CLOSE key, every COMMANDS key) is
+;; checked against the real keymaps in tests/ert/shortcuts.el --- including, for Magit's
+;; two-key transient chains like "c c", via `transient-get-suffix' --- so this list is
+;; prose kept honest by tests, not just asserted.
 (defconst my/shortcuts-packages
   '(("Magit" "C-x g (also C-c g for file-specific commands)"
      "q (magit-mode-bury-buffer; C-u q kills the buffer instead of just hiding it)"
@@ -51,6 +63,11 @@
      "no dedicated key: kill-buffer / C-x k (gptel-mode itself only binds C-c RET)"
      (("C-c RET" . "send the buffer up to point")
       ("C-c a m" . "menu: pick a model, backend or system prompt")))
+    ;; WHAT: the newest package entry, for `my/llm-council' (config/llm-council.el).
+    ;; WHY/HOW: unlike the other entries, both keys used here (TAB to fold/unfold, q to
+    ;; close) are plain `outline-mode'/this-buffer-mode behavior rather than a real
+    ;; command bound specifically by llm-council.el --- worth spelling out anyway, since
+    ;; those are still the two things a person needs to know once that buffer is open.
     ("LLM council (this config)" "C-c a c"
      "q"
      (("TAB" . "expand/collapse one model's own answer")
@@ -123,6 +140,9 @@ by hand.")
     ("LLM chat"
      ("C-c a a" my/llm-chat "open a chat buffer with a local Ollama model")
      ("C-c a m" gptel-menu "pick a model, backend or system prompt")
+     ;; WHAT/WHY: added this session alongside config/llm-council.el, so `C-c a c' shows
+     ;; up in the flat key list (checked by tests/ert/shortcuts.el's "every listed key
+     ;; really runs the command it claims" test) as well as in the packages section above.
      ("C-c a c" my/llm-council "ask 3 local models at once, summarized by a bigger one"))
     ("Windows"
      ("M-o" other-window "switch to the other window")))
@@ -152,12 +172,25 @@ both places.")
     (dolist (row (cdr topic))
       (insert (format "  %-10s %s\n" (nth 0 row) (nth 2 row))))
     (insert "\n"))
+  ;; WHAT/WHY: the second section's own header, then its actual content --- added this
+  ;; session; everything above this point in the function is the original, pre-existing
+  ;; flat topic list untouched.
   (insert (propertize "Packages: how to open, how to close, and what to do once inside\n\n"
                       'face '(:weight bold)))
   (my/shortcuts--insert-packages))
 
+;; WHAT: render `my/shortcuts-packages' (above) into the current buffer.  WHY: kept as
+;; its own function (called from `my/shortcuts--insert') so the two sections --- the
+;; original flat key list, and this newer packages section --- stay clearly separate
+;; both in the buffer's own layout and in this file's code.  HOW: one outline heading
+;; ("* NAME") per package, then its Open/Close lines always shown, then --- only when
+;; COMMANDS is non-nil (it's nil for Dictation/Evil, see the defconst's own comment) ---
+;; an indented "Once inside:" block listing each key/description pair, padded to a fixed
+;; column with `%-22s' so the descriptions line up regardless of key length.
 (defun my/shortcuts--insert-packages ()
   (dolist (pkg my/shortcuts-packages)
+    ;; WHAT/HOW: `cl-destructuring-bind' unpacks each 4-element list entry directly into
+    ;; four named locals in one step, instead of four separate `nth' calls.
     (cl-destructuring-bind (name open close commands) pkg
       (insert (format "* %s\n" name))
       (insert (format "  Open:  %s\n" open))

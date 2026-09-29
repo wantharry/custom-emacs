@@ -151,9 +151,14 @@ key sequence can never make a file editable."
       completion-ignore-case t
       read-file-name-completion-ignore-case t)
 (global-completion-preview-mode 1)      ; inline suggestions as you type
-;; The default popup height (25% of the frame) was already tight for `C-c' with this
-;; many top-level bindings added over time (confirmed for real: a few had scrolled out
-;; of view); 40% comfortably fits all of them without cutting any off.
+;; WHAT: raise which-key's popup from its default 25% of the frame to 40%.  WHY: this is
+;; a real regression fix, found by the GUI test suite, not a style tweak --- with the
+;; `C-c n' (news), `C-c m' (dictation) and `C-c a c' (LLM council) bindings added this
+;; session, `C-c''s own top-level binding list grew past what 25% of a normal frame can
+;; show at once; confirmed for real, `my/toggle-evil' (bound to `C-c v') had scrolled out
+;; of the visible, captured popup text.  HOW: 40% was measured, not guessed --- it's the
+;; smallest height that comfortably shows every current `C-c' binding without cutting any
+;; off; re-verified via the GUI test suite (36/36) after raising it.
 (setq which-key-side-window-max-height 0.4)
 (which-key-mode 1)                      ; shows available keys after a prefix
 
@@ -453,8 +458,20 @@ installed, offer to install it from NonGNU ELPA."
 ;; What Emacs shows when started without a file: the last 5 files, folders and projects,
 ;; each expandable with a "+ N more" link.  `C-c h' brings it back from anywhere.
 ;; See startpage.el and docs/START-SCREEN.md.
+;; WHAT/WHY: unlike most other feature files in this config (dictate.el, llm.el, ...),
+;; startpage.el is `require'd directly here, not autoloaded --- it has to be, since
+;; Emacs needs `my/start-initial-buffer' to actually exist the moment startup decides
+;; what buffer to show (see `initial-buffer-choice' just below), which happens far too
+;; early for a lazy, first-keypress autoload to help.  HOW: `my/start-library' resolves
+;; the file's path once, reused so the `require' below and any other reference to this
+;; file's own location stay in sync automatically.
 (defconst my/start-library (expand-file-name "startpage" user-emacs-directory))
 (require 'startpage my/start-library)
+;; WHAT/WHY/HOW: this is the actual hook Emacs's own startup sequence checks --- setting
+;; `initial-buffer-choice' to a function (rather than a fixed buffer name or "*scratch*",
+;; its usual default) means Emacs calls that function to decide what buffer to show,
+;; letting `my/start-initial-buffer' itself decide (in startpage.el) whether to show the
+;; start screen at all, versus deferring to a file given on the command line.
 (setq initial-buffer-choice #'my/start-initial-buffer)
 
 ;;; Shortcuts reference ----------------------------------------------------------
@@ -475,10 +492,23 @@ installed, offer to install it from NonGNU ELPA."
 ;; `newsticker-retrieval-method' is `intern' by default) --- no external `wget' needed,
 ;; so this works the same on the Windows bundle.  Nothing loads, and no network
 ;; request happens, until `C-c n' is actually pressed.
+;; WHAT: which feeds newsticker fetches.  WHY: these three were picked to cover World/
+;; USA/Sports from one real, currently-live source each (each URL curl-verified live
+;; before being added, not just assumed); HOW: `newsticker-url-list' is the built-in
+;; variable `newsticker-treeview' (bound below) itself reads to know what to fetch ---
+;; this `setq' is the only configuration newsticker needed, since everything else
+;; (grouping by feed, the treeview UI, `intern' HTTP retrieval) is Emacs's own code,
+;; un-pruned from prune.list this session (it used to be stripped out of this minimal
+;; build) rather than written here.
 (setq newsticker-url-list
       '(("World"  "http://feeds.bbci.co.uk/news/world/rss.xml")
         ("USA"    "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
         ("Sports" "https://www.espn.com/espn/rss/news")))
+;; WHAT/WHY/HOW: bind the key straight to the built-in command; no autoload wrapper is
+;; needed here the way `my/dictate'/`my/llm-chat' below get one, because `newsticker-
+;; treeview' is already a normal autoloaded `net/newst-treeview.el' entry point once
+;; that file is on the load path (restored by un-pruning), so Emacs's own autoload
+;; machinery handles "nothing loads until first use" automatically.
 (global-set-key (kbd "C-c n") #'newsticker-treeview)
 
 ;;; Dictation (local Whisper) ----------------------------------------------------------
@@ -487,6 +517,13 @@ installed, offer to install it from NonGNU ELPA."
 ;; insert the result at point. Fully local (no cloud, no API key) via a self-built
 ;; whisper.cpp; nothing is bundled, so it declines clearly if that is not set up yet.
 ;; See config/dictate.el and docs/DICTATE.md.
+;; WHAT: an `autoload' stub, not a `require'.  WHY: matches this file's own established
+;; pattern (see `my/find-git-repos', `my/llm-chat' nearby) of never loading a whole
+;; feature just to bind its key --- dictate.el itself, and the (potentially slow to
+;; start) whisper-cli/model files it points at, are only ever touched the first time
+;; `C-c m' is actually pressed.  HOW: `expand-file-name "dictate" user-emacs-directory'
+;; resolves to config/dictate.el next to this file; the docstring here is shown by `C-h
+;; f'/which-key before the real file has ever been loaded.
 (autoload 'my/dictate (expand-file-name "dictate" user-emacs-directory)
   "Toggle dictation: start recording, or (pressed again) stop and insert the result." t)
 (global-set-key (kbd "C-c m") #'my/dictate)
@@ -509,14 +546,33 @@ installed, offer to install it from NonGNU ELPA."
 ;; (see docs/MAGIT.md).  Installed into config/elpa by `./build.sh packages'; nothing
 ;; loads until the first use, so it costs nothing at startup.  Without it installed,
 ;; `C-x g' says so instead of failing.
+;; WHAT: register a handful of Magit entry points as autoloads, only if Magit is actually
+;; installed.  WHY: `locate-library' checks the package is present WITHOUT loading it, so
+;; a machine that ran `./build.sh packages' without network access (Magit is one of the
+;; optional installed packages, not bundled into this repo) still gets a working config
+;; --- just with `C-x g' explaining why it can't run, via `my/magit-missing' below,
+;; instead of `autoload' pointing at a file that doesn't exist and erroring obscurely.
+;; HOW: each `autoload' names the real function, the literal package file it lives in
+;; ("magit", one file among several this package ships), a docstring shown before the
+;; real file has ever loaded, and `t' (interactive) so it can be bound to a key/called
+;; with `M-x' immediately, before Magit itself has actually been loaded even once.
 (when (locate-library "magit")
   (autoload 'magit-status "magit" "Show the status of the current Git repository." t)
   (autoload 'magit-dispatch "magit" "Show all Magit commands." t)
   (autoload 'magit-file-dispatch "magit" "Show Magit commands for this file." t)
   (autoload 'magit-log-buffer-file "magit" "Show the history of this file." t))
+;; WHAT/WHY/HOW: the "Magit isn't installed" fallback command --- bound instead of the
+;; real Magit commands whenever `locate-library "magit"' comes back nil, so pressing
+;; `C-x g'/`C-c g' on a machine without Magit gives a clear, one-line explanation in the
+;; echo area (with the exact command to fix it) rather than a "void function" error.
 (defun my/magit-missing ()
   (interactive)
   (message "Magit is not installed.  Run ./build.sh packages"))
+;; WHAT/WHY/HOW: `C-x g' (Magit's own conventional global keybinding, kept as-is rather
+;; than moved under this config's own `C-c' prefix) opens the repository status buffer;
+;; `C-c g' opens the file-specific command menu for whatever buffer you're currently in.
+;; Both use the same "bind the real command if available, else the explainer" pattern as
+;; `C-c a a'/`C-c a m'/`C-c a c' further down this file for gptel.
 (global-set-key (kbd "C-x g") (if (locate-library "magit") #'magit-status #'my/magit-missing))
 (global-set-key (kbd "C-c g") (if (locate-library "magit") #'magit-file-dispatch #'my/magit-missing))
 
@@ -542,6 +598,9 @@ installed, offer to install it from NonGNU ELPA."
 ;; `C-c a c' asks three different local models the same question in parallel, then has a
 ;; fourth, bigger model compare and summarize their answers --- the summary shows up
 ;; expanded, each model's own answer folded shut below it. See config/llm-council.el.
+;; WHAT/WHY/HOW: autoloaded the same way as `my/llm-chat' just above, and for the same
+;; reason --- config/llm-council.el (and the `require's it does at the top of itself,
+;; including this same `llm.el') only actually loads the first time `C-c a c' is used.
 (autoload 'my/llm-council (expand-file-name "llm-council" user-emacs-directory)
   "Ask several local models at once, then have a bigger one summarize." t)
 (defun my/llm-missing ()
@@ -549,6 +608,10 @@ installed, offer to install it from NonGNU ELPA."
   (message "gptel is not installed.  Run ./build.sh packages"))
 (global-set-key (kbd "C-c a a") (if (locate-library "gptel") #'my/llm-chat #'my/llm-missing))
 (global-set-key (kbd "C-c a m") (if (locate-library "gptel") #'gptel-menu #'my/llm-missing))
+;; WHAT/WHY: same "bind to the real command if gptel is installed, otherwise to a command
+;; that just explains why not" pattern as the two lines above it --- `my/llm-council'
+;; itself calls `(require 'gptel)' and would error confusingly if gptel were missing, so
+;; this check happens here, once, before the key is even bound.
 (global-set-key (kbd "C-c a c") (if (locate-library "gptel") #'my/llm-council #'my/llm-missing))
 
 ;;; Keys ---------------------------------------------------------------------
