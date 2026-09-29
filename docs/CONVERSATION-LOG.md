@@ -293,6 +293,23 @@ named file's own real current modtime first. All three confirmed fixed with a re
 scripted save→open→re-open→re-save cycle before writing the formal tests (11 more, 25
 total in `tests/ert/session.el`). Full writeup in [SESSION.md](SESSION.md).
 
+### News: more popular categories (`C-c n`)
+
+User asked to update the news feeds for "more important news," then "get all the
+popular ones." Expanded from 3 feeds (World/USA/Sports) to 10: Top Stories, World, USA,
+Business, Technology, Politics, Science, Health, Entertainment, Sports --- mostly BBC
+(consistent, well-known URL pattern) plus NYT for USA/Politics and ESPN for Sports, same
+sourcing convention as before. Every URL curl-verified live (real item counts, 20-52
+each) before being added, same as the original three. Added a real, opt-in
+(`RUN_NETWORK_TESTS=1`) test, `config/news-every-feed-is-really-live`, that fetches
+every configured feed for real via this project's own `url-retrieve-synchronously` path
+(not `curl`) and confirms each one --- this didn't exist before; the original three feeds
+were only ever checked for URL *syntax*, never actually fetched by the test suite.
+Hit a real tool-infrastructure outage mid-task (the server-side safety classifier
+stopped returning verdicts for both Bash and WebFetch for a stretch) --- picked back up
+once it recovered; the curl verification and test run happened in a later turn than the
+config edit itself.
+
 ## Where things stand as of the last entry
 
 - All features above are committed and pushed to `origin/main`, including the Windows

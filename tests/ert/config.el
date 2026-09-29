@@ -39,12 +39,22 @@
 
 (ert-deftest config/news-feeds-are-configured ()
   (should (equal newsticker-url-list
-                 '(("World"  "http://feeds.bbci.co.uk/news/world/rss.xml")
-                   ("USA"    "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
-                   ("Sports" "https://www.espn.com/espn/rss/news"))))
+                 '(("Top Stories"   "http://feeds.bbci.co.uk/news/rss.xml")
+                   ("World"         "http://feeds.bbci.co.uk/news/world/rss.xml")
+                   ("USA"           "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
+                   ("Business"      "http://feeds.bbci.co.uk/news/business/rss.xml")
+                   ("Technology"    "http://feeds.bbci.co.uk/news/technology/rss.xml")
+                   ("Politics"      "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml")
+                   ("Science"       "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml")
+                   ("Health"        "http://feeds.bbci.co.uk/news/health/rss.xml")
+                   ("Entertainment" "http://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml")
+                   ("Sports"        "https://www.espn.com/espn/rss/news"))))
   ;; every URL really is one (catches a typo before it ever reaches a real fetch)
   (dolist (feed newsticker-url-list)
-    (should (string-match-p "\\`https?://" (nth 1 feed)))))
+    (should (string-match-p "\\`https?://" (nth 1 feed))))
+  ;; every category name is unique (newsticker groups headlines by this name)
+  (let ((names (mapcar #'car newsticker-url-list)))
+    (should (= (length names) (length (delete-dups (copy-sequence names)))))))
 
 (ert-deftest config/news-uses-built-in-networking-not-an-external-program ()
   ;; So this works the same on the Windows bundle, which has no `wget'. A guard against
@@ -52,6 +62,22 @@
   ;; itself --- so load it first to see its real default.
   (require 'newst-backend)
   (should (eq newsticker-retrieval-method 'intern)))
+
+(ert-deftest config/news-every-feed-is-really-live ()
+  ;; Opt-in only (a real HTTP round trip to 10 real, external services): confirms each
+  ;; configured feed is not just a plausible-looking URL but a real, currently-live RSS
+  ;; feed with at least one item, using this project's own retrieval path (`url-
+  ;; retrieve-synchronously', matching `newsticker-retrieval-method's `intern' default)
+  ;; rather than an external `curl'.
+  (test-skip-unless-network)
+  (dolist (feed newsticker-url-list)
+    (with-current-buffer (url-retrieve-synchronously (nth 1 feed) t t 15)
+      (unwind-protect
+          (progn
+            (goto-char (point-min))
+            (should (re-search-forward "\n\n" nil t))    ; end of the HTTP headers
+            (should (re-search-forward "<item>\\|<entry>" nil t)))  ; RSS or Atom
+        (kill-buffer)))))
 
 (ert-deftest config/news-is-not-loaded-or-fetched-at-startup ()
   (let ((out (with-output-to-string

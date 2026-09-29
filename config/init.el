@@ -497,24 +497,34 @@ installed, offer to install it from NonGNU ELPA."
 
 ;;; News (newsticker) ----------------------------------------------------------------
 
-;; `C-c n' shows real news headlines, grouped by feed: World (BBC), USA (NYT) and
-;; Sports (ESPN), each verified to be a real, currently-live RSS feed.  Built into
-;; Emacs (net/newsticker.el); fetched over Emacs's own networking (`url-retrieve',
-;; `newsticker-retrieval-method' is `intern' by default) --- no external `wget' needed,
-;; so this works the same on the Windows bundle.  Nothing loads, and no network
-;; request happens, until `C-c n' is actually pressed.
-;; WHAT: which feeds newsticker fetches.  WHY: these three were picked to cover World/
-;; USA/Sports from one real, currently-live source each (each URL curl-verified live
-;; before being added, not just assumed); HOW: `newsticker-url-list' is the built-in
-;; variable `newsticker-treeview' (bound below) itself reads to know what to fetch ---
-;; this `setq' is the only configuration newsticker needed, since everything else
-;; (grouping by feed, the treeview UI, `intern' HTTP retrieval) is Emacs's own code,
-;; un-pruned from prune.list this session (it used to be stripped out of this minimal
-;; build) rather than written here.
+;; `C-c n' shows real news headlines, grouped by feed, covering the popular categories:
+;; Top Stories, World, USA, Business, Technology, Politics, Science, Health,
+;; Entertainment and Sports --- each verified to be a real, currently-live RSS feed, not
+;; assumed.  Built into Emacs (net/newsticker.el); fetched over Emacs's own networking
+;; (`url-retrieve', `newsticker-retrieval-method' is `intern' by default) --- no external
+;; `wget' needed, so this works the same on the Windows bundle.  Nothing loads, and no
+;; network request happens, until `C-c n' is actually pressed.
+;; WHAT: which feeds newsticker fetches.  WHY: one real, currently-live source per
+;; popular category (each URL curl-verified live before being added, not just assumed)
+;; rather than one single "top stories" feed, so `C-c n' groups headlines the same way a
+;; real newspaper's own sections do --- see docs/SEARCH-OPTIONS.md's sibling docs for
+;; this project's general "verify, don't assume" convention applied here too.  HOW:
+;; `newsticker-url-list' is the built-in variable `newsticker-treeview' (bound below)
+;; itself reads to know what to fetch --- this `setq' is the only configuration
+;; newsticker needed, since everything else (grouping by feed, the treeview UI, `intern'
+;; HTTP retrieval) is Emacs's own code, un-pruned from prune.list this session (it used
+;; to be stripped out of this minimal build) rather than written here.
 (setq newsticker-url-list
-      '(("World"  "http://feeds.bbci.co.uk/news/world/rss.xml")
-        ("USA"    "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
-        ("Sports" "https://www.espn.com/espn/rss/news")))
+      '(("Top Stories"   "http://feeds.bbci.co.uk/news/rss.xml")
+        ("World"         "http://feeds.bbci.co.uk/news/world/rss.xml")
+        ("USA"           "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
+        ("Business"      "http://feeds.bbci.co.uk/news/business/rss.xml")
+        ("Technology"    "http://feeds.bbci.co.uk/news/technology/rss.xml")
+        ("Politics"      "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml")
+        ("Science"       "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml")
+        ("Health"        "http://feeds.bbci.co.uk/news/health/rss.xml")
+        ("Entertainment" "http://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml")
+        ("Sports"        "https://www.espn.com/espn/rss/news")))
 ;; WHAT/WHY/HOW: bind the key straight to the built-in command; no autoload wrapper is
 ;; needed here the way `my/dictate'/`my/llm-chat' below get one, because `newsticker-
 ;; treeview' is already a normal autoloaded `net/newst-treeview.el' entry point once
