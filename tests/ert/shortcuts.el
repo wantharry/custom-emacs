@@ -44,6 +44,84 @@
         (should (string-match-p (regexp-quote (nth 0 row)) txt))
         (should (string-match-p (regexp-quote (nth 2 row)) txt))))))
 
+;;; The packages section: open/close/commands text is shown, and the underlying real
+;;; facts (checked against the actual keymaps, not just recited) are what they claim.
+
+(ert-deftest shortcuts/packages-buffer-shows-every-entry ()
+  (let ((txt (with-current-buffer (my/shortcuts-buffer) (buffer-string))))
+    (dolist (pkg my/shortcuts-packages)
+      (cl-destructuring-bind (name open close commands) pkg
+        (should (string-match-p (regexp-quote name) txt))
+        (should (string-match-p (regexp-quote open) txt))
+        (should (string-match-p (regexp-quote close) txt))
+        (dolist (c commands)
+          (should (string-match-p (regexp-quote (car c)) txt))
+          (should (string-match-p (regexp-quote (cdr c)) txt)))))))
+
+(ert-deftest shortcuts/magit-facts-are-real ()
+  (skip-unless (locate-library "magit"))
+  (require 'magit)
+  ;; close, and section navigation (magit-mode-map / magit-section-mode-map)
+  (should (eq (lookup-key magit-mode-map (kbd "q")) 'magit-mode-bury-buffer))
+  (should (eq (lookup-key magit-section-mode-map (kbd "TAB")) 'magit-section-toggle))
+  (should (eq (lookup-key magit-mode-map (kbd "RET")) 'magit-visit-thing))
+  ;; the transient-based ones the flat text can't express: "c c", "P p", "F p", "l l".
+  ;; Before a transient is ever entered interactively, `transient-get-suffix' hands back
+  ;; a plain (transient-suffix :key ... :command ...) list, not a real EIEIO object yet
+  ;; (confirmed for real: `type-of' on it is `cons', and `oref'/`slot-value' both refuse
+  ;; it) --- so pull `:command' out with `plist-get', not an object accessor.
+  (dolist (spec '((magit-commit "c" magit-commit-create)
+                  (magit-push "p" magit-push-current-to-pushremote)
+                  (magit-pull "p" magit-pull-from-pushremote)
+                  (magit-log "l" magit-log-current)))
+    (should (eq (plist-get (cdr (transient-get-suffix (nth 0 spec) (nth 1 spec))) :command)
+                (nth 2 spec)))))
+
+(ert-deftest shortcuts/treemacs-facts-are-real ()
+  (skip-unless (locate-library "treemacs"))
+  (require 'treemacs)
+  (should (eq (lookup-key treemacs-mode-map "q") 'treemacs-quit))
+  (should (eq (lookup-key treemacs-mode-map "Q") 'treemacs-kill-buffer))
+  (should (eq (lookup-key treemacs-mode-map (kbd "RET")) 'treemacs-RET-action))
+  (should (eq (lookup-key treemacs-mode-map "cf") 'treemacs-create-file))
+  (should (eq (lookup-key treemacs-mode-map "cd") 'treemacs-create-dir))
+  (should (eq (lookup-key treemacs-mode-map "d") 'treemacs-delete-file))
+  (should (eq (lookup-key treemacs-mode-map "R") 'treemacs-rename-file))
+  (should (eq (lookup-key treemacs-mode-map "g") 'treemacs-refresh))
+  (should (eq (lookup-key treemacs-mode-map "r") 'treemacs-refresh)))
+
+(ert-deftest shortcuts/gptel-send-key-is-real ()
+  (skip-unless (locate-library "gptel"))
+  (require 'gptel)
+  (should (eq (lookup-key gptel-mode-map (kbd "C-c RET")) 'gptel-send)))
+
+(ert-deftest shortcuts/newsticker-facts-are-real ()
+  ;; Built into Emacs itself, not an optional package: no skip needed.
+  (require 'newst-treeview)
+  (should (eq (lookup-key newsticker-treeview-mode-map "q") 'newsticker-treeview-quit))
+  (should (eq (lookup-key newsticker-treeview-mode-map "n") 'newsticker-treeview-next-item))
+  (should (eq (lookup-key newsticker-treeview-mode-map "p") 'newsticker-treeview-prev-item))
+  (should (eq (lookup-key newsticker-treeview-mode-map "o") 'newsticker-treeview-mark-item-old))
+  (should (eq (lookup-key newsticker-treeview-mode-map "g") 'newsticker-treeview-get-news))
+  (should (eq (lookup-key newsticker-treeview-mode-map "G") 'newsticker-get-all-news)))
+
+(ert-deftest shortcuts/docs-buffer-close-and-fold-keys-are-real ()
+  (let ((my/docs-root test-root))
+    (with-current-buffer (my/docs-rebuild)
+      (should (eq (key-binding (kbd "q")) 'quit-window))
+      (should (eq (key-binding (kbd "C-c C-n")) 'outline-next-visible-heading))
+      (should (eq (key-binding (kbd "C-c C-p")) 'outline-previous-visible-heading)))))
+
+(ert-deftest shortcuts/shortcuts-buffer-close-and-fold-keys-are-real ()
+  (with-current-buffer (my/shortcuts-buffer)
+    (should (eq (key-binding (kbd "q")) 'quit-window))
+    ;; `TAB' only folds on a heading line (outline-mode-map's own menu-item filter);
+    ;; point-min here is the title text, not a heading, so move to one first.
+    (goto-char (point-min))
+    (search-forward "* ")
+    (beginning-of-line)
+    (should (eq (key-binding (kbd "TAB")) 'outline-cycle))))
+
 ;;; Showing it split next to the start screen at startup (a fresh frame is not needed:
 ;;; this only checks the hook's own decision logic, with the window primitives it would
 ;;; call recorded rather than actually run).

@@ -10,11 +10,84 @@
 ;; config:" rows are the authoritative description text, and
 ;; tests/ert/shortcuts.el checks every key here still really runs the command it claims.
 ;;
+;; A second section, `my/shortcuts-packages', covers packages/features with their own
+;; "world" once open (Magit, Treemacs, Consult, gptel, newsticker, and this project's
+;; own git-repos/start-screen/docs buffers): how to open each one, how to close it, and
+;; a few important commands once inside --- including the less obvious real facts (e.g.
+;; Magit's "commit"/"push"/"pull" are two-key transient chains, not one keystroke;
+;; gptel-mode itself binds nothing but C-c RET). tests/ert/shortcuts.el checks these
+;; against the real keymaps too (via `transient-get-suffix' for Magit's transients).
+;;
 ;; See docs/KEYBOARD.md.
 
 (require 'outline)
+(require 'cl-lib)
 
 (defvar my/shortcuts-buffer-name "*shortcuts*")
+
+(defconst my/shortcuts-packages
+  '(("Magit" "C-x g (also C-c g for file-specific commands)"
+     "q (magit-mode-bury-buffer; C-u q kills the buffer instead of just hiding it)"
+     (("TAB" . "expand/collapse the section at point")
+      ("RET" . "visit the thing at point")
+      ("s" . "stage (the change at point; a file-picker prompt if point is elsewhere)")
+      ("u" . "unstage (the change at point; a file-picker prompt if point is elsewhere)")
+      ("c c" . "commit")
+      ("P p" . "push to your pushremote")
+      ("F p" . "pull from your pushremote")
+      ("l l" . "log")))
+    ("Treemacs" "C-c t (toggle); C-c T (reveal the current file in it)"
+     "q hides it (treemacs-quit); Q fully resets it (treemacs-kill-buffer)"
+     (("RET" . "open the file, or expand/collapse the folder")
+      ("c f" . "create a file")
+      ("c d" . "create a directory")
+      ("d" . "delete the file/folder at point")
+      ("R" . "rename")
+      ("g or r" . "refresh")))
+    ("Search (Consult)" "C-c s l / g / f / b (buffer text / project text / project files / buffers)"
+     "C-g aborts; RET opens the selected one"
+     (("(move the cursor)" . "a live preview follows automatically")))
+    ("LLM chat (gptel)" "C-c a a"
+     "no dedicated key: kill-buffer / C-x k (gptel-mode itself only binds C-c RET)"
+     (("C-c RET" . "send the buffer up to point")
+      ("C-c a m" . "menu: pick a model, backend or system prompt")))
+    ("News (newsticker)" "C-c n"
+     "q"
+     (("n / p" . "next / previous item")
+      ("RET on an item" . "show it")
+      ("o" . "mark that item read")
+      ("g / G" . "update this feed / every feed")))
+    ("Git repos (this config)" "C-c f p"
+     "q"
+     (("RET / click" . "open Magit status there")
+      ("d" . "open in Dired")
+      ("t" . "reveal in Treemacs")
+      ("g / [rescan]" . "rescan now")))
+    ("Start screen (this config)" "C-c h"
+     "q"
+     (("RET" . "open the file, folder or project")
+      ("m / d / t" . "open it with Magit / Dired / Treemacs")
+      ("1-5" . "open that recent file by number")
+      ("f" . "find a file in that project/folder")))
+    ("Docs buffer (this config)" "C-c d (C-c D rebuilds it)"
+     "q"
+     (("TAB" . "fold/unfold a heading")
+      ("C-c C-n / C-c C-p" . "next / previous guide")))
+    ("Shortcuts buffer (this config)" "C-c k"
+     "q"
+     (("TAB" . "fold/unfold a topic")))
+    ("Dictation (this config)" "C-c m starts recording"
+     "C-c m again stops it, transcribes, and inserts the result"
+     nil)
+    ("Evil, vi keys" "C-c v turns it on"
+     "C-c v again turns it off"
+     nil))
+  "Packages/features with their own \"world\" once open: how to open, how to close,
+and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
+COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in
+tests/ert/shortcuts.el (against the real keymaps, and via `transient-get-suffix' for
+Magit's transient-based commands like \"c c\"); the text here is prose, kept in step
+by hand.")
 
 (defconst my/shortcuts-list
   '(("Finding files"
@@ -73,7 +146,22 @@ both places.")
     (insert (format "* %s\n" (car topic)))
     (dolist (row (cdr topic))
       (insert (format "  %-10s %s\n" (nth 0 row) (nth 2 row))))
-    (insert "\n")))
+    (insert "\n"))
+  (insert (propertize "Packages: how to open, how to close, and what to do once inside\n\n"
+                      'face '(:weight bold)))
+  (my/shortcuts--insert-packages))
+
+(defun my/shortcuts--insert-packages ()
+  (dolist (pkg my/shortcuts-packages)
+    (cl-destructuring-bind (name open close commands) pkg
+      (insert (format "* %s\n" name))
+      (insert (format "  Open:  %s\n" open))
+      (insert (format "  Close: %s\n" close))
+      (when commands
+        (insert "  Once inside:\n")
+        (dolist (c commands)
+          (insert (format "    %-22s %s\n" (car c) (cdr c)))))
+      (insert "\n"))))
 
 ;;;###autoload
 (defun my/shortcuts-buffer ()
