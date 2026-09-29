@@ -92,6 +92,41 @@ a blank line, then BODY, exactly the part `my/llm-ollama-models' looks for."
       (my/llm-setup-ollama)
       (should (gptel-backend-models gptel-backend)))))
 
+;; WHAT: no matter how `gptel' first gets loaded, Ollama ends up as the active backend,
+;; not `gptel''s own factory-default ChatGPT (a real OpenAI endpoint this config never
+;; puts an API key behind).  WHY: a real, reported bug --- `C-c a m' autoloads
+;; `gptel-transient' *directly* (see init.el), never touching `config/llm.el' first; an
+;; earlier fix that put the Ollama-default hook inside `config/llm.el' itself never
+;; actually registered in that case, since that file is itself lazily autoloaded and
+;; hadn't loaded yet.  Real, fresh subprocesses (like `llm/is-not-loaded-until-used'
+;; above), one per real entry point, not mocked --- the whole point is to catch exactly
+;; this kind of "the hook lives in the wrong file" bug, which a mocked test naturally
+;; can't reproduce.  Works without a real, reachable Ollama server: `my/llm-setup-
+;; ollama' still makes a real `gptel-ollama' backend either way (a placeholder model
+;; list if the server can't be reached --- see the fallback test above), and
+;; `gptel-ollama-p' is true either way.
+(ert-deftest llm/gptel-defaults-to-ollama-even-via-gptel-menus-own-autoload-path ()
+  (llm-need-gptel)
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(require 'gptel-transient)"
+                               "--eval" "(princ (gptel-ollama-p gptel-backend))")))))
+    (should (string-match-p "t\\'" out))))
+
+(ert-deftest llm/gptel-defaults-to-ollama-even-via-a-bare-require ()
+  (llm-need-gptel)
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(require 'gptel)"
+                               "--eval" "(princ (gptel-ollama-p gptel-backend))")))))
+    (should (string-match-p "t\\'" out))))
+
 (ert-deftest llm/chat-sets-up-ollama-only-once ()
   (llm-need-gptel)
   (require 'gptel-ollama)

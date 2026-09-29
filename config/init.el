@@ -30,6 +30,17 @@
 (setq-default indicate-empty-lines t
               fill-column 80)
 
+;; WHAT: wrap long lines at the last word boundary that fits, not at the exact character
+;; the window edge happens to land on.  WHY: Emacs's own default (`word-wrap' nil) wraps
+;; mid-word whenever a word straddles that boundary --- the continuation arrow shown in
+;; the right fringe then sits in the middle of a split word, which is what was actually
+;; being asked about ("why does it break the word... can we make sure only show when the
+;; word fits"). `word-wrap' t moves the wrap point back to the nearest space/word-break
+;; before the edge instead, so a whole word moves down to the next line together rather
+;; than being cut in half; the fringe arrow still appears (it is what marks any wrapped,
+;; not-a-real-newline continuation), but now only at an actual word boundary.
+(setq-default word-wrap t)
+
 ;; No theme yet: Emacs default colors. Add `load-theme' here later.
 
 ;; Use the first available font from the list; fall back to the default.
@@ -688,7 +699,24 @@ installed, offer to install it from NonGNU ELPA."
 ;; model, backend or system prompt.  Installed into config/elpa by `./build.sh packages';
 ;; nothing loads until first use.  See config/llm.el and docs/LLM.md.
 (when (locate-library "gptel")
-  (autoload 'gptel-menu "gptel-transient" "Menu: pick a model, backend or system prompt." t))
+  (autoload 'gptel-menu "gptel-transient" "Menu: pick a model, backend or system prompt." t)
+  ;; WHAT: make Ollama the default backend the moment `gptel' is touched at all, however
+  ;; that happens --- not only via `my/llm-chat' (`C-c a a').  WHY: a real, reported
+  ;; problem --- `gptel' ships with its own factory default backend, "ChatGPT" (a real
+  ;; OpenAI endpoint), and this config deliberately never puts an API key anywhere;
+  ;; reaching `gptel' through `C-c a m' first (which autoloads `gptel-transient' directly
+  ;; --- see just above --- and never touches `config/llm.el' at all before that) hit
+  ;; that untouched default and failed with a real "401 Unauthorized" the moment anything
+  ;; was actually sent.  HOW: this has to live here, at the top level of `init.el' (always
+  ;; loaded), not inside `config/llm.el' itself --- that file is *itself* lazily
+  ;; autoloaded (only the first time `my/llm-chat'/`my/llm-council' runs), so a
+  ;; `with-eval-after-load' hook registered inside it would never even be registered yet
+  ;; if `gptel' were reached some other way first, exactly the bug this fixes. Costs
+  ;; nothing at startup either way: `with-eval-after-load' only registers a callback,
+  ;; and `(require 'llm ...)' inside it does not run until `gptel' itself actually loads.
+  (with-eval-after-load 'gptel
+    (require 'llm (expand-file-name "llm" user-emacs-directory))
+    (my/llm-setup-ollama)))
 (autoload 'my/llm-chat (expand-file-name "llm" user-emacs-directory)
   "Open a chat buffer with the local Ollama backend." t)
 ;; `C-c a c' asks three different local models the same question in parallel, then has a

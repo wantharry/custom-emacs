@@ -14,6 +14,17 @@
   (should column-number-mode)
   (should global-hl-line-mode))
 
+;; WHAT: long lines wrap at the last word boundary that fits, not mid-word.  WHY: a
+;; real, reported problem --- Emacs's own default (`word-wrap' nil) wraps at the exact
+;; character the window edge lands on, splitting a word in two if it straddles that
+;; boundary, with the continuation arrow (shown whenever a line wraps at all, marking it
+;; as "not a real newline") then sitting in the middle of the split word. `word-wrap' t
+;; does not remove that arrow --- it still marks every wrapped line --- it just moves
+;; the wrap point back to the nearest word boundary, so a whole word moves to the next
+;; line together instead of being cut in half.
+(ert-deftest config/long-lines-wrap-at-word-boundaries-not-mid-word ()
+  (should (default-value 'word-wrap)))
+
 (ert-deftest config/indentation-defaults ()
   (should-not (default-value 'indent-tabs-mode))
   (should (= 4 (default-value 'tab-width)))

@@ -557,6 +557,50 @@ actually pick up the un-pruned `org/`, since Linux's dist step reads from `./ins
 so its zip only needs rebuilding for the *other* uncommitted-as-of-last-Windows-build
 changes (the read-only-buffer fix), not for this.
 
+### gptel defaults to Ollama regardless of entry point; word-wrap at word boundaries
+
+User hit a real "(HTTP/1.1 401 Unauthorized) invalid_request_error" from ChatGPT while
+trying to use `gptel` --- `gptel` ships with ChatGPT (a real OpenAI endpoint) as its own
+factory-default backend, and this config deliberately never puts an API key anywhere;
+the local Ollama backend only ever got set up by `my/llm-chat' (`C-c a a'). Asked to
+make Ollama the default outright.
+
+**A real bug in the first attempt, caught by testing before committing to it**: put a
+`with-eval-after-load 'gptel' hook inside `config/llm.el' calling `my/llm-setup-ollama'.
+Verified with a real, fresh subprocess (the same pattern `llm/is-not-loaded-until-used'
+already uses) doing a bare `(require 'gptel)' --- `gptel-backend' came back `nil', not
+Ollama. Cause: `config/llm.el' is *itself* lazily autoloaded (only loaded the first time
+`my/llm-chat'/`my/llm-council' runs), so a hook registered inside it never gets
+registered at all if `gptel' is reached some other way first --- exactly the user's
+real path: `C-c a m' autoloads `gptel-transient' directly (see `config/init.el'),
+never touching `config/llm.el'. Fixed by moving the hook to `config/init.el' itself
+(always loaded, still costs nothing until `gptel' actually loads, same as every other
+`with-eval-after-load' in this codebase). Re-verified with the same real-subprocess
+method through both real entry points (`gptel-transient' and a bare `require'); both
+now correctly end with `gptel-ollama-p' true. Two new regression tests in
+`tests/ert/llm.el' drive this through real, fresh subprocesses specifically because a
+mocked test cannot reproduce "the hook lives in the wrong file."
+
+Same turn, a second, unrelated question: "why does it break the word... can we make
+sure only show when the word fit at the end" --- Emacs's own default (`word-wrap' nil)
+wraps a long line at the exact character the window edge lands on, splitting a word in
+half if it straddles that boundary, with the continuation arrow (marking any wrapped,
+not-a-real-newline continuation) then sitting mid-word. `(setq-default word-wrap t)`
+added to `config/init.el`'s UI section moves the wrap point back to the nearest word
+boundary instead, so a whole word moves to the next line together; the arrow itself
+doesn't go away (it marks every wrap, word-boundary or not), only where it lands
+changes. Real, meaningful ERT coverage stops at "the variable is set correctly" ---
+tried to verify the actual visual wrap point too (`vertical-motion` against a real
+line), but `--batch` mode has no real window geometry to wrap against, confirmed
+directly (`vertical-motion` did not move to a second line at all); the deeper visual
+behavior is standard, well-documented Emacs behavior once the variable is right, not
+something this project invented, so untested beyond that is an accepted, explained gap
+rather than a silent one.
+
+40 tests in `tests/ert/llm.el` (2 new), 0 fail, stable across 3 repeated runs; 21 tests
+in `tests/ert/config.el` (1 new), 0 fail; 624 tests, 604 pass, 0 fail, 20 skipped
+across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

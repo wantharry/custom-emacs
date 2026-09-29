@@ -9,16 +9,27 @@ marked *measured* was run here, for real, against a real local Ollama server.
 |---|---|---|
 | `gptel` (package) | the chat client: `C-c a a` opens a buffer, `C-c a m` its menu | `config/elpa`, installed by `./build.sh packages` |
 | `config/llm.el` | registers the Ollama backend, reading real models from Ollama's own API | tracked |
-| Ollama backend | a local model server, no API key, no network egress | `my/llm-setup-ollama`, run automatically the first time |
+| Ollama backend | a local model server, no API key, no network egress | `my/llm-setup-ollama`, run automatically the moment `gptel` loads at all |
 
-Nothing loads until `C-c a a` or `C-c a m` is pressed: like Consult, Magit and Treemacs,
-`gptel` costs nothing at startup (see `config/init.el`'s own explicit `autoload`s ---
-this config never loads package.el's own generated autoloads file, for
-startup speed; see the "Packages" section of `init.el` for why).
+Nothing loads until `gptel` is touched some way --- `C-c a a`, `C-c a m`, or anything
+else that reaches it --- at which point Ollama becomes the active backend automatically,
+**not** `gptel`'s own factory-default ChatGPT (a real OpenAI endpoint this config never
+puts an API key behind; using it without one fails with a real 401 Unauthorized). The
+hook that does this lives in `config/init.el` itself, not `config/llm.el` --- a real,
+found-the-hard-way reason: `config/llm.el` is itself lazily autoloaded, only loaded the
+first time `my/llm-chat`/`my/llm-council` runs, so a hook registered inside it would
+never even be registered if `gptel` were reached some other way first (`C-c a m`
+autoloads `gptel-transient` directly, for one). `config/init.el`'s own hook is always
+present, and, like Consult, Magit and Treemacs, still costs nothing at startup (see
+`config/init.el`'s own explicit `autoload`s --- this config never loads package.el's own
+generated autoloads file, for startup speed; see the "Packages" section of `init.el` for
+why) --- `with-eval-after-load` only registers a callback; nothing in it runs until
+`gptel` is actually loaded, whichever of those paths gets there first.
 
 ## How it works
 
-`C-c a a` (`my/llm-chat`) does two things the first time it runs:
+Whatever reaches `gptel` first --- `C-c a a`, `C-c a m`, or `gptel-mode` turned on
+directly in some other buffer --- does two things, once, that first time:
 
 1. Queries Ollama's own HTTP API (`GET /api/tags`) and turns its answer into the model
    list `gptel-menu` offers --- whatever you have pulled, right now, not a hand-
