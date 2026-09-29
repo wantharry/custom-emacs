@@ -1,9 +1,9 @@
 # Dictation: speech-to-text into the buffer (local Whisper)
 
-Status as of 2026-09-28, on Ubuntu 24.04 (WSL2). Everything marked *measured* was run
-here, for real, using a synthesized test sentence (since testing can't literally speak
-into a microphone) played through the same real recording/transcription pipeline `C-c m`
-uses.
+Status as of 2026-09-28, on Ubuntu 24.04 (WSL2) **and** on the Windows bundle.
+Everything marked *measured* was run for real on both, using a synthesized test
+sentence (since testing can't literally speak into a microphone) played through the
+same real recording/transcription pipeline `C-c m` uses.
 
 ## What is set up
 
@@ -22,6 +22,23 @@ API key, no network request of any kind.
 Nothing loads, and no process starts, until `C-c m` is pressed; if `parecord`,
 `whisper-cli` or the model are missing, it says exactly which one in the echo area
 instead of failing confusingly.
+
+## Works on both platforms, with genuinely different plumbing
+
+Recording and stopping cleanly are handled completely differently per platform,
+both confirmed necessary for real, not just theoretical:
+
+| | Linux/WSL | Windows |
+|---|---|---|
+| Records the mic | `parecord` (PulseAudio) | `ffmpeg` (`-f dshow`) |
+| Which device | PulseAudio's own default source | auto-detected from `ffmpeg -list_devices` (first audio device found), cached in `my/dictate-audio-device` |
+| Stopping cleanly | an explicit `SIGTERM`, waited out | writing `"q"` to its stdin, waited out --- there is no SIGTERM-equivalent signal to send a Windows process at all |
+| `whisper-cli` binary | built natively (`cmake` + `g++`) | **cross-compiled from WSL** using `zig cc`/`zig c++` targeting `x86_64-windows-gnu` (the same toolchain this project already uses for the Windows tree-sitter grammars and `Emacs.exe` itself) --- no Windows compiler needed at all |
+
+*Measured*, both platforms, same result: 100% correct transcription of the same test
+sentence, in ~3.6-3.8 seconds either way (real device auto-detected as "Microphone
+(Logitech BRIO)" on the Windows test machine; real recording process confirmed live;
+real clean stop; real transcription; all via the actual `C-c m` code path).
 
 ## Why local, not cloud, and why CPU here (not GPU)
 
@@ -96,6 +113,48 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON
 cmake --build build -j"$(nproc)"
 ```
 
+### For the Windows bundle (built entirely from WSL, no Windows compiler needed)
+
+No prebuilt Windows binary is published upstream, and no Windows C++ toolchain is
+needed here: `whisper-cli.exe` is cross-compiled from WSL using `zig cc`/`zig c++`,
+the exact same approach `tools/dist-windows.sh` already uses for the tree-sitter
+grammars and `Emacs.exe` itself. `-DGGML_NATIVE=OFF` alone would build with no CPU
+SIMD at all (*measured*: a real ~7.5x slowdown, 28.5s instead of 3.7s for the same
+clip) --- enabling AVX2/FMA/F16C explicitly instead gets full speed back while
+staying portable to any CPU from roughly 2013 onward, not just the exact build
+machine's:
+
+```sh
+# a small wrapper, since CMake wants a single compiler executable
+cat > zigcc  <<'EOF'
+#!/bin/sh
+exec python3 -m ziglang cc -target x86_64-windows-gnu "$@"
+EOF
+cat > zigcxx <<'EOF'
+#!/bin/sh
+exec python3 -m ziglang c++ -target x86_64-windows-gnu "$@"
+EOF
+chmod +x zigcc zigcxx
+pip install ziglang   # or use this project's own dist/.venv, which already has it
+
+cmake -B build-win -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_SYSTEM_PROCESSOR=x86_64 \
+  -DCMAKE_C_COMPILER=./zigcc -DCMAKE_CXX_COMPILER=./zigcxx \
+  -DCMAKE_C_COMPILER_WORKS=1 -DCMAKE_CXX_COMPILER_WORKS=1 \
+  -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF \
+  -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_SSE42=ON \
+  -DWHISPER_SDL2=OFF -DBUILD_SHARED_LIBS=OFF
+cmake --build build-win -j"$(nproc)" --target whisper-cli
+```
+
+`-DBUILD_SHARED_LIBS=OFF` makes `whisper-cli.exe` fully static --- just the one
+`.exe`, no DLLs to carry alongside it. Copy it and the model to
+`%USERPROFILE%\.local\share\whisper-cpp\` (`whisper-cli.exe` directly in that
+folder, the model under `models\`), matching the Linux layout exactly (`~` resolves
+to `%USERPROFILE%` in this bundle's own launcher). `ffmpeg` needs to be on `PATH`
+separately (not part of this project); it is not bundled either, same reasoning as
+the JDK and Node.js.
+
 ### Custom paths
 
 If you put the binary/model somewhere else, set these in your own config (they are
@@ -104,7 +163,15 @@ plain `defvar`s in `config/dictate.el`, safe to `setq` after it loads):
 ```elisp
 (setq my/dictate-whisper-cli "/path/to/whisper-cli"
       my/dictate-model       "/path/to/ggml-small.en.bin"
-      my/dictate-lib-dir     "/path/to/its/shared/libs")
+      my/dictate-lib-dir     "/path/to/its/shared/libs")   ; Linux/WSL only
+```
+
+On Windows, if the auto-detected microphone (the first one `ffmpeg -list_devices`
+reports) is not the one you want, set it explicitly instead of letting it
+auto-detect:
+
+```elisp
+(setq my/dictate-audio-device "Microphone (Your Device Name)")
 ```
 
 ## Known limits
@@ -119,6 +186,10 @@ plain `defvar`s in `config/dictate.el`, safe to `setq` after it loads):
 - CPU-only in this environment specifically (no working CUDA toolkit or NVIDIA Vulkan
   driver here); real GPU acceleration needs the CUDA toolkit installed properly, which
   needs `sudo`.
+- Windows: the microphone is auto-detected as the *first* audio device `ffmpeg`
+  reports, which may not be the one you want on a machine with several (set
+  `my/dictate-audio-device` explicitly in that case). `ffmpeg` itself is not
+  bundled and must already be on `PATH`.
 - Whichever buffer/point was active when you pressed `C-c m` to *start* is where the
   text lands, even if you switch buffers while recording; if that buffer is killed
   before you stop, the transcription is reported in a message instead of inserted.

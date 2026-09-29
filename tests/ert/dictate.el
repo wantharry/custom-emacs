@@ -114,6 +114,60 @@ what a previous one left behind."
         (should stopped))
       (when (process-live-p my/dictate--process) (delete-process my/dictate--process)))))
 
+;;; Recording, per platform. `my/dictate--record-command'/`--stop-recording' read
+;;; `system-type' directly rather than taking it as a parameter (unlike
+;;; gitfolders.el's platform-pure functions): none of them touch a real Windows-only
+;;; primitive, so this is safe, but the Windows-shaped command/stop mechanism is still
+;;; only exercised for real, never faked, guarded by a real `system-type' check.
+
+(ert-deftest dictate/record-command-shape-on-this-platform ()
+  (let ((cmd (my/dictate--record-command "/tmp/x.wav")))
+    (if (eq system-type 'windows-nt)
+        (progn
+          (should (equal (car cmd) my/dictate-ffmpeg))
+          (should (member "/tmp/x.wav" cmd))
+          (should (cl-some (lambda (a) (string-prefix-p "audio=" a)) cmd)))
+      (should (equal cmd (list my/dictate-parecord "--channels=1" "--rate=16000"
+                               "--format=s16le" "/tmp/x.wav"))))))
+
+(ert-deftest dictate/windows-audio-device-parses-real-looking-ffmpeg-output ()
+  ;; Safe on any platform: this only exercises text parsing, no real ffmpeg or device.
+  (let ((sample "[in#0] \"Logitech BRIO\" (video)\n[in#0]   Alternative name \"@device...\"\n[in#0] \"Microphone (Logitech BRIO)\" (audio)\n[in#0]   Alternative name \"@device_cm...\"\n"))
+    (cl-letf (((symbol-function 'call-process)
+               (lambda (&rest _) (insert sample) 1))
+              (my/dictate-audio-device nil))
+      (should (equal (my/dictate--windows-audio-device) "Microphone (Logitech BRIO)")))))
+
+(ert-deftest dictate/windows-audio-device-is-cached ()
+  (let ((calls 0))
+    (cl-letf (((symbol-function 'call-process)
+               (lambda (&rest _) (cl-incf calls) (insert "\"Mic A\" (audio)\n") 1))
+              (my/dictate-audio-device nil))
+      (should (equal (my/dictate--windows-audio-device) "Mic A"))
+      (should (equal (my/dictate--windows-audio-device) "Mic A"))
+      (should (= calls 1)))))
+
+(ert-deftest dictate/windows-audio-device-errors-clearly-when-none-found ()
+  (cl-letf (((symbol-function 'call-process) (lambda (&rest _) 1))
+            (my/dictate-audio-device nil))
+    (should-error (my/dictate--windows-audio-device))))
+
+(ert-deftest dictate/stop-recording-uses-the-right-mechanism-for-this-platform ()
+  (dict-isolated
+    (let* ((real-make-process (symbol-function 'make-process))
+           (proc (funcall real-make-process :name "dictate-stoptest" :buffer nil :noquery t
+                          :command '("sleep" "5")))
+           sent-string signaled)
+      (cl-letf (((symbol-function 'process-send-string)
+                 (lambda (_p s) (setq sent-string s)))
+                ((symbol-function 'signal-process)
+                 (lambda (_p sig) (setq signaled sig) (ignore-errors (kill-process proc)))))
+        (my/dictate--stop-recording proc)
+        (if (eq system-type 'windows-nt)
+            (should (equal sent-string "q"))
+          (should (eq signaled 'SIGTERM))))
+      (when (process-live-p proc) (delete-process proc)))))
+
 ;;; Against the real, locally-built whisper.cpp in this environment (skips if absent)
 
 (ert-deftest dictate/a-real-recording-produces-a-valid-wav-file ()
