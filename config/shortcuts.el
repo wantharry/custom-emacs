@@ -101,6 +101,11 @@
      "q"
      (("RET / click" . "switch to that buffer")
       ("g" . "refresh")))
+    ("Named sessions list (this config)" "C-c w L"
+     "q"
+     (("RET / click" . "open that named session (replaces what's open)")
+      ("d" . "delete it")
+      ("g" . "refresh")))
     ("Dictation (this config)" "C-c m starts recording"
      "C-c m again stops it, transcribes, and inserts the result"
      nil)
@@ -140,7 +145,11 @@ by hand.")
     ("Session (crash-safe auto-save and restore)"
      ("C-c w s" my/session-save "save the session (open buffers, window layout) now")
      ("C-c w r" my/session-reset "discard it: back to the plain start screen next time")
-     ("C-c w l" my/session-list "list every buffer currently part of the session"))
+     ("C-c w l" my/session-list "list every buffer currently part of the session")
+     ("C-c w S" my/session-save-as "save the current buffers/windows as a new named session")
+     ("C-c w O" my/session-open "replace what's open with a named session")
+     ("C-c w D" my/session-delete "delete a named session for good")
+     ("C-c w L" my/session-named-list "list every named session saved"))
     ("Documentation"
      ("C-c d" my/docs "show every guide in one buffer, built at startup")
      ("C-c D" my/docs-rebuild "rebuild it after a guide changes")

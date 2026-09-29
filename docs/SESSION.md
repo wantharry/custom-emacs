@@ -22,6 +22,10 @@ commentary; this doc is the narrative version, with the real numbers.
 | `C-c w s` | Save the session right now, by hand (a deliberate checkpoint) |
 | `C-c w r` | Discard the saved session: closes every buffer/window in this Emacs right now, and deletes the saved file, so the **next** start shows the plain start screen instead of restoring anything --- this is the "reset to default" |
 | `C-c w l` | List every buffer currently part of the session (would be saved if it saved right now), each a link to switch to it |
+| `C-c w S` | Save the current buffers/windows as a separate, **named** session --- as many as you like (see "Named sessions" below) |
+| `C-c w O` | Replace what's open with a named session |
+| `C-c w D` | Delete a named session for good |
+| `C-c w L` | List every named session saved |
 
 ## How it works
 
@@ -51,6 +55,23 @@ commentary; this doc is the narrative version, with the real numbers.
   back locked, even if it was unlocked and being edited right when Emacs was last used.
   This is deliberate: a session restore should never silently hand you back a file already
   primed to be edited by a stray keystroke.
+
+## Named sessions: how many can be saved?
+
+As many as you like --- there is no limit coded here, only disk space. `C-c w s`/`C-c w r`
+above operate on the one, always-auto-saving **live** session (your crash protection).
+`C-c w S` is different: it saves a separate, **named** snapshot --- your current buffers
+and window layout, under whatever name you give it, alongside any other named sessions
+you've saved --- without touching or interrupting the live one. `C-c w O` replaces what's
+currently open with a named snapshot (loading it *into* your live workspace: from then on
+the regular autosave keeps protecting it, same as anything else you opened by hand); `C-c
+w L` lists every named session you've saved, each a link to open it (or `d` to delete);
+`C-c w D` deletes one for good.
+
+Each named session is its own small folder under `config/session-named/NAME/` (never
+committed to git, never bundled, same as the live session). Opening the same name twice
+in a row both times genuinely reopens it (a real bug, fixed, made this NOT true at first
+--- see below).
 
 ## Measured
 
@@ -90,6 +111,32 @@ nothing would ever claim it on its own. Fixed with one explicit `desktop-save` r
 startup finishes (`my/session--claim-ownership`, on `after-init-hook` at a late depth, so
 it runs after any real restore has already happened).
 
+Two more, found while adding named sessions (`C-c w S`/`O`), both the same lesson --- these
+two functions have real side effects beyond "save/load a file" that the docstring alone
+doesn't make obvious:
+
+- **`desktop-save` unconditionally sets `desktop-dirname` (and mutates `desktop-io-file-
+  version`/`desktop-file-checksum`/`desktop-saved-frameset`) as its very first action.**
+  A naive "just call `desktop-save` on a different directory" implementation of `C-c w S`
+  would have silently repointed the *live* session's own bookkeeping at the named
+  snapshot's directory --- breaking crash protection until some unrelated later save
+  happened to fix it back. Every one of those variables is let-bound around every named-
+  session save/open now, confirmed for real (`equal desktop-dirname live-dir` still holds
+  after `my/session-save-as`) that none of it leaks out.
+- **`desktop-read` claims the lock of whatever directory it reads and never releases it.**
+  Left alone, opening the same named session a *second* time later would have silently
+  done nothing (`desktop-read` declines outright once `(desktop-owner)` already equals
+  `(emacs-pid)`, printing "Not reloading the desktop") --- confirmed for real, reproduced
+  with a plain two-line repro before fixing it. `my/session-open` now releases the named
+  directory's lock right after reading it, so every open is a real, fresh open.
+- A smaller related one: re-saving under the **same** name a second time initially hit
+  `desktop-save`'s own "Desktop file isn't the one loaded. Overwrite it?" prompt, since
+  `desktop-file-modtime` was left at the *live* session's unrelated value rather than the
+  named directory's own. In a script with no terminal attached this doesn't wait forever,
+  it fails outright ("Error reading from stdin") --- either way, not what a plain re-save
+  should do. Fixed by setting `desktop-file-modtime` to the named file's own real, current
+  modtime (or nil, the first time) right before saving.
+
 ## Limits
 
 - `desktop-read` (the actual restore function) is **unconditionally a no-op under
@@ -109,7 +156,7 @@ it runs after any real restore has already happened).
 
 ## Tests
 
-`tests/ert/session.el` (14 tests): keys bound; loaded eagerly (not autoloaded, and why);
+`tests/ert/session.el` (25 tests): keys bound; loaded eagerly (not autoloaded, and why);
 does not slow startup; every deliberate configuration choice (where the desktop lives,
 `desktop-save`/`desktop-load-locked-desktop`/`desktop-auto-save-timeout`/`desktop-
 restore-eager`); a real regression test pinning down the `RELEASE`-argument bug for good;
@@ -117,3 +164,13 @@ restore-eager`); a real regression test pinning down the `RELEASE`-argument bug 
 kill buffers → restore round trip confirming both the buffer list and the read-only lock
 come back correctly; and `C-c w l`'s listing (uses desktop.el's own real filter, shows
 every tracked file, marks modified ones, real close/refresh keys).
+
+Named sessions: name sanitizing (empty, a slash, `.`/`..`); saving as a name never
+disturbs the live session's own `desktop-dirname`/`desktop-path` and really writes into
+its own separate directory; opening restores the snapshot's buffers while keeping the
+live directory anchored; opening the *same* name twice both times genuinely restores it
+(the lock-release regression test); saving under the *same* name twice never prompts or
+errors (the modtime regression test); a clear `user-error` for an unknown name, or for
+open/delete with nothing saved yet; delete only removes the directory after `yes-or-no-p`
+confirms (mocked both ways); the named-sessions list shows every saved name (and a "none
+yet" message with none), with a real close key.

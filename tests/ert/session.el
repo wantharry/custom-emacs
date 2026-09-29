@@ -210,4 +210,161 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
           (should (eq (key-binding (kbd "q")) 'quit-window))))
     (when (get-buffer my/session-list-buffer-name) (kill-buffer my/session-list-buffer-name))))
 
+;;; Named sessions (C-c w S/O/D/L): "how many can be saved, is that a possibility?"
+;;;
+;;; Several of these exist for the same reason as the top-of-file ones: `desktop-save'
+;;; and `desktop-read' both have real side effects beyond their obvious job (confirmed by
+;;; reading their source, and by two real prompts/errors a naive implementation hit) that
+;;; a naive "just call desktop-save/-read on a different directory" implementation would
+;;; have let leak into the live, auto-saving session.
+
+(defmacro session--with-isolated-dirs (&rest body)
+  "Run BODY with the live session and the named-session root both pointed at fresh
+temp directories, so these tests never touch the real config's own session state."
+  (declare (indent 0))
+  `(test-with-temp-dir live-dir
+     (test-with-temp-dir named-root
+       (let ((my/session-dir live-dir) (my/session-named-root named-root)
+             (desktop-dirname live-dir) (desktop-path (list live-dir)))
+         ,@body))))
+
+(ert-deftest session/named-keys-are-bound ()
+  (should (eq (key-binding (kbd "C-c w S")) 'my/session-save-as))
+  (should (eq (key-binding (kbd "C-c w O")) 'my/session-open))
+  (should (eq (key-binding (kbd "C-c w D")) 'my/session-delete))
+  (should (eq (key-binding (kbd "C-c w L")) 'my/session-named-list)))
+
+(ert-deftest session/name-is-sanitized ()
+  (should-error (my/session--sanitize-name "") :type 'user-error)
+  (should-error (my/session--sanitize-name "a/b") :type 'user-error)
+  (should-error (my/session--sanitize-name ".") :type 'user-error)
+  (should-error (my/session--sanitize-name "..") :type 'user-error)
+  (should (equal (my/session--sanitize-name "  work  ") "work")))
+
+(ert-deftest session/save-as-does-not-disturb-the-live-session ()
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "live.txt")))
+      (with-temp-file f (insert "x"))
+      (unwind-protect
+          (progn
+            (find-file f)
+            (my/session-save-as "work")
+            ;; the live session's own pointer is untouched
+            (should (equal desktop-dirname live-dir))
+            (should (equal desktop-path (list live-dir)))
+            ;; the named snapshot really was written, in its own directory
+            (should (file-exists-p (expand-file-name desktop-base-file-name
+                                                      (my/session--named-dir "work"))))
+            (should-not (file-exists-p (expand-file-name desktop-base-file-name live-dir))))
+        (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
+
+(ert-deftest session/open-restores-the-snapshot-and-keeps-the-live-dir-anchored ()
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "live.txt")))
+      (with-temp-file f (insert "x"))
+      (unwind-protect
+          (progn
+            (find-file f)
+            (my/session-save-as "work")
+            (kill-buffer "live.txt")
+            (should-not (get-buffer "live.txt"))
+            (my/session-open "work")
+            (should (get-buffer "live.txt"))
+            ;; still anchored at the live dir, not the named one, after opening
+            (should (equal desktop-dirname live-dir)))
+        (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
+
+(ert-deftest session/open-can-be-repeated-without-the-lock-blocking-it ()
+  ;; The real bug: `desktop-read' claims the lock of whatever it reads and never
+  ;; releases it, so a second `desktop-read' of the SAME directory by the same process
+  ;; silently declines ("Not reloading the desktop"). `my/session-open' must release the
+  ;; named directory's lock after every open, so opening the same name twice both times
+  ;; genuinely restores it.
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "live.txt")))
+      (with-temp-file f (insert "x"))
+      (unwind-protect
+          (progn
+            (find-file f)
+            (my/session-save-as "work")
+            (kill-buffer "live.txt")
+            (my/session-open "work")
+            (should (get-buffer "live.txt"))
+            (kill-buffer "live.txt")
+            (my/session-open "work")               ; second open of the same name
+            (should (get-buffer "live.txt")))       ; must still restore it, not skip
+        (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
+
+(ert-deftest session/save-as-can-be-repeated-under-the-same-name-with-no-prompt ()
+  ;; The other real bug: leaving `desktop-file-modtime' at the live session's own value
+  ;; made a second save under the same name think the file had changed out from under
+  ;; it and ask "Overwrite this desktop file?" -- which, with no terminal attached,
+  ;; doesn't wait forever, it errors ("Error reading from stdin"). A plain re-save must
+  ;; not prompt or error at all.
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "live.txt")))
+      (with-temp-file f (insert "x"))
+      (unwind-protect
+          (progn
+            (find-file f)
+            (my/session-save-as "work")
+            (should-not (condition-case nil (progn (my/session-save-as "work") nil)
+                          (error t))))
+        (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
+
+(ert-deftest session/open-with-no-such-name-is-a-clear-error ()
+  (session--with-isolated-dirs
+    (should-error (my/session-open "does-not-exist") :type 'user-error)))
+
+(ert-deftest session/open-and-delete-with-nothing-saved-yet-is-a-clear-error ()
+  (session--with-isolated-dirs
+    (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "")))
+      (should-error (call-interactively #'my/session-open) :type 'user-error)
+      (should-error (call-interactively #'my/session-delete) :type 'user-error))))
+
+(ert-deftest session/delete-asks-first-and-only-deletes-on-yes ()
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "live.txt")))
+      (with-temp-file f (insert "x"))
+      (unwind-protect
+          (progn
+            (find-file f)
+            (my/session-save-as "work")
+            (let ((dir (my/session--named-dir "work")))
+              (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil)))
+                (my/session-delete "work")
+                (should (file-directory-p dir)))     ; declined: still there
+              (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+                (my/session-delete "work")
+                (should-not (file-directory-p dir)))))  ; confirmed: gone
+        (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
+
+(ert-deftest session/named-list-shows-every-saved-name-and-none-yet-message ()
+  (session--with-isolated-dirs
+    (unwind-protect
+        (progn
+          (should (string-match-p "none yet" (with-current-buffer (progn (my/session-named-list)
+                                                                          (current-buffer))
+                                                (buffer-string))))
+          (let ((f (concat live-dir "live.txt")))
+            (with-temp-file f (insert "x"))
+            (find-file f)
+            (my/session-save-as "alpha")
+            (my/session-save-as "beta")
+            (kill-buffer "live.txt"))
+          (my/session-named-list)
+          (let ((txt (with-current-buffer my/session-named-list-buffer-name (buffer-string))))
+            (should (string-match-p "alpha" txt))
+            (should (string-match-p "beta" txt))
+            (should (string-match-p "2 saved" txt))))
+      (when (get-buffer my/session-named-list-buffer-name) (kill-buffer my/session-named-list-buffer-name)))))
+
+(ert-deftest session/named-list-close-key-is-real ()
+  (unwind-protect
+      (progn
+        (my/session-named-list)
+        (with-current-buffer my/session-named-list-buffer-name
+          (should (eq (key-binding (kbd "q")) 'quit-window))))
+    (when (get-buffer my/session-named-list-buffer-name) (kill-buffer my/session-named-list-buffer-name))))
+
 ;;; session.el ends here

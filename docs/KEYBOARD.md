@@ -286,6 +286,10 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c w s` | `my/session-save` | **this config:** save the session (open buffers, window layout) right now ([SESSION.md](SESSION.md)) |
 | `C-c w r` | `my/session-reset` | **this config:** discard the saved session: back to the plain start screen next time |
 | `C-c w l` | `my/session-list` | **this config:** list every buffer currently part of the session |
+| `C-c w S` | `my/session-save-as` | **this config:** save the current buffers/windows as a new **named** session (as many as you like) |
+| `C-c w O` | `my/session-open` | **this config:** replace what's open with a named session |
+| `C-c w D` | `my/session-delete` | **this config:** delete a named session for good |
+| `C-c w L` | `my/session-named-list` | **this config:** list every named session saved |
 | `C-x 0` | `delete-window` | close this window |
 | `C-x 1` | `delete-other-windows` | keep only this window |
 | `C-x 2` | `split-window-below` | split top and bottom |

@@ -267,6 +267,32 @@ reset / list what's tracked). Full details in [SESSION.md](SESSION.md); the shor
   buffers?") --- uses `desktop-save-buffer-p`, desktop.el's own real filter, so the list
   never drifts from what would actually be saved.
 
+### Named sessions (`C-c w S`/`O`/`D`/`L`): a second follow-up ask
+
+User then asked: different window positions/states are saved, but how many can be
+saved, is that even possible? Answer: yes, unlimited (only disk space) --- desktop.el
+already saves/reads per-directory, so a "named session" is just its own directory.
+`C-c w S` saves the current buffers/windows under a name, alongside as many others as
+you like; `C-c w O` loads one back (replacing what's open, but the LIVE, always-auto-
+saved session stays anchored where it was --- opening a snapshot loads it into your live
+workspace, it doesn't switch which directory autosave protects); `C-c w D` deletes one;
+`C-c w L` lists them all.
+
+**Two more real bugs, same lesson as the RELEASE-argument one, found only by testing
+the actual round trip**: (1) `desktop-save` unconditionally does `(setq desktop-dirname
+DIRNAME)` as its very first line (plus mutates `desktop-io-file-version`/`desktop-file-
+checksum`/`desktop-saved-frameset`) --- a naive "just call it on a different directory"
+implementation would have silently repointed the live session's crash protection at the
+named snapshot. (2) `desktop-read` claims the lock of whatever it reads and never
+releases it, so opening the SAME named session a second time later silently did nothing
+("Not reloading the desktop") until fixed to release that lock afterward. A third,
+smaller one: re-saving under the same name hit a real "Overwrite this desktop file?"
+prompt (or, with no terminal attached, an outright error) because `desktop-file-
+modtime` was left at the live session's unrelated value; fixed by setting it to the
+named file's own real current modtime first. All three confirmed fixed with a real,
+scripted save→open→re-open→re-save cycle before writing the formal tests (11 more, 25
+total in `tests/ert/session.el`). Full writeup in [SESSION.md](SESSION.md).
+
 ## Where things stand as of the last entry
 
 - All features above are committed and pushed to `origin/main`, including the Windows

@@ -244,10 +244,171 @@ saved right now), each a link to switch to it."
         (set-buffer-modified-p nil)))
     (switch-to-buffer buf)))
 
+;;; Named sessions: more than one, saved side by side -------------------------------------
+;;
+;; Answers "how many sessions/states can be saved, is that a possibility": yes --- as many
+;; as you like.  Each named session is just its own small directory (a `.emacs.desktop'
+;; file, typically a few KB) under `my/session-named-root'; there is no limit coded here,
+;; only disk space.  These are separate from, and never disturb, the one always-auto-
+;; saving LIVE session above (`my/session-dir') --- opening or saving a named snapshot
+;; never repoints where crash protection is writing to.  That separation is real, not
+;; just intended: `desktop-save' and `desktop-read' both have several undocumented-in-
+;; the-docstring side effects (confirmed by reading their source, and by a real test
+;; catching two real prompts/hangs a naive implementation would have hit --- see below),
+;; every one of which is let-bound around every named-session call so none of it leaks
+;; into the live session's own bookkeeping.
+
+(defvar my/session-named-root (expand-file-name "session-named/" user-emacs-directory)
+  "Where named session snapshots are kept, one subdirectory per name.")
+(make-directory my/session-named-root t)
+
+(defun my/session--sanitize-name (name)
+  "NAME as a single, safe directory name: no slashes, not empty, not \".\" or \"..\"."
+  (let ((name (string-trim name)))
+    (when (string-empty-p name) (user-error "Session name can't be empty"))
+    (when (string-match-p "[/\\]" name) (user-error "Session name can't contain a slash"))
+    (when (member name '("." "..")) (user-error "That name is reserved"))
+    name))
+
+(defun my/session--named-dir (name)
+  (file-name-as-directory (expand-file-name (my/session--sanitize-name name) my/session-named-root)))
+
+(defun my/session--named-names ()
+  "Every existing named session, alphabetically."
+  (when (file-directory-p my/session-named-root)
+    (sort (seq-filter (lambda (n) (file-directory-p (expand-file-name n my/session-named-root)))
+                      (directory-files my/session-named-root nil "\\`[^.]"))
+          #'string<)))
+
+(defun my/session--read-name (prompt &optional require-match)
+  (let ((names (my/session--named-names)))
+    (when (and require-match (null names)) (user-error "No named sessions saved yet"))
+    (completing-read prompt names nil require-match)))
+
+;; WHAT: `C-c w S' --- save the current buffers/window layout as a separate, named
+;; snapshot.  WHY/HOW: `desktop-save' unconditionally does `(setq desktop-dirname
+;; DIRNAME)' as its very first line, and also mutates `desktop-io-file-version',
+;; `desktop-file-checksum' and `desktop-saved-frameset' --- every one of which, left
+;; alone, would silently repoint the LIVE session's own bookkeeping at this named
+;; directory instead.  All four are let-bound here, so none of it leaks out: once this
+;; returns, `desktop-dirname' (and friends) are exactly what they were before, still
+;; `my/session-dir'.  `desktop-file-modtime' is let-bound too, but to the NAMED
+;; directory's own real, current file modtime (or nil, if saving under this name for the
+;; first time) rather than left alone --- confirmed for real to matter: leaving it at the
+;; live session's own (unrelated) modtime made `desktop-save' think the named file had
+;; changed out from under it on every re-save, and ask \"Overwrite this desktop file?\"
+;; (in a script with no terminal attached, this doesn't wait forever; it fails outright
+;; with \"Error reading from stdin\" --- either way, not what a plain re-save should do).
+;;;###autoload
+(defun my/session-save-as (name)
+  "Save the current buffers and window layout as a separate, named snapshot, without
+disturbing the live, automatically-saved session."
+  (interactive "sSave session as: ")
+  (let* ((dir (my/session--named-dir name))
+         (target (expand-file-name desktop-base-file-name dir))
+         (desktop-dirname desktop-dirname)
+         (desktop-io-file-version desktop-io-file-version)
+         (desktop-file-checksum desktop-file-checksum)
+         (desktop-saved-frameset desktop-saved-frameset)
+         (desktop-file-modtime (and (file-exists-p target)
+                                    (file-attribute-modification-time (file-attributes target)))))
+    (make-directory dir t)
+    (desktop-save dir)
+    (message "Session saved as \"%s\" (%s)" name dir)))
+
+;; WHAT: `C-c w O' --- replace the current buffers/window layout with a named snapshot.
+;; WHY/HOW: `desktop-clear' first (same as `my/session-reset'), so opening one replaces
+;; what's open rather than piling on top of it; called as a plain function, not
+;; interactively, so it never also tries to delete frames (that part of `desktop-clear'
+;; is itself guarded on `called-interactively-p').  `desktop-read' has the same real
+;; side-effects problem as `desktop-save' above (confirmed by reading its source too) ---
+;; the same four variables are let-bound for the same reason, so the buffers this opens
+;; become part of the LIVE session going forward (the next autosave, or `C-c w s', saves
+;; them into `my/session-dir', not back into the named snapshot); opening a snapshot
+;; loads it into your live workspace, it does not switch which directory is \"live\".
+;; One more real thing this catches: `desktop-read' claims the lock of whatever directory
+;; it reads from and never releases it --- left alone, opening the SAME named session a
+;; second time later would silently do nothing at all (`desktop-read' declines outright
+;; once `(desktop-owner)' already equals `(emacs-pid)', confirmed for real: the message
+;; is literally \"Not reloading the desktop\"), since this process would already
+;; \"own\" it from the first open.  Releasing the lock right after keeps every named
+;; session freely re-openable, not just once.
+;;;###autoload
+(defun my/session-open (name)
+  "Replace the current buffers and window layout with the named session snapshot NAME."
+  (interactive (list (my/session--read-name "Open session: " t)))
+  (let ((dir (my/session--named-dir name)))
+    (unless (file-exists-p (expand-file-name desktop-base-file-name dir))
+      (user-error "No saved session named \"%s\"" name))
+    (desktop-clear)
+    (let ((desktop-dirname desktop-dirname)
+          (desktop-io-file-version desktop-io-file-version)
+          (desktop-file-checksum desktop-file-checksum)
+          (desktop-saved-frameset desktop-saved-frameset)
+          (noninteractive nil))         ; desktop-read is a no-op under noninteractive
+      (desktop-read dir)
+      (desktop-release-lock dir))
+    (message "Opened session \"%s\"" name)))
+
+;; WHAT: `C-c w D' --- delete a named session snapshot for good.  WHY/HOW: just removes
+;; its directory, after confirming --- unlike `C-c w r' (the live session, which the
+;; periodic autosave would recreate anyway), a named snapshot is the only copy of itself.
+;;;###autoload
+(defun my/session-delete (name)
+  "Delete the named session snapshot NAME for good."
+  (interactive (list (my/session--read-name "Delete session: " t)))
+  (when (yes-or-no-p (format "Delete the saved session \"%s\"? " name))
+    (delete-directory (my/session--named-dir name) t)
+    (message "Deleted session \"%s\"" name)))
+
+;; WHAT: `C-c w L' --- list every named session (distinct from `C-c w l', which lists the
+;; live session's own buffers).  WHY/HOW: same real, clickable-buffer pattern as
+;; `my/session-list'; RET/click on a name opens it (`my/session-open'); `d' deletes it.
+(defvar my/session-named-list-buffer-name "*sessions*")
+
+(defvar my/session-named-list-mode-map
+  (let ((m (make-sparse-keymap)))
+    (set-keymap-parent m special-mode-map)
+    (define-key m "g" #'my/session-named-list)
+    (define-key m "d" #'my/session-delete)
+    m))
+
+(define-derived-mode my/session-named-list-mode special-mode "Sessions"
+  "Every named session snapshot.  See `my/session-named-list'.")
+
+;;;###autoload
+(defun my/session-named-list ()
+  "List every named session snapshot, each a link to open it."
+  (interactive)
+  (let ((names (my/session--named-names))
+        (buf (get-buffer-create my/session-named-list-buffer-name)))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (unless (derived-mode-p 'my/session-named-list-mode) (my/session-named-list-mode))
+        (erase-buffer)
+        (insert (propertize "Named sessions\n\n" 'face '(:height 1.2 :weight bold)))
+        (insert (format "  %d saved (RET/click opens one; d deletes; g refreshes; q closes)\n"
+                        (length names)))
+        (insert "  C-c w S saves the current one under a new name\n\n")
+        (if (null names)
+            (insert "  (none yet)\n")
+          (dolist (n names)
+            (insert "  ")
+            (insert-text-button n 'action (let ((n n)) (lambda (_) (my/session-open n)))
+                                'follow-link t 'help-echo (format "Open %s" n))
+            (insert "\n")))
+        (goto-char (point-min))
+        (set-buffer-modified-p nil)))
+    (switch-to-buffer buf)))
+
 (defvar my/session-mode-map (make-sparse-keymap))
 (define-key my/session-mode-map "s" #'my/session-save)
 (define-key my/session-mode-map "r" #'my/session-reset)
 (define-key my/session-mode-map "l" #'my/session-list)
+(define-key my/session-mode-map "S" #'my/session-save-as)
+(define-key my/session-mode-map "O" #'my/session-open)
+(define-key my/session-mode-map "D" #'my/session-delete)
+(define-key my/session-mode-map "L" #'my/session-named-list)
 (global-set-key (kbd "C-c w") my/session-mode-map)
 
 (provide 'session)

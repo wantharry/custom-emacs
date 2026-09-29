@@ -105,7 +105,11 @@
   (should (eq (key-binding (kbd "C-c v")) 'my/toggle-evil))
   (should (eq (key-binding (kbd "C-c w s")) 'my/session-save))
   (should (eq (key-binding (kbd "C-c w r")) 'my/session-reset))
-  (should (eq (key-binding (kbd "C-c w l")) 'my/session-list)))
+  (should (eq (key-binding (kbd "C-c w l")) 'my/session-list))
+  (should (eq (key-binding (kbd "C-c w S")) 'my/session-save-as))
+  (should (eq (key-binding (kbd "C-c w O")) 'my/session-open))
+  (should (eq (key-binding (kbd "C-c w D")) 'my/session-delete))
+  (should (eq (key-binding (kbd "C-c w L")) 'my/session-named-list)))
 
 (ert-deftest config/source-files-are-well-formed ()
   (dolist (name '("init.el" "early-init.el"))
