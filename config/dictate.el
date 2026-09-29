@@ -618,15 +618,28 @@ decode-and-load cost again; see the section comment above for the real numbers."
 ;; `my/dictate-live--rotate' with nothing yet to transcribe --- see that function's own
 ;; comment), then starts the repeating timer that keeps the cycle going every
 ;; `my/dictate-live-chunk-seconds' until stopped.
+;;
+;; A real, once-missing check: also declines up front if the current buffer is read-only
+;; (e.g. `*Messages*', a Dired listing, a Magit buffer) --- without this, live dictation
+;; would start anyway and every single chunk would hit `my/dictate-live--rotate''s own
+;; read-only fallback (falling back to a `message' instead of inserting), which a real
+;; user genuinely hit: it *looked* like it was transcribing (each `message' shows the
+;; heard text), but nothing ever landed in a buffer, with no clear explanation why until
+;; asked.  Checking here instead means one clear message up front --- "switch buffers
+;; first" --- rather than the same confusing thing repeating every chunk.
 ;;;###autoload
 (defun my/dictate-live-start ()
   "Start live dictation: transcribed a few seconds at a time while you speak, instead of
 only once you stop (see `my/dictate-start' for that, non-live mode)."
   (interactive)
-  (if-let* ((reason (my/dictate-live--ready-reason)))
-      (message "Can't live-dictate: %s" reason)
-    (if my/dictate-live--active
-        (user-error "Already live-dictating; press C-c M to stop")
+  (let ((reason (my/dictate-live--ready-reason)))
+    (cond
+     (reason (message "Can't live-dictate: %s" reason))
+     (buffer-read-only
+      (message "Can't live-dictate: this buffer is read-only --- switch to a buffer you can edit first"))
+     (my/dictate-live--active
+      (user-error "Already live-dictating; press C-c M to stop"))
+     (t
       (message "Starting live dictation server...")
       (my/dictate-live--ensure-server)
       (setq my/dictate-live--active t
@@ -645,7 +658,7 @@ only once you stop (see `my/dictate-start' for that, non-live mode)."
       (setq my/dictate-live--timer
             (run-with-timer my/dictate-live-chunk-seconds my/dictate-live-chunk-seconds
                             #'my/dictate-live--rotate))
-      (message "Live dictating (every %ds)... press C-c M again to stop" my/dictate-live-chunk-seconds))))
+      (message "Live dictating (every %ds)... press C-c M again to stop" my/dictate-live-chunk-seconds)))))
 
 ;; WHAT: `C-c M' (stop half) --- end live dictation.  WHY/HOW: cancels the repeating timer
 ;; first (so no new rotation can start mid-shutdown), then calls `my/dictate-live--rotate'

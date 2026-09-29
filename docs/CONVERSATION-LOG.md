@@ -485,6 +485,26 @@ the old, no-longer-called function. 25 tests in `tests/ert/llm-council.el` (6 ne
 rewritten), 0 fail, 1 skipped (the real round trip, `--lsp`-gated); 619 tests, 599 pass,
 0 fail, 20 skipped across the full offline suite.
 
+### Follow-up: live dictation's read-only-buffer decline was never actually up front
+
+A self-caused bug, found only because the user hit it for real, twice: the WHY comment
+on `my/dictate-live--rotate`'s read-only fallback (added in the earlier follow-up entry
+above) claimed "`my/dictate-live-start' already declines up front for the common case
+(starting while read-only)" --- that claim was **false**; the up-front check was never
+actually written, only the defensive fallback inside the timer. The real effect: live
+dictation would start normally in a read-only buffer (e.g. `*Messages*`, which is where
+the user landed again, likely left there after an earlier error message) and every
+single chunk, forever, would fall back to a bare `message` instead of ever inserting
+anything --- it *looked* like it was transcribing correctly (each message shows the
+heard text), with no indication anything was wrong until the user asked why no buffer
+was showing the text. Fixed for real this time: `my/dictate-live-start` now checks
+`buffer-read-only` up front (alongside the existing `-ready-reason`/re-entrancy checks,
+rewritten from nested `if`s to a `cond` to fit the third branch cleanly) and declines
+with one clear message instead of ever starting. New regression test
+`dictate/live-declines-up-front-in-a-read-only-buffer`; 33 tests in
+`tests/ert/dictate.el` (1 new), 0 fail, confirmed stable across 3 repeated runs; 620
+tests, 600 pass, 0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

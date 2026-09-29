@@ -243,6 +243,22 @@ alone, the same as the real code does between real sessions: it is meant to pers
       (my/dictate-live-start)
       (should (eq (marker-insertion-type my/dictate-live--target-marker) t)))))
 
+(ert-deftest dictate/live-declines-up-front-in-a-read-only-buffer ()
+  ;; A real bug, found only by a real user: without this check, live dictation would
+  ;; start anyway in a read-only buffer (e.g. `*Messages*') and every single chunk would
+  ;; silently fall back to a `message' instead of inserting, with no clear explanation
+  ;; why until asked --- see `my/dictate-live--rotate''s own read-only fallback and the
+  ;; comment on `my/dictate-live-start' itself.
+  (dict-isolated
+    (cl-letf (((symbol-function 'my/dictate-live--ready-reason) (lambda () nil))
+              ((symbol-function 'my/dictate-live--ensure-server) (lambda () nil))
+              ((symbol-function 'my/dictate-live--rotate) (lambda (&optional _stop) nil))
+              ((symbol-function 'message) (lambda (fmt &rest a) (apply #'format fmt a))))
+      (with-temp-buffer
+        (setq buffer-read-only t)
+        (should (string-match-p "read-only" (my/dictate-live-start)))
+        (should-not my/dictate-live--active)))))
+
 (ert-deftest dictate/blank-audio-tag-is-recognized-but-real-speech-is-not ()
   (should (my/dictate-live--blank-p "[BLANK_AUDIO]"))
   (should (my/dictate-live--blank-p "[SILENCE]"))

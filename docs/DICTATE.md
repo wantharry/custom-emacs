@@ -199,6 +199,9 @@ auto-detect:
 - Whichever buffer/point was active when you pressed `C-c m` to *start* is where the
   text lands, even if you switch buffers while recording; if that buffer is killed
   before you stop, the transcription is reported in a message instead of inserted.
+  `C-c M` (live) is the same, with one more check: it declines immediately with a clear
+  message if that buffer is read-only (e.g. `*Messages*`, Dired, Magit) instead of
+  starting anyway --- switch to a buffer you can actually edit first.
 
 ## Live dictation (`C-c M`): transcribed as you speak, not only once you stop
 
