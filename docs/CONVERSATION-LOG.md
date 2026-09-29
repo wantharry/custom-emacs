@@ -163,6 +163,53 @@ this style (as of this entry): everything else in the repo, including `config/ll
 Magit/Treemacs/Consult/Evil wiring in `init.el` beyond what's listed above, and the test
 files themselves. Continue the same file-by-file pattern if asked to keep going.
 
+### A conversation log, so a new session doesn't lose context
+
+At the user's request, added this very file plus `CLAUDE.md` (a repo-root pointer Claude
+Code reads automatically at the start of any session here, directing it to this file
+first). The intent, in the user's own words: "any new LLM model should start off with
+this conv." Update this file after finishing new work, in the same style.
+
+### Finished and documented the Linux portable bundle (`./build.sh dist linux`)
+
+Noticed (while answering "is Linux/Windows building documented?") that `tools/dist-
+linux.sh` already existed --- a real, substantial script --- but was **untracked**
+(never committed) and out of date: only 4 of this project's 10 `config/*.el` files were
+copied, and it called `zip`, which isn't installed here (this environment has `7z`
+instead, same as the Windows script already uses). Finished it for real:
+
+- Copied all 10 config files (matching `tools/dist-windows.sh`'s list exactly).
+- Switched to `7z` for the `.zip`.
+- **Bundled `README.md` + `docs/*.md`**: without this, `C-c d` (the docs buffer) showed
+  every guide as `(missing)` inside the bundle --- confirmed for real by actually running
+  a freshly-unpacked copy, not just built.
+- **Bundled `tools/find-repos.sh`**: without this, `C-c f p` (finding every git
+  repository) couldn't run at all inside the bundle (the script it points at didn't
+  exist there). The script already falls back from `fd` to plain `find` on its own, so
+  no further changes were needed.
+- **Fixed a real double-nesting risk in the `.zip` specifically**: it was archiving the
+  staged folder by name from its parent, which --- exactly like the already-fixed
+  Windows zip bug --- would double-nest if a file manager's "Extract Here" also proposes
+  a same-named destination folder. Fixed by archiving the folder's *contents* with no
+  wrapping name (the `.tar.gz` keeps its wrapping folder, which is safe/conventional for
+  that format since `tar -xzf` never creates its own destination folder).
+
+Verified for real, end to end, not just built: `ldd` shows no missing shared libraries;
+a freshly-unpacked copy loads headlessly with every package (Evil, Magit, Treemacs,
+Consult, gptel) resolving on `load-path`; a real GUI frame opens under Wayland/WSLg and
+closes cleanly, including the relocated GDK pixbuf loader cache (the trickiest part of a
+Linux bundle --- GTK needs absolute paths to its image plug-ins, only known once
+unpacked); the docs buffer and `C-c f p` both genuinely work; and the **full offline
+test suite, run against the bundle's own `app/bin/emacs`** (not the dev build) via
+`EMACS=.../app/bin/emacs tests/run-all.sh`, passes: **548 tests, 0 failures, 19
+skipped**. Added `LinuxBundle`/`LinuxTarball` to `tests/test_dist.py` (8 tests) so this
+stays checked automatically, mirroring `WindowsBundle`.
+
+Honest, real gap documented rather than hidden: **no Java language server (`jdtls`) is
+bundled for Linux yet**, unlike Windows. Also explicitly **not yet tried on a genuinely
+bare machine** (only tested in this dev environment, which already has the build
+dependencies installed) --- that's the natural next check if this gets picked up again.
+
 ## Real findings worth remembering (cross-cutting)
 
 - This environment (WSL2 Ubuntu 24.04 + WSLg) has a real GPU (`nvidia-smi` works, CUDA
@@ -185,10 +232,20 @@ files themselves. Continue the same file-by-file pattern if asked to keep going.
 
 ## Where things stand as of the last entry
 
-- All features above are committed and pushed to `origin/main`.
+- All features above are committed and pushed to `origin/main`, including the Windows
+  dist rebuild (verified clean, `test_dist.py` all green) and the new, finished Linux
+  bundle (also verified, see its own section above).
 - A commenting pass (WHAT/WHY/HOW style) is in progress across the config files touched
-  this session; see "Commenting pass" above for exactly what's done and what isn't yet.
-- Per the standing workflow instruction, a full `./build.sh test --full` + Windows dist
-  rebuild is due (more than 3-4 features have now accumulated since the last one) but may
-  not have completed yet at the time this entry was written --- check `git log` and the
-  Windows zip's own timestamp/commit to see whether it's since been done.
+  this session; see "Commenting pass" above for exactly what's done and what isn't yet
+  (`config/llm.el` and the Magit/Treemacs/Consult/Evil wiring beyond what's listed there
+  are the known remaining gaps).
+- One loose end from earlier in this session: a full `./build.sh test --full` run
+  showed 1 ERT failure (565/566) that was never pinned down --- two attempts to re-run
+  and identify it got killed by the harness for low system memory (not a real test
+  failure; see the harness's own note about this). It may be the pre-existing,
+  documented timing-sensitive real-`jdtls` flake under full parallel load (see BUILD.md),
+  but this was **never confirmed**. If asked to investigate, run `./build.sh test --full`
+  again (memory permitting) and look for which specific test failed.
+- The Linux bundle is explicitly **not yet tried on a genuinely bare machine** and has
+  **no bundled Java language server** --- both documented as real, current limits in
+  [DISTRIBUTION.md](DISTRIBUTION.md), not hidden.
