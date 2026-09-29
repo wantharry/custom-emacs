@@ -632,6 +632,45 @@ quoted names) never matched real output.
 across 3 repeated runs; 625 tests, 605 pass, 0 fail, 20 skipped across the full
 offline suite.
 
+### Windows zip rebuilt (Windows only, Linux deferred on request)
+
+User asked for a zip; mid-build, clarified "lets do only windows, until i tell linux"
+--- Windows rebuilt and verified (`test_dist.py`, 10/10), copied to Downloads (+7,312
+bytes over the last Windows build). Linux's own dist is now two features further
+behind than Windows's (still never rebuilt this session at all, missing the Org
+restore on top of everything Windows already has) --- deliberately left alone per the
+user's own instruction; do not rebuild it until asked.
+
+### Two real, reported minibuffer noise problems, both traced to their real cause
+
+User: "it keeps saving a message appears in the mini buffer of saving the file to
+config recentf.eld ..also i see recents.eld..what you are saving, it better it doesnt
+show the message in the minibuffer." Investigated both files raised, not just the one
+named in the complaint:
+
+- `config/recentf.eld` is `recentf`'s own save file (`C-c r`'s recent-files list); the
+  30s idle autosave timer that writes it (added earlier this session, for crash-safety)
+  was printing "Wrote .../recentf.eld" every single time. Traced to the real cause in
+  `recentf.el`'s own source, not assumed: `recentf-save-list`'s `write-region` call is
+  quiet only `(unless (or (called-interactively-p 'interactive) recentf-show-messages)
+  'quiet)` --- `recentf-show-messages` defaults to `t` in stock Emacs, so it always
+  showed the message regardless of the timer being non-interactive. Fixed with a single
+  `(setq recentf-show-messages nil)`; confirmed directly (not assumed) with a real,
+  mocked-`message` call to `recentf-save-list` showing zero messages afterward.
+- `config/recents.eld` (a **different**, this-project-specific file --- `startpage.el`'s
+  own recent folders/projects list, unrelated to built-in `recentf` despite the similar
+  name, saved by its own separate 30s idle timer, `my/start-save`) turned out to
+  **already** save silently, confirmed directly in `fileio.c`'s own `write-region`
+  documentation rather than assumed clean just because the user didn't specifically
+  complain about it: `with-temp-file` (what `my/start-save` uses) passes `write-region`
+  a numeric `VISIT` (`0`), and the docs are explicit that a VISIT that is "neither t nor
+  nil nor a string" suppresses the message --- nothing needed changing there.
+
+New regression test `config/recentf-autosave-does-not-message` (mocks `message`, asserts
+zero calls across a real `recentf-save-list` invocation, not just that the variable is
+set). 22 tests in `tests/ert/config.el` (1 new), 0 fail, stable across 3 repeated runs;
+626 tests, 606 pass, 0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

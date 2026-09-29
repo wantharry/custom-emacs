@@ -84,6 +84,21 @@
 ;; that window, the same way `my/start-save' (startpage.el) already protects the recent
 ;; folders/projects list.
 (run-with-idle-timer 30 t #'recentf-save-list)
+;; WHAT: stop that periodic autosave (and `recentf' startup cleanup) from printing to
+;; the echo area every 30s.  WHY: a real, reported problem --- `recentf-show-messages'
+;; defaults to `t' in stock Emacs, so every single autosave shows "Wrote .../
+;; recentf.eld", stock Emacs behavior this config never touched before now, not
+;; something this idle timer itself introduced.  Confirmed directly in `recentf.el's own
+;; source: the "Wrote FILE" message comes from a plain `write-region' call whose quiet-
+;; flag is exactly `(unless (or (called-interactively-p 'interactive) recentf-show-
+;; messages) 'quiet)' --- an autosave from a timer is never "interactive", so this alone
+;; is enough to silence it; the actual saving (and the crash-safety it exists for) is
+;; unaffected, only the message. `my/start-save' (startpage.el)'s own `recents.eld'
+;; autosave already writes silently by construction (`with-temp-file' uses `write-
+;; region's undocumented-but-real "VISIT is an integer" form, which stock Emacs's own
+;; `write-region' never messages for regardless of this setting) --- confirmed in
+;; `fileio.c' directly, not assumed, so nothing else needed changing for that file.
+(setq recentf-show-messages nil)
 (savehist-mode 1)
 
 ;; Backups and auto-saves go to one place instead of littering projects.

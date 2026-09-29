@@ -43,6 +43,21 @@
                                      (timer--repeat-delay tm)))       ; non-nil: a repeating idle timer
                    timer-idle-list)))
 
+;; WHAT: that periodic autosave (every 30s, while idle) does not print "Wrote .../
+;; recentf.eld" to the echo area each time.  WHY: a real, reported problem ---
+;; `recentf-show-messages' defaults to `t' in stock Emacs, so it did, every 30s, until
+;; this was set.  HOW: confirmed directly against `recentf-save-list' itself (not just
+;; that the variable is nil, which would not catch a future stock-Emacs version wiring
+;; the message some other way) --- mocks `message' to record calls, then asserts none
+;; happened across a real (non-interactive) call.
+(ert-deftest config/recentf-autosave-does-not-message ()
+  (should-not recentf-show-messages)
+  (let (messages)
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (push (apply #'format fmt args) messages))))
+      (recentf-save-list))
+    (should-not messages)))
+
 ;;; News (newsticker): C-c n, real feeds, nothing loaded until used
 
 (ert-deftest config/news-key-is-bound ()
