@@ -236,12 +236,37 @@ audio itself. The real cost of choosing it: in one real test, `base.en` misheard
 accepts that tradeoff on purpose, for responsiveness; `C-c m` is unaffected and keeps
 using `small.en`.
 
-Chunks are cut every `my/dictate-live-chunk-seconds` (default 3s) --- comfortably
-longer than the ~0.6-0.7s a chunk takes to transcribe, so the pipeline never falls
-behind, while still feeling reasonably live. Word boundaries do not line up with fixed
-3-second cuts, so a sentence spanning a cut point can land split across two chunks
-(e.g. "...as I keep the" / "speaking, new text..."); this is an expected, inherent
-artifact of fixed-interval chunking, not a bug.
+Chunks are cut every `my/dictate-live-chunk-seconds` (default 5s, originally 3s ---
+see "Hallucination" below for why it moved) --- comfortably longer than the ~0.6-0.7s a
+chunk takes to transcribe, so the pipeline never falls behind, while still feeling
+reasonably live. Word boundaries do not line up with fixed cuts, so a sentence spanning
+a cut point can land split across two chunks (e.g. "...as I keep the" /
+"speaking, new text..."); this is an expected, inherent artifact of fixed-interval
+chunking, not a bug.
+
+### Hallucination on a cut-off chunk (a real, fundamental limit, not a config bug)
+
+*Measured directly, isolating the exact case*: when a chunk's fixed-interval cut lands
+mid-word or mid-phrase (e.g. captures "...jumps over the" and then trails into silence
+because the sentence continues in the next chunk), Whisper does not transcribe only
+what it actually heard --- it *completes* the cut-off phrase with a plausible-sounding
+but wrong ending ("jumps over the **lid**", or "jumps over the **lake**" on a second
+attempt), stated with full confidence. This is a real Whisper behavior, not a bug in
+this config: confirmed to happen identically with **both** `base.en` and `small.en` on
+the same isolated fragment, so switching models does not fix it. The usual anti-
+hallucination knobs (`no_speech_thold`, `entropy_thold`, `logprob_thold`) don't help
+either --- they catch *low-confidence* nonsense, and this is *high-confidence* nonsense.
+Real VAD (Voice Activity Detection, tested with a downloaded `silero-v6.2.0` model) was
+also tried directly and did **not** fix this specific case either --- it correctly
+trims pure silence/noise (already handled fine without it), but a short, genuinely
+cut-off fragment of real speech is still handed to the decoder, which still completes
+it. The one thing that measurably helped: a longer `my/dictate-live-chunk-seconds`
+(3s → 5s) cuts less often, so this happens less often --- it doesn't eliminate the
+failure mode, since any fixed interval can still land mid-phrase. The real fix would be
+cutting chunks on actual pauses in speech (VAD-driven dynamic chunk boundaries) instead
+of a fixed timer --- a genuine redesign, not attempted yet. `C-c m` (record, then
+transcribe once) never hits this failure mode at all, since it only ever transcribes a
+complete utterance.
 
 ### Four real bugs found via genuine testing (not simulated)
 
@@ -306,7 +331,7 @@ end; cross-compiling `whisper-server` the same way `whisper-cli.exe` is cross-co
 (setq my/dictate-server-binary   "/path/to/whisper-server"
       my/dictate-live-model      "/path/to/ggml-base.en.bin"
       my/dictate-live-port       8765    ; loopback only; change if this collides
-      my/dictate-live-chunk-seconds 3)   ; how often a chunk is cut and sent off
+      my/dictate-live-chunk-seconds 5)   ; how often a chunk is cut and sent off
 ```
 
 ## Tests

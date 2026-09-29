@@ -405,14 +405,59 @@ down after bug 3's fix alone did not make the failure go away. 32 tests in
 the full offline suite. **Windows: not yet built or tested** for the `whisper-server`
 side --- only Linux/WSL is verified end to end so far.
 
+#### Follow-up: whisper-server.exe cross-compiled for Windows, two more real bugs found by the user
+
+User tried `C-c M` on the real Windows bundle. `whisper-server.exe` didn't exist yet
+(only `whisper-cli.exe`, for `C-c m`, had been cross-compiled) --- built it the same way
+(zig cross-compile, static, from the same `/tmp/whisper.cpp` checkout already
+configured for Windows), copied it plus `ggml-base.en.bin` to
+`~/.local/share/whisper-cpp/` on the user's machine directly (WSL's `/mnt/c/` maps to
+the same Windows user account this session already had access to).
+
+**A real bug, found immediately on first use**: `Error running timer
+'my/dictate-live--rotate': (buffer-read-only #<buffer *Messages*>) [5 times]`. Cause:
+the user pressed `C-c M` while sitting in `*Messages*` (read-only by default in Emacs,
+likely left there after reading an earlier error) --- every rotation tick then tried to
+`insert` into it and failed. Fixed defensively in `my/dictate-live--rotate` (treats a
+read-only target buffer the same as a buffer that's gone, falling back to a `message`).
+**A self-caused bug found while writing that fix**: the edit left one extra closing
+paren, breaking `unwind-protect`'s own structure --- caught immediately by
+byte-compiling before committing (`Invalid read syntax: ")"`), not by a test; fixed and
+re-verified compiles clean, 32/32 tests still pass.
+
+**A real, substantial finding about accuracy**: once working, the user reported
+hallucinated phrases appearing that they never said ("Okay guys, let's...", "I'm sorry.",
+"Holy shit."). Investigated for real, not guessed: isolated the exact failure to a
+chunk's fixed-interval cut landing mid-word/mid-phrase --- Whisper doesn't transcribe
+only what it heard in that case, it *confidently completes* the cut-off phrase with a
+plausible but wrong ending. Confirmed this happens identically with both `base.en` and
+`small.en` on the same isolated fragment (ruling out model size as the cause), and that
+real VAD (downloaded `silero-v6.2.0`, tested directly) does **not** fix it either ---
+VAD correctly handles pure silence/noise (already fine without it) but still hands a
+genuinely cut-off fragment of real speech to the decoder, which still completes it. The
+standard anti-hallucination knobs (`no_speech_thold`, `entropy_thold`, `logprob_thold`)
+don't help either, since this is *high*-confidence nonsense, not low-confidence. The one
+thing that measurably helps: `my/dictate-live-chunk-seconds` moved from 3s to 5s (user's
+explicit choice, offered alongside a bigger VAD-based dynamic-chunking redesign and
+"leave it as-is" as the alternatives) --- cuts less often, so the failure happens less
+often, though any fixed interval can still land mid-phrase. See
+[DICTATE.md](DICTATE.md)'s own "Hallucination" section for the full writeup.
+`C-c m` (record, then transcribe once) is unaffected --- it never hits this failure
+mode, since it only ever transcribes a complete utterance.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---
   per the standing workflow-pacing instruction above, a single feature gets its own
   tests run and committed, not an automatic dist rebuild; both bundles are one feature
-  past their last rebuild as of this entry. `Windows: whisper-server not yet built or
-  tested` either way (see its own section above) --- `C-c M` would need that done first
-  regardless of when the bundle itself is next rebuilt.
+  past their last rebuild as of this entry. `whisper-server.exe` is now built and
+  confirmed working on the user's real Windows machine (see the follow-up section
+  above), placed directly at `~/.local/share/whisper-cpp/` the same way `whisper-cli.exe`
+  already was --- **not** added to the dist zip itself, matching this project's existing
+  "heavy runtime dependency, never bundled" convention for whisper.cpp. The Windows zip
+  in Downloads right now predates this follow-up entirely (rebuilt once already this
+  session, before `C-c M` was even tried) and does not need rebuilding just for this ---
+  nothing about `whisper-server.exe` lives inside the zip.
 - All other features above are committed and pushed to `origin/main`, including the
   Windows dist rebuild (verified clean, `test_dist.py` all green) and the new, finished
   Linux bundle (also verified, see its own section above) from before live dictation.

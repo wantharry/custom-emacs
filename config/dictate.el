@@ -403,11 +403,18 @@ decode-and-load cost again; see the section comment above for the real numbers."
 ;; unlikely to collide with something else already using a common port; never reachable
 ;; from outside this machine either way, since `my/dictate-live-host' is a loopback address.
 (defvar my/dictate-live-port 8765 "Local port `whisper-server' listens on.")
-;; WHAT: how often a new chunk is cut and sent off while live dictation runs.  WHY: 3s is a
-;; real, measured middle ground --- comfortably longer than the ~0.6-0.7s a chunk actually
-;; takes to transcribe (so the pipeline never falls behind), while still feeling reasonably
-;; "live" rather than a long wait between each piece of text appearing.
-(defvar my/dictate-live-chunk-seconds 3
+;; WHAT: how often a new chunk is cut and sent off while live dictation runs.  WHY: 5s,
+;; not the original 3s --- comfortably longer than the ~0.6-0.7s a chunk actually takes to
+;; transcribe either way (so the pipeline never falls behind at either value), but a real,
+;; measured finding moved this from 3s to 5s: a fixed-interval cut landing mid-word/mid-
+;; phrase makes Whisper (any model size, confirmed directly with both base.en and small.en
+;; on the same isolated fragment) confidently *complete* the cut-off phrase with a
+;; plausible-sounding but wrong ending, rather than transcribing only what it actually
+;; heard --- the model has no "I'm not sure" output, only a confident guess. A longer
+;; window does not eliminate this (any fixed interval can still land mid-phrase), but it
+;; cuts far less often, so it happens less often too. The real fix --- cutting chunks on
+;; actual pauses in speech (VAD) instead of a fixed timer --- is a bigger, separate change.
+(defvar my/dictate-live-chunk-seconds 5
   "How often a new chunk is cut and sent for transcription while live dictation runs.")
 
 ;; WHAT: the running `whisper-server' process, if any.  WHY: deliberately left running
@@ -588,12 +595,20 @@ decode-and-load cost again; see the section comment above for the real numbers."
           (let ((text (my/dictate-live--transcribe finished-wav)))
             (when (my/dictate-live--blank-p text) (setq text ""))
             (unless (string-empty-p text)
-              (if (buffer-live-p my/dictate-live--target-buffer)
+              ;; A real bug, hit by pressing `C-c M' while sitting in `*Messages*' (its
+              ;; own read-only, by default in Emacs) after an earlier error --- `insert'
+              ;; there signals `buffer-read-only', repeatedly, once per chunk, out of a
+              ;; timer callback.  Treated the same as the target buffer being gone
+              ;; entirely: `my/dictate-live-start' already declines up front for the
+              ;; common case (starting while read-only), so this is the defensive
+              ;; fallback for a buffer that turns read-only *after* starting.
+              (if (and (buffer-live-p my/dictate-live--target-buffer)
+                        (not (buffer-local-value 'buffer-read-only my/dictate-live--target-buffer)))
                   (with-current-buffer my/dictate-live--target-buffer
                     (save-excursion
                       (goto-char my/dictate-live--target-marker)
                       (insert text " ")))
-                (message "Dictate (live): target buffer is gone; heard: %s" text))))
+                (message "Dictate (live): target buffer is gone or read-only; heard: %s" text))))
         (ignore-errors (delete-file finished-wav))))))
 
 ;; WHAT: `C-c M' (start half) --- begin live dictation.  WHY/HOW: same up-front readiness
