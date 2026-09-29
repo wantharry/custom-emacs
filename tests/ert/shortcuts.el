@@ -14,7 +14,8 @@
   ;; config treats those packages as optional.
   (let ((optional '(magit-status magit-file-dispatch consult-line consult-ripgrep
                     consult-fd consult-buffer gptel-menu my/llm-chat my/llm-council
-                    my/treemacs my/treemacs-reveal)))
+                    my/treemacs my/treemacs-reveal
+                    embark-act embark-dwim embark-bindings)))
     (dolist (topic my/shortcuts-list)
       (dolist (row (cdr topic))
         (cl-destructuring-bind (key command _desc) row

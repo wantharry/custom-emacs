@@ -310,6 +310,45 @@ stopped returning verdicts for both Bash and WebFetch for a stretch) --- picked 
 once it recovered; the curl verification and test run happened in a later turn than the
 config edit itself.
 
+### Minibuffer enhancement: vertico, orderless, marginalia, embark
+
+User asked to install "vertico, marginalia, consult, embark, orderless" (Consult was
+already installed) to "enhance the minibuffer." Installed the other four plus
+`embark-consult` (a tiny, standard companion package not explicitly asked for, added
+since it's essentially required for embark actions to understand Consult's own
+candidate lists correctly --- mentioned to the user, not silently assumed). Replaced the
+built-in `fido-vertical-mode` with `vertico-mode` + `orderless` (as a completion style)
++ `marginalia-mode`, falling back to `fido-vertical-mode` unchanged if not installed
+(same optional-package pattern as everything else here); `C-.`/`C-;`/`C-h B` for Embark.
+
+**A real, self-caused bug found only by testing, not by reading the source**: the new
+Completion section was originally placed near the TOP of `init.el` (where the old
+`fido-vertical-mode` line had lived), but `config/elpa/*` only gets added to
+`load-path` later in the file --- so `(locate-library "vertico")` always returned nil,
+silently falling back to `fido-vertical-mode` every time, no error, nothing visibly
+wrong. Confirmed for real (`vertico-mode` was void as a variable) and fixed by moving
+the whole section to right after the `load-path` bootstrap loop.
+
+**A real, genuine regression, caught by this project's own existing test suite**:
+`orderless`'s own default matching styles (literal and regexp only) do not include
+anything like `flex`'s "letters in order, not contiguous" fuzzy matching --- and the
+previous `completion-styles` (`fido-vertical-mode`'s own) had included `flex`, which
+`C-x p f` (`project-find-file`, a real Emacs built-in, not this project's own fast
+finder) relies on. `tests/ert/java-navigation.el`'s own pre-existing
+`jnav/a-partial-name-finds-the-file-by-fuzzy-matching` failed for real until `flex` was
+added back alongside `orderless` (and, separately, to the `file` category override
+too, verified both matter with a direct `completion-all-completions` check). This
+project's own fast finder (`C-c f f`, fastfind.el) was never at risk either way --- it
+already sets its own, fully separate completion style per minibuffer session; confirmed
+unaffected, 37/37 still pass.
+
+New `tests/ert/completion.el` (9 tests) hit one more small, real, self-caused bug: a
+test asserting Embark is lazy failed because an EARLIER test in the same file
+deliberately `require`s Embark for real, and ERT tests in one file share the same
+Emacs process --- fixed the same way `llm-council/is-not-loaded-until-used` already
+does it, by checking in a fresh subprocess instead of the shared one. 602 tests, 582
+pass, 0 fail, 20 skipped across the full offline suite after all of this.
+
 ## Where things stand as of the last entry
 
 - All features above are committed and pushed to `origin/main`, including the Windows

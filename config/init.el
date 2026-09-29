@@ -144,13 +144,6 @@ key sequence can never make a file editable."
 (global-set-key (kbd "C-c e e") #'allow-editing)
 (global-set-key (kbd "C-c e l") #'stop-editing)
 
-;;; Completion (all built in) -------------------------------------------------
-
-(fido-vertical-mode 1)                  ; minibuffer completion, vertical list
-(setq completion-styles '(basic partial-completion flex)
-      completion-ignore-case t
-      read-file-name-completion-ignore-case t)
-(global-completion-preview-mode 1)      ; inline suggestions as you type
 ;; WHAT: raise which-key's popup from its default 25% of the frame to 40%.  WHY: this is
 ;; a real regression fix, found by the GUI test suite, not a style tweak --- with the
 ;; `C-c n' (news), `C-c m' (dictation) and `C-c a c' (LLM council) bindings added this
@@ -189,6 +182,56 @@ key sequence can never make a file editable."
   (when (and (file-directory-p dir)
              (not (member (file-name-nondirectory dir) '("archives" "gnupg"))))
     (add-to-list 'load-path dir)))
+
+;;; Completion ------------------------------------------------------------------
+
+;; The minibuffer completion UI and matching style: `vertico' (a vertical candidate
+;; list), `orderless' (type the words of what you want in any order, not just a
+;; prefix --- "ff bin" matches "bin/find-file.el"), and `marginalia' (extra info
+;; alongside each candidate: a command's own doc string in `M-x', a file's size and
+;; permissions in `C-x C-f', a buffer's major mode in `C-x b'). All three replace
+;; the built-in `fido-vertical-mode' this config used before --- falls back to that,
+;; unchanged, if they are not installed, matching how this config treats every
+;; other package as optional. Installed into config/elpa by `./build.sh packages';
+;; loaded eagerly here (not autoloaded like most packages in this file), since
+;; minibuffer completion is used from the very first keystroke of any command ---
+;; there is no later "first use" to defer loading until, the way there is for
+;; Magit or Treemacs.  Placed here, right after `load-path' gets the elpa
+;; directories added above (not up with the rest of the UI settings near the top
+;; of this file): `locate-library'/`require' need those directories on `load-path'
+;; first --- confirmed for real, this section originally sat above the `load-path'
+;; loop and silently always took the fallback branch, `vertico'/etc. never found.
+;; See docs/SEARCHING.md.
+;;
+;; `flex' (built into Emacs, matches letters in order but not contiguously, e.g.
+;; "gmtry" matches "Geometry") is kept in both lists alongside `orderless' --- a
+;; real regression, not a guess: the previous setup (`fido-vertical-mode''s own
+;; `(basic partial-completion flex)') included it, and `C-x p f' (`project-find-
+;; file', Emacs's own built-in finder, distinct from this config's `C-c f f')
+;; relies on exactly this fuzzy/skeleton matching; `tests/ert/java-navigation.el's
+;; own `jnav/a-partial-name-finds-the-file-by-fuzzy-matching' failed for real
+;; without it, since `orderless''s own default matching styles (literal and
+;; regexp only) do not reproduce that kind of match on their own.
+;;
+;; `file' completion is otherwise kept off `orderless' specifically: out-of-order,
+;; space-separated matching is far more useful for commands and buffer names than
+;; for file paths, where it can match surprising things. This config's own fast
+;; finder (`C-c f f', fastfind.el) is unaffected either way --- it sets its own,
+;; completely separate completion style for its one minibuffer session, which
+;; takes priority over whatever the global default is.
+(if (and (locate-library "vertico") (locate-library "orderless") (locate-library "marginalia"))
+    (progn
+      (require 'vertico)
+      (require 'orderless)
+      (require 'marginalia)
+      (vertico-mode 1)
+      (marginalia-mode 1)
+      (setq completion-styles '(orderless basic flex)
+            completion-category-overrides '((file (styles basic partial-completion flex)))))
+  (fido-vertical-mode 1))               ; fallback: minibuffer completion, vertical list, all built in
+(setq completion-ignore-case t
+      read-file-name-completion-ignore-case t)
+(global-completion-preview-mode 1)      ; inline suggestions as you type
 
 (defun my/install-package (pkg)
   "Install PKG from ELPA into `my/elpa-dir'.  Loads package.el on demand."
@@ -452,6 +495,31 @@ installed, offer to install it from NonGNU ELPA."
                    ("C-c s f" . consult-fd) ("C-c s b" . consult-buffer)))
   (global-set-key (kbd (car binding))
                   (if (locate-library "consult") (cdr binding) #'my/consult-missing)))
+
+;;; Contextual actions, at point or on a candidate (embark) -----------------------
+
+;; `C-.' shows a menu of actions for whatever is at point, or the current candidate
+;; in an active minibuffer completion session (a file, a buffer, a package, a line
+;; of a `grep'-like search, ...) --- open it, but also copy its name, delete it,
+;; run a shell command on it, and more, all without leaving where you are first.
+;; `C-;' skips the menu and runs the single most likely action directly. `C-h B'
+;; shows every action available right now, as its own `which-key'-style menu.
+;; `embark-consult' (config/elpa's own separate, tiny package) needs no wiring here
+;; at all: Embark loads it automatically, on its own, once it notices Consult is
+;; also loaded --- this is what makes `C-.' understand a `consult-ripgrep'/`consult-
+;; buffer' candidate specifically (act on one search match without jumping to it
+;; first), not just a generic minibuffer string. Installed into config/elpa by
+;; `./build.sh packages'; nothing loads until first use. See docs/SEARCHING.md.
+(when (locate-library "embark")
+  (autoload 'embark-act "embark" "Choose an action for the thing at point, or the current minibuffer candidate." t)
+  (autoload 'embark-dwim "embark" "Run the default action for the thing at point." t)
+  (autoload 'embark-bindings "embark" "Show every action available right now." t))
+(defun my/embark-missing ()
+  (interactive)
+  (message "Embark is not installed.  Run ./build.sh packages"))
+(dolist (binding '(("C-." . embark-act) ("C-;" . embark-dwim) ("C-h B" . embark-bindings)))
+  (global-set-key (kbd (car binding))
+                  (if (locate-library "embark") (cdr binding) #'my/embark-missing)))
 
 ;;; Start screen ---------------------------------------------------------------
 

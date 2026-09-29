@@ -278,6 +278,9 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c s g` | `consult-ripgrep` | **this config:** search project text (ripgrep), with a live preview |
 | `C-c s f` | `consult-fd` | **this config:** find a project file by name (fd), with a live preview |
 | `C-c s b` | `consult-buffer` | **this config:** switch to a buffer, recent file or bookmark |
+| `C-.` | `embark-act` | **this config:** menu of actions for the thing at point, or the current minibuffer candidate ([SEARCHING.md](SEARCHING.md#11-the-minibuffer-itself-vertico-orderless-marginalia-embark)) |
+| `C-;` | `embark-dwim` | **this config:** run the default action directly, no menu |
+| `C-h B` | `embark-bindings` | **this config:** list every action available right now |
 | `C-c d` | `my/docs` | **this config:** show every guide in one buffer, built at startup |
 | `C-c D` | `my/docs-rebuild` | **this config:** rebuild it after a guide changes |
 | `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable; on any entry, `m`/`d`/`t` open it with Magit/Dired/Treemacs directly ([START-SCREEN.md](START-SCREEN.md)) |

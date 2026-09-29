@@ -114,7 +114,7 @@ class WindowsBundle(unittest.TestCase):
         self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/")], "no tools/jdk/ should be shipped")
 
     def test_evil_and_magit_are_there_and_compiled(self):
-        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult"]:
+        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult", "vertico", "orderless", "marginalia", "embark", "embark-consult"]:
             with self.subTest(package=pkg):
                 self.assertTrue(any(n.startswith(f"{TOP}config/elpa/{pkg}-") and n.endswith(".elc")
                                     for n in self.names), f"{pkg} has no compiled files")
@@ -199,7 +199,7 @@ class LinuxBundle(unittest.TestCase):
                 self.assertIn(f, self.names)
 
     def test_evil_and_magit_are_there_and_compiled(self):
-        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult"]:
+        for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult", "vertico", "orderless", "marginalia", "embark", "embark-consult"]:
             with self.subTest(package=pkg):
                 self.assertTrue(any(n.startswith(f"config/elpa/{pkg}-") and n.endswith(".elc")
                                     for n in self.names), f"{pkg} has no compiled files")

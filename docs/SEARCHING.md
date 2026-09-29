@@ -439,7 +439,46 @@ for the exact command). Without `fd`, `consult-fd` still runs (it falls back to 
 **Also on Windows.** The bundle carries `consult`, `rg` and `fd`, so all four keys work with nothing to
 install; see [DISTRIBUTION.md](DISTRIBUTION.md) for the screenshot and the test results.
 
-## 11. Windows
+## 11. The minibuffer itself: vertico, orderless, marginalia, embark
+
+Four small packages, installed alongside Evil/Magit/Treemacs/Consult, that change what *every* minibuffer
+prompt looks like and how it matches --- not just Consult's own four commands, but `M-x`, `C-x C-f`, `C-x b`,
+`C-x p f`, everything.
+
+| Package | What it does |
+|---|---|
+| `vertico` | Shows candidates as a vertical list (replaces the built-in `fido-vertical-mode` this config used before) |
+| `orderless` | Type the words of what you want in **any order** --- `to buf` and `buf to` both match `switch-to-buffer` |
+| `marginalia` | Extra info next to each candidate: a command's own doc string in `M-x`, a file's size/permissions in `C-x C-f`, a buffer's major mode in `C-x b` |
+| `embark` | `C-.` shows a menu of actions for whatever is at point, or the current minibuffer candidate --- open it, but also copy its name, delete it, run a shell command on it, without leaving where you are first. `C-;` runs the single most likely action directly; `C-h B` lists everything available right now |
+
+<!-- keymap: global -->
+| Key | Command | Does |
+|---|---|---|
+| `C-.` | `embark-act` | Menu of actions for the thing at point or the current candidate |
+| `C-;` | `embark-dwim` | Run the default action directly, no menu |
+| `C-h B` | `embark-bindings` | List every action available right now |
+
+`embark-consult` (a separate, tiny companion package, also installed) needs no configuration at all: Embark
+loads it automatically, on its own, the moment it notices Consult is also loaded --- this is what makes
+`C-.` understand a `consult-ripgrep`/`consult-buffer` candidate specifically (act on one search match
+without jumping to it first), not just treat it as a generic string.
+
+**`orderless` is deliberately not used for file names.** Out-of-order matching is far more useful for
+commands and buffer names than for paths, where it can match surprising things; file completion stays on
+the plain `basic`/`partial-completion` styles instead --- plus `flex` (see below), kept everywhere.
+
+**`flex` (built in, matches letters in order but not contiguously --- `gmtry` matches `Geometry.java`) is
+kept alongside `orderless` everywhere, including files.** This is a real regression this project's own test
+suite caught while adding the four packages above: the previous setup included `flex`, and `C-x p f`
+(`project-find-file`) relies on exactly this kind of match; `orderless`'s own default matching (literal and
+regexp only) does not reproduce it on its own. `C-c f f` (the fast finder) is unaffected either way --- it
+always used its own, separate matching logic, not the global completion style.
+
+**Falls back cleanly if not installed**, the same as every other package here: plain built-in
+`fido-vertical-mode` instead, `embark`'s keys show "Embark is not installed" rather than failing.
+
+## 12. Windows
 
 Everything above works in the Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)): the finder, `C-x p g`
 (ripgrep is bundled), Dired, Occur and the help keys were tested there through the offline suite. Differences:
@@ -451,7 +490,7 @@ Everything above works in the Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)
 - Real-window checks on Windows covered the finder and Java navigation; `C-s`, `M-s o` and the Dired keys were
   exercised by tests, not by eye.
 
-## 12. If a search finds nothing
+## 13. If a search finds nothing
 
 | Symptom | Likely cause |
 |---|---|
@@ -465,7 +504,7 @@ Everything above works in the Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)
 | `M-?` lists things that are not the symbol | You are using text search (`C-x p g`); use `M-?` with the server running for exact results |
 | `C-s` does not find text you can see | Lax matching is off for spaces (`M-s SPC`), or the text has a different kind of space or accent |
 
-## 13. Related guides
+## 14. Related guides
 
 - [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md): the inventory: every way to search that Emacs has, what we added, and what exists but is not installed.
 - [NAVIGATING-CODE.md](NAVIGATING-CODE.md): the finder, in depth, and Java navigation with measured answers.

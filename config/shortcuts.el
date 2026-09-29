@@ -129,6 +129,10 @@ by hand.")
      ("C-c s g" consult-ripgrep "search project text (ripgrep), with a live preview")
      ("C-c s f" consult-fd "find a project file by name (fd), with a live preview")
      ("C-c s b" consult-buffer "switch to a buffer, recent file or bookmark"))
+    ("Completion (embark: actions on the thing at point/candidate)"
+     ("C-." embark-act "menu of actions for the thing at point, or the current candidate")
+     ("C-;" embark-dwim "run the default action directly, no menu")
+     ("C-h B" embark-bindings "list every action available right now"))
     ("Git"
      ("C-x g" magit-status "Git status, stage and commit with single keys")
      ("C-c g" magit-file-dispatch "Git commands for this file")

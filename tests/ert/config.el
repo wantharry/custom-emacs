@@ -89,9 +89,20 @@
     (should (string-match-p "(nil t)" out))))
 
 (ert-deftest config/completion-setup ()
-  (should fido-vertical-mode)
+  ;; vertico/orderless/marginalia when installed (the normal case here); the built-in
+  ;; fido-vertical-mode as a fallback otherwise --- matches how this config treats every
+  ;; other package as optional.
+  (if (locate-library "vertico")
+      (progn
+        (should vertico-mode)
+        (should marginalia-mode)
+        (should (memq 'orderless completion-styles))
+        (should-not fido-vertical-mode))
+    (should fido-vertical-mode))
   (should global-completion-preview-mode)
   (should which-key-mode)
+  ;; kept in both cases: `C-x p f' relies on it (see init.el's own comment on the real
+  ;; regression this caught: jnav/a-partial-name-finds-the-file-by-fuzzy-matching).
   (should (memq 'flex completion-styles))
   (should completion-ignore-case))
 
