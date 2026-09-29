@@ -86,6 +86,48 @@ the new reply. This config adds a small hook (`my/llm--follow-response`, on
 so the chat buffer follows along, which is what you want for a straightforward back-
 and-forth conversation. *Measured*: confirmed with a real Ollama round trip.
 
+## Asking a council of models at once (`C-c a c`)
+
+`C-c a c` (`my/llm-council`, `config/llm-council.el`) asks one question of **three**
+different local Ollama models **in parallel**, then sends a **fourth, bigger** model all
+three answers and asks it to compare and summarize them. Everything lands in one buffer
+(`*llm-council*`): the summary is expanded at the top; each model's own full answer is
+folded shut below it (`outline-mode`, same as `my/shortcuts`/`my/docs` --- `TAB` to
+expand/collapse, `q` to close), so you see the synthesis first and only dig into an
+individual model's wording if you want to.
+
+### Which models
+
+The three "council" models are chosen for being from **different trainers/families**
+(Alibaba/Qwen, Meta/Llama, Google/Gemma), not near-duplicates of each other --- asking
+three fine-tunes of the same base model the same question would make comparing them
+close to pointless. The summarizer is the largest general-purpose model available
+(`gpt-oss:20b` here). `my/llm-council-models` and `my/llm-council-summarizer-models`
+list these preferences in priority order, but the actual pick always comes from
+`my/llm-ollama-models` --- the same live `/api/tags` query `my/llm-chat` itself uses ---
+filtered down to what is really pulled right now. On a machine with a different set of
+models, or fewer than four pulled, it degrades gracefully: pads with whatever else is
+available, and drops to fewer than three council models (or no summarizer at all) rather
+than erroring, only refusing outright (a clear `user-error`) if nothing is available at
+all.
+
+### What happens when a model fails
+
+Every request uses `:stream nil`, so each model's callback fires exactly once with its
+whole answer (or nil on failure) --- no chunk-by-chunk re-folding. If one council model
+fails, its section shows "no response" and it is simply left out of the prompt sent to
+the summarizer (not included as a blank answer attributed to it). If every council model
+fails, the summary is marked failed too and **no fourth request is ever sent** --- there
+would be nothing to summarize.
+
+### Measured
+
+Verified for real against this environment's own Ollama server: a mocked-network test
+suite (`tests/ert/llm-council.el`) checks the model-picking, folding, and the whole
+request/failure/summarize flow deterministically; a real, opt-in round trip (`--lsp`)
+sends 4 genuine requests (`qwen3:8b`, `llama3.1:8b`, `gemma2:9b`, then `gpt-oss:20b` for
+the summary) and confirms every section ends up `done`.
+
 ## Known limits
 
 - No language-server-style code assistance here; this is a general chat client, not
@@ -116,3 +158,15 @@ only (`RUN_LSP_TESTS=1`, the same flag `languages-java-rust.el` uses for real
 language-server sessions), since it is a real network round trip to a real local
 service, not something every environment running `./build.sh test` has pulled models
 for.
+
+`tests/ert/llm-council.el`: wiring; model picking (preferred list honored in order,
+padding with whatever else is available, never repeating a model, excluding given
+models, degrading to fewer than 3 council models or no summarizer, a clear `user-error`
+with nothing available); the buffer (summary heading first, every model answer folded
+shut but the summary open, close/fold keys); with `gptel-request` mocked (no real
+network): each council model asked with its own `gptel-model` and `:stream nil`, the
+summary firing only once all three answers are in, the summary prompt naming every
+successful answer, a failed answer marked `failed` and excluded from that prompt, and
+every model failing leaving the summary `failed` with no 4th request ever sent. One
+test is a real, opt-in (`RUN_LSP_TESTS=1`) 4-request round trip against the Ollama
+already running in this environment.

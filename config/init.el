@@ -539,11 +539,17 @@ installed, offer to install it from NonGNU ELPA."
   (autoload 'gptel-menu "gptel-transient" "Menu: pick a model, backend or system prompt." t))
 (autoload 'my/llm-chat (expand-file-name "llm" user-emacs-directory)
   "Open a chat buffer with the local Ollama backend." t)
+;; `C-c a c' asks three different local models the same question in parallel, then has a
+;; fourth, bigger model compare and summarize their answers --- the summary shows up
+;; expanded, each model's own answer folded shut below it. See config/llm-council.el.
+(autoload 'my/llm-council (expand-file-name "llm-council" user-emacs-directory)
+  "Ask several local models at once, then have a bigger one summarize." t)
 (defun my/llm-missing ()
   (interactive)
   (message "gptel is not installed.  Run ./build.sh packages"))
 (global-set-key (kbd "C-c a a") (if (locate-library "gptel") #'my/llm-chat #'my/llm-missing))
 (global-set-key (kbd "C-c a m") (if (locate-library "gptel") #'gptel-menu #'my/llm-missing))
+(global-set-key (kbd "C-c a c") (if (locate-library "gptel") #'my/llm-council #'my/llm-missing))
 
 ;;; Keys ---------------------------------------------------------------------
 

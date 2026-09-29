@@ -51,6 +51,10 @@
      "no dedicated key: kill-buffer / C-x k (gptel-mode itself only binds C-c RET)"
      (("C-c RET" . "send the buffer up to point")
       ("C-c a m" . "menu: pick a model, backend or system prompt")))
+    ("LLM council (this config)" "C-c a c"
+     "q"
+     (("TAB" . "expand/collapse one model's own answer")
+      ("(nothing else)" . "the summary is expanded; each model's raw answer starts folded shut")))
     ("News (newsticker)" "C-c n"
      "q"
      (("n / p" . "next / previous item")
@@ -118,7 +122,8 @@ by hand.")
      ("C-c k" my/shortcuts "this buffer"))
     ("LLM chat"
      ("C-c a a" my/llm-chat "open a chat buffer with a local Ollama model")
-     ("C-c a m" gptel-menu "pick a model, backend or system prompt"))
+     ("C-c a m" gptel-menu "pick a model, backend or system prompt")
+     ("C-c a c" my/llm-council "ask 3 local models at once, summarized by a bigger one"))
     ("Windows"
      ("M-o" other-window "switch to the other window")))
   "This configuration's own keybindings, grouped by topic, as (TOPIC (KEY COMMAND

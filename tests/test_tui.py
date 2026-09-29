@@ -30,7 +30,7 @@ class TerminalEmacs(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="tui-")
         self.cfg = os.path.join(self.tmp, "cfg")
         os.makedirs(self.cfg)
-        for f in ("early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el", "gitfolders.el", "llm.el", "shortcuts.el", "dictate.el"):
+        for f in ("early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el", "gitfolders.el", "llm.el", "llm-council.el", "shortcuts.el", "dictate.el"):
             shutil.copy(os.path.join(ROOT, "config", f), self.cfg)
         for d in ("elpa", "tree-sitter"):
             src = os.path.join(ROOT, "config", d)

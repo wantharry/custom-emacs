@@ -13,6 +13,7 @@
 !/config/docsbuffer.el
 !/config/gitfolders.el
 !/config/llm.el
+!/config/llm-council.el
 !/config/shortcuts.el
 !/config/dictate.el
 
