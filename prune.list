@@ -5,9 +5,6 @@
 # Games and toys
 play/
 
-# Notes / organizer
-org/
-
 # Mail and news readers (shared libs like rfc822, mail-utils, sendmail stay)
 gnus/
 mh-e/

@@ -51,7 +51,13 @@ because keyboard macros and the command loop act on the window's buffer."
     (ert-skip "network test: set RUN_NETWORK_TESTS=1 to run")))
 
 (defun test-skip-unless-pruned ()
-  (when (locate-library "org")
+  ;; WHAT: is this a pruned install?  WHY: `tetris' (a game, `play/'), not `org' --- `org'
+  ;; used to be pruned and was a fine litmus test for that, but it no longer is (see
+  ;; prune.list's own header and docs/PRUNING.md); checking it here would now silently
+  ;; skip every pruning test, always, even on a genuinely pruned install, since `org'
+  ;; would never be missing to detect.  Caught for real while making that change, not
+  ;; anticipated in advance.
+  (when (locate-library "tetris")
     (ert-skip "not a pruned install")))
 
 (defun test-git (dir &rest args)

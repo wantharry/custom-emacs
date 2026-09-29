@@ -216,10 +216,12 @@ To keep the install small, whole parts of Emacs were removed ([PRUNING.md](PRUNI
 
 | Removed | Search features lost |
 |---|---|
-| **Org** (does not load) | Org's agenda and text search (`org-agenda`, `org-search-view`). Their commands still show in `M-x` but fail with "Cannot open load file" |
 | **Rmail, MH-E** (do not load) | searching mail folders |
 | **ERC** (does not load) | searching IRC logs |
 | Gnus, CEDET (Semantic, EDE, SRecode) | **partly kept** (they still load, because other parts of Emacs need pieces of them); Gnus's mail and news searching is not something this setup uses |
+
+Org itself is **not** pruned (kept as of 2026-09-29 --- see [PRUNING.md](PRUNING.md)):
+`org-agenda` and Org's own text search (`org-search-view`) both work normally.
 
 Nothing on the list above is a way of searching *files or code*; those are all intact.
 

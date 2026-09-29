@@ -505,6 +505,58 @@ with one clear message instead of ever starting. New regression test
 `tests/ert/dictate.el` (1 new), 0 fail, confirmed stable across 3 repeated runs; 620
 tests, 600 pass, 0 fail, 20 skipped across the full offline suite.
 
+### Org mode restored: a real reversal of an earlier pruning decision
+
+User: "is org mode available if not can you add it i think its important right for
+emacs to have org mode may be some packages depend on it." Checked before assuming:
+Org was already **fully present on Windows** (258 org-related files in the zip, since
+Windows uses the official prebuilt GNU Emacs unmodified) --- the gap was Linux-only,
+where `org/` was one of the directories `prune.list` explicitly removed (alongside
+games, mail/news readers, chat, legacy IDE tooling) to keep the from-source Linux build
+small. Removed `org/` from `prune.list`, rebuilt and re-pruned `./install` from
+scratch (a fresh `make install` first --- pruning only deletes from `install/`, so a
+previously-pruned tree can't just be re-pruned with a shorter list and get files back),
+confirmed real: `(require 'org)`, `org-mode`, heading navigation, everything works.
+
+The user's "maybe some packages depend on it" turned out to be concretely true in two
+places, both confirmed directly, not assumed: (1) `prune.py`'s own dependency scan
+already force-kept `org-macs`/`org-element-ast` even before this change, because the
+newer built-in calendar parser hard-requires them; (2) `gptel-org.el` (Org-formatted
+chat rendering, one file inside the already-installed `gptel` package) used to fail to
+byte-compile since only that same small slice of Org was present --- confirmed it now
+compiles and presumably works cleanly with the rest of Org back.
+
+A real, separate bug this surfaced: `test-skip-unless-pruned` (the shared test helper
+every pruning-related ERT test uses to detect "is this actually a pruned build?")
+checked `(locate-library "org")` as its litmus test --- with `org` no longer ever
+pruned, that check would have silently skipped every single pruning test, forever, on
+a genuinely pruned build, since `org` would never be absent to detect. Fixed to check
+`tetris` instead (still genuinely pruned). `tests/ert/pruning.el` itself also rewritten
+throughout: `org`/`org-agenda` moved from "removed" to their own "present" test; the
+stale-autoload and no-native-code-left regression tests switched from `org-mode`/
+`org-agenda` examples to `tetris`/`erc` (still-pruned, so still real examples of the
+same underlying behavior). `docs/PRUNING.md`, `docs/SEARCH-OPTIONS.md`,
+`docs/TROUBLESHOOTING.md`, `docs/LLM.md` all updated with real, freshly re-measured
+numbers (not copied from before): 264 of 1,678 files now pruned (was 410), 6.6 MB of
+source (was 14.3 MB), install size 281 MB (was 258 MB pruned / 308 MB unpruned), 1,371
+native `.eln` files (was 1,228 pruned / 1,627 unpruned); the `require`-all sweep
+(`tools/requireall.el`, re-run directly rather than assumed) now fails exactly 35 of
+513 bundled packages on the pruned build (was 36), the one fewer being `org` itself,
+otherwise the identical set. `docs/PRUNING.md` also had one unrelated, already-stale
+line fixed while in there: it still mentioned `newsticker`/`net/newst-*` as pruned,
+which has not been true since the news-feed work earlier this session --- caught by
+inspection while re-checking `prune.list`'s real current contents for this change, not
+something this change itself caused.
+
+8 tests in `tests/ert/pruning.el` (rewritten, not just patched), 0 fail, 0 skipped
+(confirming the pruned-build detection itself works again); 621 tests, 601 pass, 0
+fail, 20 skipped across the full offline suite. Dist bundles not yet rebuilt for this
+(neither Linux nor Windows) --- both need a fresh `./build.sh dist <platform>` to
+actually pick up the un-pruned `org/`, since Linux's dist step reads from `./install`
+(now correctly repopulated) and Windows was never affected by pruning to begin with,
+so its zip only needs rebuilding for the *other* uncommitted-as-of-last-Windows-build
+changes (the read-only-buffer fix), not for this.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

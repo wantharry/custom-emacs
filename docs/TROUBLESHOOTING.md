@@ -311,10 +311,13 @@ graphical window does not.
 
 ## Pruning
 
-### After pruning, `M-x org-mode` says `Cannot open load file`
+### After pruning, `M-x tetris` (or another removed package's command) says `Cannot open load file`
 
-- **Cause:** stale autoload entries. Expected; see the limitations in
-  [PRUNING.md](PRUNING.md#known-limitations).
+- **Cause:** a stale autoload entry --- the command is still known (autoloads are part
+  of the startup image), but the real file behind it was removed. Expected for anything
+  actually in `prune.list` (games, `erc`, `rcirc`, `mh-e`, `rmail`, and the rest --- see
+  [PRUNING.md](PRUNING.md#what-is-currently-pruned)); `org` used to be one of these too,
+  but is no longer pruned (2026-09-29), so `M-x org-mode` works normally now.
 
 ### Package refresh/install fails: `Cannot open load file ... mm-archive`
 

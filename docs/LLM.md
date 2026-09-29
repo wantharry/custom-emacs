@@ -144,12 +144,11 @@ set actually resolves to and confirms every section ends up `done`.
 - No language-server-style code assistance here; this is a general chat client, not
   Eglot (see [EGLOT.md](EGLOT.md) and [LANGUAGES.md](LANGUAGES.md) for that).
 - `gptel-org.el` (one file inside the `gptel` package, for rendering chats as Org
-  markup) fails to byte-compile in this build: this Emacs ships only a small trimmed
-  slice of Org (`org-macs`, `org-element-ast`), not the full `org-element` that file
-  needs, since Org is one of the packages this minimal build deliberately does not
-  carry in full (see `prune.list`). This is harmless: nothing here `require`s
-  `gptel-org`, and the rest of the package (including the Ollama backend and the
-  plain-text chat buffer) is unaffected.
+  markup) byte-compiles and works normally --- Org itself is no longer pruned (see
+  [PRUNING.md](PRUNING.md)), so the full `org-element` it needs is present. Nothing here
+  actually `require`s `gptel-org` by default either way (the plain-text chat buffer is
+  what `C-c a a` uses), but it is no longer the *dead* code path it used to be when Org
+  was still pruned down to just `org-macs`/`org-element-ast`.
 - Multiple Ollama models can be pulled and switched between (`C-c a m`), but only one
   chat conversation's history is kept per gptel buffer; nothing here manages multiple
   named conversations.
