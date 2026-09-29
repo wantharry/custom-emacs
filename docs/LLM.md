@@ -98,18 +98,28 @@ individual model's wording if you want to.
 
 ### Which models
 
-The three "council" models are chosen for being from **different trainers/families**
-(Alibaba/Qwen, Meta/Llama, Google/Gemma), not near-duplicates of each other --- asking
-three fine-tunes of the same base model the same question would make comparing them
-close to pointless. The summarizer is the largest general-purpose model available
-(`gpt-oss:20b` here). `my/llm-council-models` and `my/llm-council-summarizer-models`
-list these preferences in priority order, but the actual pick always comes from
-`my/llm-ollama-models` --- the same live `/api/tags` query `my/llm-chat` itself uses ---
-filtered down to what is really pulled right now. On a machine with a different set of
-models, or fewer than four pulled, it degrades gracefully: pads with whatever else is
-available, and drops to fewer than three council models (or no summarizer at all) rather
-than erroring, only refusing outright (a clear `user-error`) if nothing is available at
-all.
+Chosen by **size**, not by name or family: the three council models are whichever
+pulled models are closest to `my/llm-council-target-size-gb` (2.5GB, i.e. "2-3GB") on
+disk --- small and fast, so asking three of them in parallel doesn't noticeably slow the
+machine down. The summarizer is chosen separately, closest to `my/llm-council-target-
+summarizer-params-b` (7B) **parameters** --- a different unit on purpose, since a 7B
+model at typical quantization is usually ~4GB on disk, not 2-3GB, so judging it by the
+same disk-size window as the council would pick something far smaller than a real 7B
+model. The summarizer is never the largest pull available: `my/llm-council-summarizer-
+exclude` (`gpt-oss:20b`, `gpt-oss:20b-32k` here) rules those out outright, not just
+deprioritizes them --- a real, explicit choice, not a default, made because that model
+visibly slows this machine down for a task that doesn't need it.
+
+Both come from a live query of Ollama's own `/api/tags` (`my/llm-council--available-
+models`, alongside `/api/tags` size and parameter-count fields `my/llm-ollama-models`
+itself doesn't need and so doesn't keep), filtered down to what is really pulled right
+now --- nothing here needs to be kept in sync with any one machine's actual pulled
+models. On a machine with fewer models pulled, it degrades gracefully: pads council with
+whatever else is available (or no summarizer at all) rather than erroring, only refusing
+outright (a clear `user-error`) if nothing is available at all --- with one real
+exception: if **only one model total** is pulled, that one model is asked to fill both
+roles (the council's only answer, and its own summarizer) instead of the summarizer
+coming back empty just because the sole model "conflicts with itself".
 
 ### What happens when a model fails
 
@@ -123,10 +133,11 @@ would be nothing to summarize.
 ### Measured
 
 Verified for real against this environment's own Ollama server: a mocked-network test
-suite (`tests/ert/llm-council.el`) checks the model-picking, folding, and the whole
-request/failure/summarize flow deterministically; a real, opt-in round trip (`--lsp`)
-sends 4 genuine requests (`qwen3:8b`, `llama3.1:8b`, `gemma2:9b`, then `gpt-oss:20b` for
-the summary) and confirms every section ends up `done`.
+suite (`tests/ert/llm-council.el`) checks the size/parameter-based model-picking
+(including the excluded-summarizer and single-model-does-both-roles cases), folding,
+and the whole request/failure/summarize flow deterministically; a real, opt-in round
+trip (`--lsp`) sends 4 genuine requests to whichever models this machine's own pulled
+set actually resolves to and confirms every section ends up `done`.
 
 ## Known limits
 

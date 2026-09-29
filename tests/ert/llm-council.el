@@ -54,17 +54,49 @@
 (ert-deftest llm-council/pick-never-repeats-a-model-listed-in-both-places ()
   (should (equal (my/llm-council--pick 5 '(a b) '(b a c)) '(a b c))))
 
-(ert-deftest llm-council/choose-returns-3-council-models-and-a-distinct-summarizer ()
-  (let* ((available '(qwen3:8b llama3.1:8b gemma2:9b gpt-oss:20b mistral:7b))
-         (choice (my/llm-council--choose available)))
-    (should (equal (car choice) '(qwen3:8b llama3.1:8b gemma2:9b)))
-    (should (eq (cdr choice) 'gpt-oss:20b))
+(ert-deftest llm-council/choose-picks-council-models-closest-to-the-target-size ()
+  (let ((choice (my/llm-council--choose llm-council-test--models)))
+    ;; small-c (2.5GB, exact) first, then small-a/small-b (2.4/2.6GB, tied at 0.1 off,
+    ;; input order breaks the tie since `sort' is stable) --- never `mid-summarizer'
+    ;; (4.5GB) or `gpt-oss:20b' (13GB), both much farther from the 2.5GB target.
+    (should (equal (car choice) '(small-c small-a small-b)))))
+
+(ert-deftest llm-council/choose-picks-a-summarizer-closest-to-the-target-params-and-distinct-from-council ()
+  (let ((choice (my/llm-council--choose llm-council-test--models)))
+    (should (eq (cdr choice) 'mid-summarizer))
     (should-not (memq (cdr choice) (car choice)))))
 
+(ert-deftest llm-council/choose-never-picks-an-excluded-model-as-summarizer ()
+  ;; Even when it is the ONLY thing left over --- excluded outright, not just
+  ;; deprioritized, matching the user's own explicit "never the 20b" ask.
+  (let* ((available (list (list :name 'small-a :size-gb 2.4 :params-b 3.0)
+                           (list :name 'small-b :size-gb 2.6 :params-b 3.1)
+                           (list :name 'small-c :size-gb 2.5 :params-b 3.2)
+                           (list :name 'gpt-oss:20b :size-gb 13.0 :params-b 21.0)))
+         (choice (my/llm-council--choose available)))
+    (should (equal (car choice) '(small-c small-a small-b)))
+    (should-not (cdr choice))))            ; nothing left to be the summarizer but the excluded one
+
 (ert-deftest llm-council/choose-degrades-to-fewer-models-when-fewer-are-available ()
-  (let ((choice (my/llm-council--choose '(llama3.2:latest))))
-    (should (equal (car choice) '(llama3.2:latest)))
+  (let ((choice (my/llm-council--choose (list (list :name 'small-a :size-gb 2.4 :params-b 3.0)
+                                               (list :name 'small-b :size-gb 2.6 :params-b 3.1)))))
+    (should (equal (car choice) '(small-a small-b)))
     (should-not (cdr choice))))            ; nothing left over to be the summarizer
+
+(ert-deftest llm-council/choose-with-only-one-model-total-uses-it-for-both-roles ()
+  ;; The real ask: with nothing else pulled, that one model does all the tasks instead
+  ;; of the summarizer coming back empty just because it "conflicts" with the council.
+  (let ((choice (my/llm-council--choose (list (list :name 'only-one :size-gb 2.4 :params-b 3.0)))))
+    (should (equal (car choice) '(only-one)))
+    (should (eq (cdr choice) 'only-one))))
+
+(ert-deftest llm-council/choose-with-only-one-model-and-it-is-excluded-still-uses-it-for-council ()
+  ;; An edge case, not the common path: if the *only* model pulled happens to be the
+  ;; excluded one, the exclusion still keeps it out of the summarizer role (there is
+  ;; nothing to prefer it over), but it still answers as the sole council member.
+  (let ((choice (my/llm-council--choose (list (list :name 'gpt-oss:20b :size-gb 13.0 :params-b 21.0)))))
+    (should (equal (car choice) '(gpt-oss:20b)))
+    (should-not (cdr choice))))
 
 (ert-deftest llm-council/choose-with-nothing-available-returns-nil-for-both ()
   (should (equal (my/llm-council--choose nil) '(nil))))
@@ -138,33 +170,52 @@ simulate an answer, exactly like `gptel-request's own real calling convention."
                         ,calls-var))))
        ,@body)))
 
-(defmacro llm-council--with-ollama-backend (models &rest body)
-  "Run BODY with `gptel-backend' bound to a real Ollama backend advertising MODELS,
-and `my/llm-ollama-models' mocked to report the same MODELS (so `my/llm-council' never
-needs to call `my/llm-setup-ollama' or touch the network to pick its models)."
+(defmacro llm-council--with-ollama-backend (available &rest body)
+  "Run BODY with `gptel-backend' bound to a real Ollama backend advertising the model
+names in AVAILABLE (a list of plists, as `my/llm-council--available-models' returns),
+and `my/llm-council--available-models' mocked to report the same AVAILABLE (so
+`my/llm-council' never needs to call `my/llm-setup-ollama' or touch the network, real
+or fake, to pick its models)."
   (declare (indent 1))
   `(progn
      (llm-council-need-gptel)
      (require 'gptel-ollama)
-     (let ((gptel-backend (gptel-make-ollama "Ollama" :host "localhost:11434" :models ,models)))
-       (cl-letf (((symbol-function 'my/llm-ollama-models) (lambda () ,models)))
+     (let* ((available ,available)
+            (names (mapcar (lambda (m) (plist-get m :name)) available))
+            (gptel-backend (gptel-make-ollama "Ollama" :host "localhost:11434" :models names)))
+       (cl-letf (((symbol-function 'my/llm-council--available-models) (lambda () available)))
          ,@body))))
 
+;; WHAT: five models spanning every real selection case below --- three sized right at
+;; the council's 2.5GB target (`small-a/b/c'), one sized right at the summarizer's 7B
+;; target but far from 2.5GB on disk (`mid-summarizer', so it is never mistaken for a
+;; council pick), and one deliberately huge and explicitly excluded
+;; (`gpt-oss:20b', matching the real exclusion in `my/llm-council-summarizer-exclude').
+;; WHY: shared across the tests below instead of ad hoc per test, so the same known-good
+;; picking result (`small-a small-b small-c' for council, `mid-summarizer' for
+;; summarizer) can just be asserted directly wherever it matters.
+(defconst llm-council-test--models
+  (list (list :name 'small-a :size-gb 2.4 :params-b 3.0)
+        (list :name 'small-b :size-gb 2.6 :params-b 3.1)
+        (list :name 'small-c :size-gb 2.5 :params-b 3.2)
+        (list :name 'mid-summarizer :size-gb 4.5 :params-b 7.0)
+        (list :name 'gpt-oss:20b :size-gb 13.0 :params-b 21.0)))
+
 (ert-deftest llm-council/asks-each-council-model-with-its-own-gptel-model-and-no-streaming ()
-  (llm-council--with-ollama-backend '(qwen3:8b llama3.1:8b gemma2:9b gpt-oss:20b)
+  (llm-council--with-ollama-backend llm-council-test--models
     (llm-council--with-mock-gptel-request calls
       (unwind-protect
           (progn
             (my/llm-council "does it matter which model answers?")
             (should (= (length calls) 3))
             (should (equal (sort (mapcar (lambda (c) (symbol-name (plist-get c :model))) calls) #'string<)
-                           '("gemma2:9b" "llama3.1:8b" "qwen3:8b")))
+                           '("small-a" "small-b" "small-c")))
             (should (cl-every (lambda (c) (eq (plist-get c :stream) nil)) calls))
             (should (cl-every (lambda (c) (equal (plist-get c :prompt) "does it matter which model answers?")) calls)))
         (kill-buffer my/llm-council-buffer-name)))))
 
 (ert-deftest llm-council/summary-request-only-fires-once-all-three-council-answers-are-in ()
-  (llm-council--with-ollama-backend '(qwen3:8b llama3.1:8b gemma2:9b gpt-oss:20b)
+  (llm-council--with-ollama-backend llm-council-test--models
     (llm-council--with-mock-gptel-request calls
       (unwind-protect
           (progn
@@ -175,12 +226,13 @@ needs to call `my/llm-setup-ollama' or touch the network to pick its models)."
             (should (= (length calls) 3))          ; still no 4th (summary) request
             (funcall (plist-get (nth 2 calls) :callback) "answer C" nil)
             (should (= (length calls) 4))          ; the third answer triggered it
-            (should (eq (plist-get (nth 0 calls) :model) 'gpt-oss:20b))
+            ;; the 7B-sized model, never the excluded `gpt-oss:20b'
+            (should (eq (plist-get (nth 0 calls) :model) 'mid-summarizer))
             (should (eq (plist-get (nth 0 calls) :stream) nil)))
         (kill-buffer my/llm-council-buffer-name)))))
 
 (ert-deftest llm-council/summary-prompt-includes-every-successful-answer-labeled-by-model ()
-  (llm-council--with-ollama-backend '(qwen3:8b llama3.1:8b gemma2:9b gpt-oss:20b)
+  (llm-council--with-ollama-backend llm-council-test--models
     (llm-council--with-mock-gptel-request calls
       (unwind-protect
           (progn
@@ -188,29 +240,29 @@ needs to call `my/llm-setup-ollama' or touch the network to pick its models)."
             (dolist (c calls) (funcall (plist-get c :callback) (format "[%s's answer]" (plist-get c :model)) nil))
             (let ((summary-prompt (plist-get (nth 0 calls) :prompt)))
               (should (string-match-p "what is the capital of France" summary-prompt))
-              (should (string-match-p "qwen3:8b answered" summary-prompt))
-              (should (string-match-p "llama3.1:8b answered" summary-prompt))
-              (should (string-match-p "gemma2:9b answered" summary-prompt))
-              (should (string-match-p (regexp-quote "[qwen3:8b's answer]") summary-prompt))))
+              (should (string-match-p "small-a answered" summary-prompt))
+              (should (string-match-p "small-b answered" summary-prompt))
+              (should (string-match-p "small-c answered" summary-prompt))
+              (should (string-match-p (regexp-quote "[small-a's answer]") summary-prompt))))
         (kill-buffer my/llm-council-buffer-name)))))
 
 (ert-deftest llm-council/a-failed-council-answer-is-marked-failed-and-left-out-of-the-summary-prompt ()
-  (llm-council--with-ollama-backend '(qwen3:8b llama3.1:8b gemma2:9b gpt-oss:20b)
+  (llm-council--with-ollama-backend llm-council-test--models
     (llm-council--with-mock-gptel-request calls
       (unwind-protect
           (progn
             (my/llm-council "q")
             (dolist (c calls)
               (funcall (plist-get c :callback)
-                       (if (eq (plist-get c :model) 'llama3.1:8b) nil "a real answer") nil))
+                       (if (eq (plist-get c :model) 'small-b) nil "a real answer") nil))
             (should (= (length calls) 4))
             (let ((summary-prompt (plist-get (nth 0 calls) :prompt)))
-              (should-not (string-match-p "llama3.1:8b answered" summary-prompt))
-              (should (string-match-p "qwen3:8b answered" summary-prompt))
-              (should (string-match-p "gemma2:9b answered" summary-prompt)))
+              (should-not (string-match-p "small-b answered" summary-prompt))
+              (should (string-match-p "small-a answered" summary-prompt))
+              (should (string-match-p "small-c answered" summary-prompt)))
             (with-current-buffer my/llm-council-buffer-name
-              (should (eq (plist-get (alist-get 'llama3.1:8b my/llm-council--entries) :status) 'failed))
-              (should (eq (plist-get (alist-get 'qwen3:8b my/llm-council--entries) :status) 'done)))
+              (should (eq (plist-get (alist-get 'small-b my/llm-council--entries) :status) 'failed))
+              (should (eq (plist-get (alist-get 'small-a my/llm-council--entries) :status) 'done)))
             ;; and settling the summary's own callback shows up as `done' too
             (funcall (plist-get (nth 0 calls) :callback) "synthesis" nil)
             (with-current-buffer my/llm-council-buffer-name
@@ -219,7 +271,7 @@ needs to call `my/llm-setup-ollama' or touch the network to pick its models)."
         (kill-buffer my/llm-council-buffer-name)))))
 
 (ert-deftest llm-council/summary-is-marked-failed-and-no-request-sent-when-every-council-model-fails ()
-  (llm-council--with-ollama-backend '(qwen3:8b llama3.1:8b gemma2:9b gpt-oss:20b)
+  (llm-council--with-ollama-backend llm-council-test--models
     (cl-letf (((symbol-function 'message) (lambda (&rest _) nil)))    ; the "nothing to summarize" notice
       (llm-council--with-mock-gptel-request calls
         (unwind-protect

@@ -7,13 +7,19 @@
 ;; collapse, same as `my/shortcuts' and `my/docs') so you see the synthesis first and
 ;; only dig into an individual model's wording if you want to.
 ;;
-;; The three "council" models are chosen for being from different trainers/families
-;; (not near-duplicates of each other, which would make comparing them pointless); the
-;; summarizer is the largest general-purpose model available.  `my/llm-council-models'
-;; and `my/llm-council-summarizer-models' below list preferred names in priority order,
-;; but this only ever picks from whatever `my/llm-ollama-models' (llm.el's own live
-;; query of Ollama's `/api/tags') reports right now --- so on a machine with a different
-;; set of models pulled, it degrades to whatever is actually there instead of erroring.
+;; The three "council" models are chosen for being small and fast --- closest to
+;; `my/llm-council-target-size-gb' (2-3GB) on disk of whatever is actually pulled, so
+;; asking three of them in parallel does not noticeably slow the machine down; the
+;; summarizer is chosen separately, closest to `my/llm-council-target-summarizer-
+;; params-b' (7B) parameters, and never the largest pull available (excluded outright
+;; by `my/llm-council-summarizer-exclude', a real, explicit choice --- it visibly slows
+;; this machine down for a task that does not need it). Sizes and parameter counts come
+;; from a live query of Ollama's own `/api/tags' (`my/llm-council--available-models'),
+;; so nothing here needs to be kept in sync with any one machine's actual pulled models;
+;; on a machine with fewer models, or only one, it degrades gracefully rather than
+;; erroring --- with only one model pulled at all, that one model is asked to fill both
+;; roles (the council's only answer, and its own summarizer) instead of the summarizer
+;; coming back empty. See `my/llm-council--choose' for exactly how.
 ;;
 ;; Every request uses `:stream nil': each model's callback then fires exactly once with
 ;; its complete answer, so the buffer only needs to redraw once per model (four times
@@ -43,30 +49,82 @@
 ;; both lists here, no extra dependency beyond what ships with Emacs.
 (require 'seq)
 
-;; WHAT: the three models asked in parallel, most-preferred first.  WHY: picked for being
-;; from different trainers/families (Qwen/Alibaba, Llama/Meta, Gemma/Google, then some
-;; smaller/older fallbacks) so their answers are actually worth comparing, instead of
-;; three near-identical fine-tunes of the same base model.  HOW: this is only ever a wish
-;; list --- `my/llm-council--pick' below filters it down to whatever Ollama really has
-;; pulled right now, so nothing here needs to be kept in sync with any one machine.
-(defvar my/llm-council-models
-  '(qwen3:8b llama3.1:8b gemma2:9b mistral:7b qwen2.5:7b hermes3:8b
-    deepseek-r1:8b phi3:mini llama3:latest llama3.2:latest)
-  "Preferred council models, most-preferred first: three different, meaningfully
-distinct general-purpose chat models (Alibaba/Qwen, Meta/Llama, Google/Gemma, ... as
-fallbacks) to ask the same question in parallel.  Only names Ollama actually reports
-right now (`my/llm-ollama-models') are ever used; see `my/llm-council--pick'.")
+;; WHAT: the council's target size on disk, and the summarizer's target parameter count.
+;; WHY: the user's own explicit ask --- small, fast council models (this machine slows
+;; down noticeably under a large one) sized around 2-3GB on disk, and a summarizer sized
+;; around 7B parameters rather than the biggest pull available (`gpt-oss:20b', ~13GB,
+;; ~21B params, was the previous default and is now excluded outright, not just
+;; deprioritized --- see `my/llm-council-summarizer-exclude').  These are two different
+;; units on purpose: disk size for the council (what actually determines load/inference
+;; speed), parameter count for the summarizer (what Ollama's API reports directly, and
+;; what "7b" naturally means) --- a 7B model at typical quantization is usually ~4GB on
+;; disk, not 2-3GB, so picking the summarizer by disk size against the same 2-3GB window
+;; would pick something far smaller than a real 7B model.
+(defvar my/llm-council-target-size-gb 2.5
+  "Target disk size, in GB, council models are picked closest to.")
+(defvar my/llm-council-target-summarizer-params-b 7.0
+  "Target parameter count, in billions, the summarizer is picked closest to.")
+;; WHAT: models never chosen as the summarizer, no matter what.  WHY: excluded outright
+;; (not just deprioritized) since this is exactly the model the user asked to avoid.
+(defvar my/llm-council-summarizer-exclude '(gpt-oss:20b gpt-oss:20b-32k)
+  "Models never chosen as the summarizer, regardless of what else is available.")
 
-;; WHAT: the model asked to compare and summarize the council's three answers, most-
-;; preferred first.  WHY: a summarizer needs to be at least as capable as (ideally bigger
-;; than) the models it is judging, so `gpt-oss:20b' (this machine's largest general-
-;; purpose pull) leads the list, with progressively smaller fallbacks after it.  HOW:
-;; same "wish list filtered by what's really available" pattern as the council list.
-(defvar my/llm-council-summarizer-models
-  '(gpt-oss:20b gpt-oss:20b-32k qwen3.5:9b llama3.1:8b-32k deepseek-r1:8b qwen3:8b)
-  "Preferred summarizer models, most-preferred first: the largest general-purpose
-model available, used to compare and synthesize the council's three answers.  Only
-names Ollama actually reports right now are ever used.")
+;; WHAT: parse Ollama's PARAMETER_SIZE string (e.g. "7.6B", "751.63M") into a plain
+;; float count of billions, or nil if S is empty/unparseable.  WHY: `my/llm-council--
+;; order-by' below needs a plain number to compare against a target; Ollama reports this
+;; as a unit-suffixed string, not a number.
+(defun my/llm-council--parse-param-size (s)
+  (when (and s (stringp s) (not (string-empty-p s)))
+    (let ((n (ignore-errors (string-to-number s))))
+      (cond ((string-suffix-p "B" s) n)
+            ((string-suffix-p "M" s) (and n (/ n 1000.0)))))))
+
+;; WHAT: a fresh, live query of Ollama's own `/api/tags', like `my/llm-ollama-models'
+;; (llm.el) but keeping each model's disk size and parameter count too.  WHY: a separate
+;; query rather than a change to `my/llm-ollama-models' itself --- that function's only
+;; other caller (`my/llm-setup-ollama') just needs plain names, and this file reusing it
+;; instead of duplicating the query risks nothing for that caller if this one changes.
+;; HOW: identical HTTP round trip and response parsing to `my/llm-ollama-models', just
+;; keeping :size and :details/:parameter_size from each entry instead of discarding them.
+(defun my/llm-council--available-models ()
+  "Models Ollama's own API reports right now, each as a plist (:name SYMBOL :size-gb
+FLOAT :params-b FLOAT-OR-NIL), or nil if the server is not reachable."
+  (condition-case nil
+      (let ((buf (url-retrieve-synchronously (format "http://%s/api/tags" my/llm-ollama-host)
+                                             t t 3)))
+        (when buf
+          (unwind-protect
+              (with-current-buffer buf
+                (goto-char (point-min))
+                (when (re-search-forward "\n\n" nil t)   ; end of the HTTP headers
+                  (let* ((data (json-parse-buffer :object-type 'plist :array-type 'list))
+                         (models (plist-get data :models)))
+                    (mapcar (lambda (m)
+                              (list :name (intern (plist-get m :name))
+                                    :size-gb (/ (plist-get m :size) 1073741824.0)
+                                    :params-b (my/llm-council--parse-param-size
+                                               (plist-get (plist-get m :details)
+                                                          :parameter_size))))
+                            models))))
+            (kill-buffer buf))))
+    (error nil)))
+
+;; WHAT: names from AVAILABLE (the plists `my/llm-council--available-models' returns),
+;; ordered by how close their FIELD value is to TARGET, closest first; entries missing
+;; FIELD (a fallback query with no size info) sort last, in their given order rather than
+;; being dropped.  WHY: this is what turns "pick council models around 2-3GB" / "pick a
+;; ~7B summarizer" into an actual priority order `my/llm-council--pick' can use --- it
+;; already knows how to turn an ordered wish list plus what's really available into a
+;; final pick; this is just a different way of building that wish list, by measurement
+;; instead of by name.
+(defun my/llm-council--order-by (available field target)
+  (let ((sized (seq-filter (lambda (m) (plist-get m field)) available))
+        (unsized (seq-remove (lambda (m) (plist-get m field)) available)))
+    (mapcar (lambda (m) (plist-get m :name))
+            (append (sort (copy-sequence sized)
+                          (lambda (a b) (< (abs (- (plist-get a field) target))
+                                            (abs (- (plist-get b field) target)))))
+                    unsized))))
 
 ;; WHAT: pick N models out of PREFERRED, but only ones that are actually in AVAILABLE and
 ;; not in EXCLUDE.  WHY: this is the one place that turns a "wish list" (the two defvars
@@ -105,24 +163,36 @@ at most N symbols, each one only once."
     ;; first) before truncating to how many the caller actually asked for.
     (seq-take (nreverse chosen) n)))
 
-;; WHAT: combine the two pick calls above into "3 council models, plus 1 more distinct
-;; summarizer".  WHY: this is the single function `my/llm-council' (the interactive
-;; command near the bottom of this file) calls to decide who gets asked --- keeping the
-;; "how many, and how they must differ from each other" policy in one place.  HOW: picks
-;; the council first, then picks the summarizer while explicitly excluding whichever
-;; models the council already took, so the same model is never asked twice under two
-;; different roles.
+;; WHAT: combine the two orderings above into "3 council models sized near 2-3GB, plus 1
+;; more ~7B summarizer distinct from all of them".  WHY: this is the single function
+;; `my/llm-council' (the interactive command near the bottom of this file) calls to
+;; decide who gets asked --- keeping the "how many, sized how, and how they must differ
+;; from each other" policy in one place.  HOW: picks the council first (by disk size),
+;; then picks the summarizer (by parameter count, and never `my/llm-council-summarizer-
+;; exclude') while excluding whichever models the council already took, so the same
+;; model is never asked twice under two different roles --- ONE real exception: if
+;; AVAILABLE has only a single model total, there is no one else *to* exclude it in
+;; favor of, so that one model is asked to do both jobs (the council's only answer, and
+;; its own summarizer) rather than the summarizer coming back empty just because the
+;; sole model "conflicts with itself".
 (defun my/llm-council--choose (available)
-  "Return (COUNCIL . SUMMARIZER) chosen from AVAILABLE (a list of model symbols, as
-`my/llm-ollama-models' returns).  COUNCIL is up to 3 models; SUMMARIZER is one more
-model distinct from all of them, or nil if AVAILABLE has nothing left to offer."
-  (let* ((council (my/llm-council--pick 3 my/llm-council-models available))
-         ;; WHAT: pick 1 summarizer, excluding COUNCIL.  WHY: `car' unwraps the single-
-         ;; element list `my/llm-council--pick' returns into a bare model symbol (or nil
-         ;; if nothing was left over --- e.g. only 3 models total were available and the
-         ;; council already took all of them).
-         (summarizer (car (my/llm-council--pick
-                            1 my/llm-council-summarizer-models available council))))
+  "Return (COUNCIL . SUMMARIZER) chosen from AVAILABLE (a list of plists, as
+`my/llm-council--available-models' returns).  COUNCIL is up to 3 models, sized closest
+to `my/llm-council-target-size-gb'; SUMMARIZER is one more model, sized closest to
+`my/llm-council-target-summarizer-params-b', distinct from COUNCIL unless AVAILABLE has
+only one model total (then that model fills both roles) --- or nil if AVAILABLE has
+nothing left to offer."
+  (let* ((names (mapcar (lambda (m) (plist-get m :name)) available))
+         (council (my/llm-council--pick
+                   3 (my/llm-council--order-by available :size-gb my/llm-council-target-size-gb)
+                   names))
+         (summarizer
+          (car (my/llm-council--pick
+                1 (my/llm-council--order-by
+                   available :params-b my/llm-council-target-summarizer-params-b)
+                names
+                (append my/llm-council-summarizer-exclude
+                        (unless (= (length names) 1) council))))))
     ;; WHAT/HOW: bundle both results into one cons cell so callers get them back from a
     ;; single function call: `(car choice)' is the council list, `(cdr choice)' the
     ;; summarizer (or nil).
@@ -411,14 +481,20 @@ llm-council.el for why these particular models, and docs/LLM.md."
   (unless (and (bound-and-true-p gptel-backend) (gptel-ollama-p gptel-backend))
     (my/llm-setup-ollama))
   (let* ((available
-          ;; WHAT/WHY/HOW: prefer a fresh, live query of Ollama's own API (so the model
-          ;; list is never stale even if the backend was set up a while ago in this
-          ;; Emacs session); only fall back to whatever the already-registered backend
+          ;; WHAT/WHY/HOW: prefer a fresh, live query of Ollama's own API, sizes and all
+          ;; (so the model list is never stale even if the backend was set up a while ago
+          ;; in this Emacs session, and so `my/llm-council--choose' has what it needs to
+          ;; pick by size); only fall back to whatever the already-registered backend
           ;; remembers if that live query fails (e.g. Ollama briefly not responding) ---
           ;; better to proceed with slightly-stale information than to refuse outright
-          ;; when the backend clearly does have *something* usable.
-          (or (my/llm-ollama-models)
-              (and (gptel-backend-p gptel-backend) (gptel-backend-models gptel-backend))))
+          ;; when the backend clearly does have *something* usable.  That fallback has no
+          ;; size/param info to offer, so it is wrapped into the same plist shape with
+          ;; both nil --- `my/llm-council--order-by' already treats a missing field as
+          ;; "sorts last, in its given order" rather than erroring on it.
+          (or (my/llm-council--available-models)
+              (and (gptel-backend-p gptel-backend)
+                   (mapcar (lambda (m) (list :name m :size-gb nil :params-b nil))
+                           (gptel-backend-models gptel-backend)))))
          ;; WHAT/HOW: hand the real, live model list to the picking logic defined above,
          ;; then split its (COUNCIL . SUMMARIZER) result back into two separate names.
          (choice (my/llm-council--choose available))

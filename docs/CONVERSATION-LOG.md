@@ -445,6 +445,46 @@ often, though any fixed interval can still land mid-phrase. See
 `C-c m` (record, then transcribe once) is unaffected --- it never hits this failure
 mode, since it only ever transcribes a complete utterance.
 
+### LLM council: picking by size instead of by name/family (`C-c a c`)
+
+User: "it needs to check the available models, if they are less than 3 it can ask the
+same question to each, i dont want to use the large one 20b it slows down the pc, pick
+anything for 3 models with 2gb or 3gb and for summary make it 7b if available, if only
+one model available it will be doing all the tasks." A real rework of the picking
+logic, not a config tweak: `my/llm-council-models`/`my/llm-council-summarizer-models`
+(name wish-lists, family-diversity-driven) are gone, replaced by `my/llm-council--
+available-models` (a new, separate live `/api/tags` query that keeps each model's disk
+size and parameter count --- `my/llm-ollama-models' itself deliberately still discards
+both, since its only other caller just needs names) and `my/llm-council--order-by`
+(orders available models by closeness to a target: `my/llm-council-target-size-gb'
+(2.5GB) for the council, `my/llm-council-target-summarizer-params-b' (7B) for the
+summarizer --- two different units on purpose, since a 7B model on disk is usually
+~4GB, not 2-3GB). `my/llm-council-summarizer-exclude` (`gpt-oss:20b`/`-32k`) rules the
+large model out **outright**, not just deprioritizes it, matching the user's explicit
+"don't use it" rather than "prefer something else."
+
+The "only one model available" case is a real, deliberate exception to "the summarizer
+must be distinct from the council": `my/llm-council--choose` only excludes COUNCIL from
+the summarizer pick when more than one model total is available --- with exactly one,
+that model fills both roles (its own single answer, and its own summarizer) instead of
+the summarizer coming back empty just because the sole model "conflicts with itself."
+
+All 5 real call-sites in `tests/ert/llm-council.el` that exercised the old name-based
+picking were rewritten around a new shared 5-model test fixture
+(`llm-council-test--models`: three sized right at the 2.5GB target, one sized right at
+the 7B target but far from 2.5GB on disk, one deliberately huge and excluded) rather
+than patched individually, plus 4 new direct tests for the new behavior (closest-to-
+target picking, never-picks-excluded, degrades-with-fewer-than-3, single-model-does-
+both-roles). `llm-council--with-ollama-backend` itself now mocks the new `my/llm-
+council--available-models` (not the now-unused-here `my/llm-ollama-models`) --- this
+was caught for real, not anticipated: the first test run after the rewrite showed the
+mocked tests suddenly asserting against *actual* locally-pulled model names
+(`phi3:mini`, `llama3.2:3b-16k`, ...) instead of the intended fake ones, because the
+picking code now prefers the live query first and the test macro was still only mocking
+the old, no-longer-called function. 25 tests in `tests/ert/llm-council.el` (6 new/
+rewritten), 0 fail, 1 skipped (the real round trip, `--lsp`-gated); 619 tests, 599 pass,
+0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---
