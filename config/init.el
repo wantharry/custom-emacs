@@ -151,6 +151,10 @@ key sequence can never make a file editable."
       completion-ignore-case t
       read-file-name-completion-ignore-case t)
 (global-completion-preview-mode 1)      ; inline suggestions as you type
+;; The default popup height (25% of the frame) was already tight for `C-c' with this
+;; many top-level bindings added over time (confirmed for real: a few had scrolled out
+;; of view); 40% comfortably fits all of them without cutting any off.
+(setq which-key-side-window-max-height 0.4)
 (which-key-mode 1)                      ; shows available keys after a prefix
 
 ;;; Coding: tree-sitter + LSP (Eglot) -----------------------------------------
