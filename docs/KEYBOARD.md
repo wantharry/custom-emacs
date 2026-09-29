@@ -361,6 +361,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c a m` | `gptel-menu` | **this config:** pick a model, backend or system prompt |
 | `C-c k` | `my/shortcuts` | **this config:** this configuration's own keybindings, grouped by topic and foldable; shown automatically next to the start screen the first time Emacs opens with no file |
 | `C-c n` | `newsticker-treeview` | **this config:** real news headlines (World/BBC, USA/NYT, Sports/ESPN), fetched with Emacs's own networking, no external `wget` needed |
+| `C-c m` | `my/dictate` | **this config:** toggle dictation: start recording from the microphone, press again to stop, transcribe (local Whisper) and insert at point |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

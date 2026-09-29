@@ -477,6 +477,16 @@ installed, offer to install it from NonGNU ELPA."
         ("Sports" "https://www.espn.com/espn/rss/news")))
 (global-set-key (kbd "C-c n") #'newsticker-treeview)
 
+;;; Dictation (local Whisper) ----------------------------------------------------------
+
+;; `C-c m' starts recording from the microphone; press it again to stop, transcribe, and
+;; insert the result at point. Fully local (no cloud, no API key) via a self-built
+;; whisper.cpp; nothing is bundled, so it declines clearly if that is not set up yet.
+;; See config/dictate.el and docs/DICTATE.md.
+(autoload 'my/dictate (expand-file-name "dictate" user-emacs-directory)
+  "Toggle dictation: start recording, or (pressed again) stop and insert the result." t)
+(global-set-key (kbd "C-c m") #'my/dictate)
+
 ;;; Documentation buffer ----------------------------------------------------------
 
 ;; Every guide (README.md and docs/*.md) concatenated into one buffer, *docs*, built once
