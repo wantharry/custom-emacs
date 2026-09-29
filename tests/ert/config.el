@@ -32,6 +32,36 @@
                                      (timer--repeat-delay tm)))       ; non-nil: a repeating idle timer
                    timer-idle-list)))
 
+;;; News (newsticker): C-c n, real feeds, nothing loaded until used
+
+(ert-deftest config/news-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c n")) 'newsticker-treeview)))
+
+(ert-deftest config/news-feeds-are-configured ()
+  (should (equal newsticker-url-list
+                 '(("World"  "http://feeds.bbci.co.uk/news/world/rss.xml")
+                   ("USA"    "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
+                   ("Sports" "https://www.espn.com/espn/rss/news"))))
+  ;; every URL really is one (catches a typo before it ever reaches a real fetch)
+  (dolist (feed newsticker-url-list)
+    (should (string-match-p "\\`https?://" (nth 1 feed)))))
+
+(ert-deftest config/news-uses-built-in-networking-not-an-external-program ()
+  ;; So this works the same on the Windows bundle, which has no `wget'. A guard against
+  ;; newsticker's own upstream default ever changing, not something this config sets
+  ;; itself --- so load it first to see its real default.
+  (require 'newst-backend)
+  (should (eq newsticker-retrieval-method 'intern)))
+
+(ert-deftest config/news-is-not-loaded-or-fetched-at-startup ()
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(princ (list (featurep 'newsticker) (autoloadp (symbol-function 'newsticker-treeview))))")))))
+    (should (string-match-p "(nil t)" out))))
+
 (ert-deftest config/completion-setup ()
   (should fido-vertical-mode)
   (should global-completion-preview-mode)

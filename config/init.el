@@ -463,6 +463,20 @@ installed, offer to install it from NonGNU ELPA."
 (require 'shortcuts (expand-file-name "shortcuts" user-emacs-directory))
 (global-set-key (kbd "C-c k") #'my/shortcuts)
 
+;;; News (newsticker) ----------------------------------------------------------------
+
+;; `C-c n' shows real news headlines, grouped by feed: World (BBC), USA (NYT) and
+;; Sports (ESPN), each verified to be a real, currently-live RSS feed.  Built into
+;; Emacs (net/newsticker.el); fetched over Emacs's own networking (`url-retrieve',
+;; `newsticker-retrieval-method' is `intern' by default) --- no external `wget' needed,
+;; so this works the same on the Windows bundle.  Nothing loads, and no network
+;; request happens, until `C-c n' is actually pressed.
+(setq newsticker-url-list
+      '(("World"  "http://feeds.bbci.co.uk/news/world/rss.xml")
+        ("USA"    "https://rss.nytimes.com/services/xml/rss/nyt/US.xml")
+        ("Sports" "https://www.espn.com/espn/rss/news")))
+(global-set-key (kbd "C-c n") #'newsticker-treeview)
+
 ;;; Documentation buffer ----------------------------------------------------------
 
 ;; Every guide (README.md and docs/*.md) concatenated into one buffer, *docs*, built once

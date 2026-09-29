@@ -4,7 +4,7 @@
 
 (ert-deftest pruning/removed-applications-are-gone ()
   (test-skip-unless-pruned)
-  (dolist (l '("org" "org-agenda" "erc" "rcirc" "rmail" "mh-e" "newsticker"
+  (dolist (l '("org" "org-agenda" "erc" "rcirc" "rmail" "mh-e"
                "tetris" "snake" "dunnet" "doctor" "zone" "pong"))
     (should-not (locate-library l))))
 
@@ -20,7 +20,7 @@
     (should (locate-library l))))
 
 (ert-deftest pruning/other-applications-are-kept-on-purpose ()
-  (dolist (l '("eshell" "eww" "calc" "calendar" "shr" "info"))
+  (dolist (l '("eshell" "eww" "calc" "calendar" "shr" "info" "newsticker" "newst-treeview"))
     (should (locate-library l))))
 
 (ert-deftest pruning/requiring-a-removed-feature-fails-cleanly ()

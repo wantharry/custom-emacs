@@ -17,8 +17,6 @@ mail/unrmail.el
 mail/feedmail.el
 mail/mspools.el
 mail/supercite.el
-net/newst-*.el
-net/newsticker.el
 
 # Chat
 erc/
