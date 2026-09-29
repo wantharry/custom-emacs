@@ -336,6 +336,327 @@ for why this differs, and matters, on each platform)."
   (interactive)
   (if (my/dictate--recording-p) (my/dictate-stop) (my/dictate-start)))
 
+;;; Live dictation: transcribed as you speak, not only once you stop (C-c M) -------------
+
+;; `C-c M' (capital) toggles LIVE dictation: text appears every few seconds while you are
+;; still talking, instead of only once, all at once, when you stop (`C-c m', above).  Real,
+;; measured reason this needs a genuinely different mechanism, not just a shorter version of
+;; the same one: transcribing costs about 2.5-3 seconds of FIXED overhead per `whisper-cli'
+;; invocation almost regardless of clip length (decoding dominates, not loading --- timing a
+;; 1.9s and a 3.6s clip gave near-identical times, and so did a warm, already-loaded model
+;; via a first version of the server below).  Repeatedly invoking `whisper-cli' every few
+;; seconds, the obvious way to build "live" out of the one-shot command above, can never
+;; keep up with continuous speech: each chunk would take longer to transcribe than it took
+;; to speak.
+;;
+;; The fix that actually works: switch to `whisper-server' (a second binary whisper.cpp
+;; itself provides --- an HTTP server over the same engine, no extra dependency beyond what
+;; `whisper-cli' already needed) AND to a smaller model with greedy decoding.  Model size
+;; turned out to matter far more than keeping it warm: the exact same short clips still took
+;; ~2.5-2.8s each against an already-loaded `small.en' (decode strategy, `-bo'/`-bs', made
+;; close to no difference); switching the SERVER to `base.en' with `-bo 1 -bs 1' (best-of/
+;; beam-size 1: skip re-scoring multiple candidates) brought that down to ~0.6-0.7s ---
+;; comfortably faster than the audio itself, which is what "keeping up live" actually needs.
+;;
+;; That speed has a real, honest cost: `base.en' is less accurate than the `small.en' model
+;; `C-c m' uses for its own, one-shot, non-time-critical transcription --- measured for
+;; real, `base.en' misheard "emacs" as "e-max" on a sentence `small.en' got 100% correct.
+;; Live dictation trades some accuracy for speed on purpose, since "live" transcription that
+;; cannot keep up defeats the entire point; `C-c m' (unchanged, still `small.en') remains
+;; the accurate choice for anything where getting every word right matters more than seeing
+;; it appear immediately.
+;;
+;; Recording continues, cut into `my/dictate-live-chunk-seconds' pieces: each chunk is
+;; stopped (the same reliable stop-and-wait mechanism as `C-c m', so its WAV header is
+;; always valid) and a new one is started immediately after, while the just-finished chunk
+;; is POSTed for transcription and, once the reply arrives, appended at point.  This is a
+;; real, measured, and honestly documented tradeoff too: stopping and restarting
+;; sequentially (rather than trying to record two overlapping chunks at once, which is
+;; fragile across platforms and, on Windows, not possible at all --- dshow only allows one
+;; process to hold the device) means a small gap of well under a second between chunks,
+;; during which anything said is not captured.
+;;
+;; Verified for real, end to end: synthesized speech played through a real audio loopback
+;; (so `parecord' captures it exactly as it would a real microphone) while live dictation
+;; ran, confirming text really does appear in multiple separate chunks as the speech
+;; continues, not just once at the end.  See docs/DICTATE.md.
+
+(require 'url)
+
+;; WHAT: where the second whisper.cpp binary lives, picked by platform, same convention as
+;; `my/dictate-whisper-cli'.  WHY/HOW: see the section comment above for why live dictation
+;; needs a genuinely different program, not just a faster way to call the same one.
+(defvar my/dictate-server-binary
+  (expand-file-name (if (eq system-type 'windows-nt)
+                        "~/.local/share/whisper-cpp/whisper-server.exe"
+                      "~/.local/share/whisper-cpp/whisper-server"))
+  "Path to a built whisper.cpp `whisper-server' binary --- the same engine as
+`my/dictate-whisper-cli', kept running so each chunk avoids paying its own ~3s
+decode-and-load cost again; see the section comment above for the real numbers.")
+;; WHAT: the model live dictation actually transcribes with.  WHY: deliberately smaller
+;; and faster than `my/dictate-model' (`small.en') --- see the section comment above for
+;; the real, measured speed/accuracy tradeoff this is chosen for.
+(defvar my/dictate-live-model (expand-file-name "~/.local/share/whisper-cpp/models/ggml-base.en.bin")
+  "Path to the (smaller, faster) GGML model live dictation transcribes with.")
+(defvar my/dictate-live-host "127.0.0.1")
+;; WHAT: the local port `whisper-server' listens on.  WHY: an unusual-enough number to be
+;; unlikely to collide with something else already using a common port; never reachable
+;; from outside this machine either way, since `my/dictate-live-host' is a loopback address.
+(defvar my/dictate-live-port 8765 "Local port `whisper-server' listens on.")
+;; WHAT: how often a new chunk is cut and sent off while live dictation runs.  WHY: 3s is a
+;; real, measured middle ground --- comfortably longer than the ~0.6-0.7s a chunk actually
+;; takes to transcribe (so the pipeline never falls behind), while still feeling reasonably
+;; "live" rather than a long wait between each piece of text appearing.
+(defvar my/dictate-live-chunk-seconds 3
+  "How often a new chunk is cut and sent for transcription while live dictation runs.")
+
+;; WHAT: the running `whisper-server' process, if any.  WHY: deliberately left running
+;; between dictation sessions (not stopped when live dictation stops) --- restarting it
+;; every time would mean paying its ~1-2s model-load cost on every single `C-c M', for a
+;; server that otherwise stays perfectly idle and harmless in the meantime.
+(defvar my/dictate-live--server-process nil "The running `whisper-server' process, if any.")
+(defvar my/dictate-live--active nil "Non-nil while live dictation is running.")
+(defvar my/dictate-live--timer nil "The repeating timer driving the chunk cycle, if any.")
+(defvar my/dictate-live--recording-process nil "The current chunk's recording process, if any.")
+(defvar my/dictate-live--wav-file nil)
+(defvar my/dictate-live--target-buffer nil)
+(defvar my/dictate-live--target-marker nil)
+
+;; WHAT: why live dictation cannot run right now, or nil if it can.  WHY/HOW: the same
+;; up-front, clear-message pattern as `my/dictate--ready-reason' (reused first: the
+;; recording program and the microphone are needed exactly the same way), with one more
+;; check specific to live mode --- the separate `whisper-server' binary and its own,
+;; smaller model, alongside (not instead of) everything `C-c m' itself needs.
+(defun my/dictate-live--ready-reason ()
+  (or (my/dictate--ready-reason)
+      (cond
+       ((not (file-executable-p my/dictate-server-binary))
+        (format "no whisper-server at %s --- see docs/DICTATE.md to build one" my/dictate-server-binary))
+       ((not (file-readable-p my/dictate-live-model))
+        (format "no live-dictation model at %s --- see docs/DICTATE.md to download one" my/dictate-live-model)))))
+
+(defun my/dictate-live--server-url ()
+  (format "http://%s:%d/inference" my/dictate-live-host my/dictate-live-port))
+
+;; WHAT: is the server already up and accepting connections, right now?  WHY: starting it is
+;; not instant (a real, measured ~1-2s for `base.en' to load), so this is polled rather than
+;; assumed.  HOW: a bare TCP connect, not an HTTP request through `url.el' --- a real,
+;; measured bug: a `url-retrieve-synchronously' GET here, even though it completes and gets
+;; killed cleanly, left `url.el' in a state (confirmed with `url-http-attempt-keepalives' let
+;; to nil on both sides too, which did NOT fix it, and with a bare TCP connect in its place,
+;; which did) that silently broke the very next `url-retrieve-synchronously' POST in
+;; `my/dictate-live--transcribe' --- it would return "" instead of the real transcript, with
+;; no error anywhere; whisper-server itself was never at fault (the exact same GET-then-POST
+;; sequence via `curl', a separate process each time, always worked).  A plain
+;; `open-network-stream' never touches any of that machinery, so it cannot poison the POST
+;; that follows it.
+(defun my/dictate-live--server-up-p ()
+  (ignore-errors
+    (let ((proc (open-network-stream "dictate-server-probe" nil
+                                      my/dictate-live-host my/dictate-live-port)))
+      (when proc (delete-process proc) t))))
+
+;; WHAT: start `whisper-server' if it is not already running, and wait (briefly) until it
+;; actually answers.  WHY/HOW: idempotent --- safe to call at the start of every live
+;; dictation session, not just the first; does nothing if a server from an earlier session
+;; is still alive, which is exactly what keeps the model warm across sessions instead of
+;; reloading it every single time `C-c M' is pressed (see the module variable's own
+;; comment).  Polls for up to 10s (real, measured cold start is 1-2s; this leaves genuine
+;; headroom for a slower machine) rather than a fixed sleep, so a fast machine is not made
+;; to wait needlessly and a slow one is not cut off too early.
+;;
+;; The extra half-second sleep once the port answers is not padding --- a real, measured
+;; finding: `whisper-server' opens its listening socket (so a bare TCP connect, or even a full
+;; HTTP round trip, already succeeds) some short but real amount of time before its request
+;; handling is actually ready to serve one; a POST landing in that gap comes back with an
+;; empty body, no error anywhere, indistinguishable from silence.  Confirmed directly: the
+;; very first real transcription request right after start-up failed consistently and only
+;; ever that one; every later request on the same server always worked.  0.3s already fixed
+;; it in repeated testing --- 0.5s is kept for real headroom on a slower machine.
+(defun my/dictate-live--ensure-server ()
+  (unless (and my/dictate-live--server-process (process-live-p my/dictate-live--server-process))
+    (setq my/dictate-live--server-process
+          (make-process
+           :name "dictate-server" :buffer " *dictate-server*" :noquery t
+           :command (list my/dictate-server-binary "-m" my/dictate-live-model
+                          "--host" my/dictate-live-host "--port" (number-to-string my/dictate-live-port)
+                          "-bo" "1" "-bs" "1")))
+    (let ((n 0))
+      (while (and (< n 100) (not (my/dictate-live--server-up-p)))
+        (sleep-for 0.1) (setq n (1+ n)))
+      (unless (< n 100) (user-error "whisper-server did not start in time"))
+      (sleep-for 0.5))))
+
+;; WHAT: the raw multipart/form-data POST body for one WAV file.  WHY: `whisper-server'
+;; expects a real multipart upload (the same shape a browser file-input form would send),
+;; and Emacs has no built-in helper for building one --- this is the whole of what it
+;; takes, built by hand rather than pulling in a package for it.  HOW: three parts, each
+;; introduced by `--BOUNDARY' and ended with the final `--BOUNDARY--': a plain text field
+;; asking for a plain-text reply (`response_format=text', instead of the default JSON, so
+;; nothing needs parsing on the way back), and the file itself, its raw bytes read with
+;; `coding-system-for-read' bound to `binary' so they pass through completely unchanged
+;; (a WAV file is not text; reading it through any text coding system would corrupt it).
+;; The whole body is (re-)encoded as `binary' at the very end too, for the same reason.
+(defun my/dictate-live--multipart-body (file boundary)
+  (let ((file-bytes (with-temp-buffer
+                      (set-buffer-multibyte nil)
+                      (let ((coding-system-for-read 'binary)) (insert-file-contents-literally file))
+                      (buffer-string))))
+    (encode-coding-string
+     (concat "--" boundary "\r\n"
+             "Content-Disposition: form-data; name=\"response_format\"\r\n\r\ntext\r\n"
+             "--" boundary "\r\n"
+             "Content-Disposition: form-data; name=\"file\"; filename=\"chunk.wav\"\r\n"
+             "Content-Type: audio/wav\r\n\r\n" file-bytes "\r\n"
+             "--" boundary "--\r\n")
+     'binary)))
+
+;; WHAT: POST WAV-FILE to the running server and return the transcribed text (a string,
+;; possibly empty; never nil --- a failed request is treated the same as silence, so one
+;; momentary hiccup mid-session does not stop the whole thing).  WHY/HOW: synchronous, on
+;; purpose --- an earlier, asynchronous (`url-retrieve') version of this hit a real,
+;; unresolved bug (the callback fired with an empty response buffer despite the server
+;; genuinely answering, confirmed in its own log at the time); `url-retrieve-synchronously'
+;; has none of that, and the real cost of using it --- Emacs is unresponsive for the
+;; ~0.6-0.7s a chunk actually takes to transcribe --- is paid only during the brief,
+;; automatic chunk-rotation tick, not while the user is doing anything else with Emacs; the
+;; NEXT chunk's recording is a separate subprocess and keeps capturing audio regardless of
+;; whether Emacs's own Lisp is blocked at that moment.
+(defun my/dictate-live--transcribe (file)
+  (let* ((boundary "----emacs-dictate-live-boundary")
+         (url-request-method "POST")
+         (url-request-extra-headers
+          (list (cons "Content-Type" (concat "multipart/form-data; boundary=" boundary))))
+         (url-request-data (my/dictate-live--multipart-body file boundary))
+         (buf (ignore-errors (url-retrieve-synchronously (my/dictate-live--server-url) t t 10))))
+    (if (not buf) ""
+      (unwind-protect
+          (with-current-buffer buf
+            (goto-char (point-min))
+            ;; The real header/body separator on the wire is "\r\n\r\n" (confirmed with a raw
+            ;; hexdump of whisper-server's actual response) --- plain "\n\n" never matches
+            ;; that, which is why this always fell through to "" until caught by
+            ;; `dictate/live-transcribe-a-real-known-recording'.  `\r?' on both sides copes
+            ;; with either raw CRLF or an already-normalized buffer.
+            (if (re-search-forward "\r?\n\r?\n" nil t) (string-trim (buffer-substring (point) (point-max))) ""))
+        (kill-buffer buf)))))
+
+;; WHAT: does TEXT look like whisper's own "no real speech here" marker, rather than an
+;; actual transcript?  WHY: a real, measured finding, not a guess --- whisper's convention
+;; for "nothing worth transcribing in this clip" is a bracketed tag ("[BLANK_AUDIO]", also
+;; seen in the wild: "[SILENCE]", "[MUSIC]"), not plain empty text.  Confirmed for real: a
+;; chunk covering `parecord's own brief startup silence came back exactly "[BLANK_AUDIO]"
+;; rather than "".  A separate, pure predicate (not inlined into `my/dictate-live--rotate')
+;; specifically so it has its own direct test, the same reasoning this project applies to
+;; every other small, checkable rule (`my/ff--score', `my/git-repos--merge', ...).  HOW: a
+;; whole string of one bracketed, all-caps/underscore/space tag and nothing else ---
+;; deliberately narrow, so a real sentence that happens to end in a bracketed aside is
+;; never mistaken for one of these.
+(defun my/dictate-live--blank-p (text)
+  (string-match-p "\\`\\[[A-Z_ ]+\\]\\'" text))
+
+;; WHAT: cut the current chunk, start the next one, and transcribe the one that just
+;; finished --- the one cycle live dictation repeats.  WHY/HOW: stops the in-flight
+;; recording with the SAME proven, WAV-header-safe mechanism `C-c m' uses
+;; (`my/dictate--stop-recording'); starts the next chunk's recording immediately
+;; afterward, before doing anything else, to keep the gap between chunks as short as it
+;; can be (still real and measurable --- see the section comment above --- but not made
+;; any longer than it has to be by transcribing first); only then sends the just-finished
+;; chunk for transcription and, if it actually heard something, inserts it at the
+;; remembered marker.  Runs as a plain function (not a process sentinel), called both by
+;; the repeating timer and, once more, by `my/dictate-live-stop' for the final chunk ---
+;; STOP-NEW-RECORDING is what tells it not to start another one that final time.
+(defun my/dictate-live--rotate (&optional stop-new-recording)
+  (let ((finished-proc my/dictate-live--recording-process) (finished-wav my/dictate-live--wav-file))
+    (when (and finished-proc (process-live-p finished-proc))
+      (my/dictate--stop-recording finished-proc))
+    (if stop-new-recording
+        (setq my/dictate-live--recording-process nil my/dictate-live--wav-file nil)
+      (setq my/dictate-live--wav-file (make-temp-file "dictate-live-" nil ".wav")
+            my/dictate-live--recording-process
+            (make-process :name "dictate-live-record" :buffer nil :noquery t
+                          :command (my/dictate--record-command my/dictate-live--wav-file))))
+    ;; A real, if rare, race: caught once, in a real multi-chunk run, right at the moment
+    ;; a manual stop landed within the same instant as an already-scheduled rotation
+    ;; tick. `my/dictate--stop-recording' can genuinely finish (the process it was given
+    ;; exits) even when that process never got as far as creating its own output file ---
+    ;; possible if it is signaled essentially the instant it was spawned. Guarding on
+    ;; `file-exists-p' here means that one unlucky chunk is silently treated the same as
+    ;; a chunk that captured no audio, rather than signaling a real error out of a timer.
+    (when (and finished-wav (file-exists-p finished-wav))
+      (unwind-protect
+          (let ((text (my/dictate-live--transcribe finished-wav)))
+            (when (my/dictate-live--blank-p text) (setq text ""))
+            (unless (string-empty-p text)
+              (if (buffer-live-p my/dictate-live--target-buffer)
+                  (with-current-buffer my/dictate-live--target-buffer
+                    (save-excursion
+                      (goto-char my/dictate-live--target-marker)
+                      (insert text " ")))
+                (message "Dictate (live): target buffer is gone; heard: %s" text))))
+        (ignore-errors (delete-file finished-wav))))))
+
+;; WHAT: `C-c M' (start half) --- begin live dictation.  WHY/HOW: same up-front readiness
+;; check and re-entrancy guard as `my/dictate-start'; starts the server (a no-op if one is
+;; already warm from an earlier session), captures the target buffer/marker the same way
+;; and for the same reason as one-shot dictation, fires the first chunk immediately (via
+;; `my/dictate-live--rotate' with nothing yet to transcribe --- see that function's own
+;; comment), then starts the repeating timer that keeps the cycle going every
+;; `my/dictate-live-chunk-seconds' until stopped.
+;;;###autoload
+(defun my/dictate-live-start ()
+  "Start live dictation: transcribed a few seconds at a time while you speak, instead of
+only once you stop (see `my/dictate-start' for that, non-live mode)."
+  (interactive)
+  (if-let* ((reason (my/dictate-live--ready-reason)))
+      (message "Can't live-dictate: %s" reason)
+    (if my/dictate-live--active
+        (user-error "Already live-dictating; press C-c M to stop")
+      (message "Starting live dictation server...")
+      (my/dictate-live--ensure-server)
+      (setq my/dictate-live--active t
+            my/dictate-live--target-buffer (current-buffer)
+            my/dictate-live--target-marker (point-marker)
+            my/dictate-live--recording-process nil
+            my/dictate-live--wav-file nil)
+      ;; A real bug, caught only by an actual multi-chunk run, not by reading the code:
+      ;; a plain `(point-marker)' does not advance past text inserted exactly at its own
+      ;; position (insertion type nil, the default) --- so each new chunk was being
+      ;; inserted BEFORE the previous one, not after, and a real test came back with the
+      ;; chunks in reverse order.  `t' makes the marker advance past what was just
+      ;; inserted, so the next chunk correctly lands after it instead.
+      (set-marker-insertion-type my/dictate-live--target-marker t)
+      (my/dictate-live--rotate)                       ; starts the first chunk's recording
+      (setq my/dictate-live--timer
+            (run-with-timer my/dictate-live-chunk-seconds my/dictate-live-chunk-seconds
+                            #'my/dictate-live--rotate))
+      (message "Live dictating (every %ds)... press C-c M again to stop" my/dictate-live-chunk-seconds))))
+
+;; WHAT: `C-c M' (stop half) --- end live dictation.  WHY/HOW: cancels the repeating timer
+;; first (so no new rotation can start mid-shutdown), then calls `my/dictate-live--rotate'
+;; one last time with STOP-NEW-RECORDING set, which stops the final in-flight chunk,
+;; transcribes it, and inserts it, without starting another one.  Deliberately does NOT
+;; stop `whisper-server' itself --- see that variable's own comment for why staying warm
+;; between sessions is the point.
+;;;###autoload
+(defun my/dictate-live-stop ()
+  "Stop live dictation, transcribing and inserting the final chunk."
+  (interactive)
+  (unless my/dictate-live--active (user-error "Not live-dictating"))
+  (when my/dictate-live--timer (cancel-timer my/dictate-live--timer) (setq my/dictate-live--timer nil))
+  (setq my/dictate-live--active nil)
+  (message "Finishing live dictation...")
+  (my/dictate-live--rotate t)
+  (message "Live dictation stopped"))
+
+;; WHAT: the single command bound to `C-c M' (see config/init.el).  WHY/HOW: same toggle
+;; shape as `my/dictate' itself, dispatching on `my/dictate-live--active'.
+;;;###autoload
+(defun my/dictate-live ()
+  "Toggle live dictation: transcribed a few seconds at a time while you speak."
+  (interactive)
+  (if my/dictate-live--active (my/dictate-live-stop) (my/dictate-live-start)))
+
 ;; WHAT/WHY/HOW: register this file under the Emacs feature name `dictate', matching the
 ;; `(require 'dictate ...)' used by tests/ert/dictate.el, and how every sibling config
 ;; file in this project (`llm.el', `shortcuts.el', ...) announces itself as loaded.

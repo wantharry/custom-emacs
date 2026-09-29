@@ -9,10 +9,13 @@
 
 (defmacro dict-isolated (&rest body)
   "Run BODY with all of dictate.el's state variables reset, so no test can see
-what a previous one left behind."
+what a previous one left behind.  Deliberately leaves `my/dictate-live--server-process'
+alone, the same as the real code does between real sessions: it is meant to persist."
   (declare (indent 0))
   `(let (my/dictate--process my/dictate--transcribing my/dictate--wav-file
-         my/dictate--target-buffer my/dictate--target-marker)
+         my/dictate--target-buffer my/dictate--target-marker
+         my/dictate-live--active my/dictate-live--timer my/dictate-live--recording-process
+         my/dictate-live--wav-file my/dictate-live--target-buffer my/dictate-live--target-marker)
      ,@body))
 
 ;;; Wiring
@@ -167,6 +170,131 @@ what a previous one left behind."
             (should (equal sent-string "q"))
           (should (eq signaled 'SIGTERM))))
       (when (process-live-p proc) (delete-process proc)))))
+
+;;; Live dictation (C-c M): transcribed a few seconds at a time, not only once you stop.
+;;; Several of these exist specifically because real behavior surprised real testing:
+;;;
+;;; - `my/dictate-live-start' must set the target marker's insertion type to `t': a plain
+;;;   `(point-marker)' (type nil, the default) does not advance past text inserted at its
+;;;   own position, so every chunk after the first was landing BEFORE the previous one,
+;;;   not after --- confirmed for real, in a full audio-loopback test, before being fixed.
+;;;   `dictate/live-start-sets-an-advancing-marker' pins this down for good.
+;;; - `my/dictate-live--blank-p' exists because whisper's own "nothing here" marker is a
+;;;   literal bracketed tag ("[BLANK_AUDIO]"), not empty text --- confirmed for real too.
+
+(ert-deftest dictate/live-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c M")) 'my/dictate-live)))
+
+(ert-deftest dictate/live-declines-when-the-server-binary-is-missing ()
+  (cl-letf (((symbol-function 'executable-find) (lambda (_c) "/usr/bin/parecord"))
+            ((symbol-function 'file-executable-p)
+             (lambda (f) (not (equal f my/dictate-server-binary))))
+            ((symbol-function 'file-readable-p) (lambda (_f) t)))
+    (should (string-match-p "whisper-server" (my/dictate-live--ready-reason)))))
+
+(ert-deftest dictate/live-declines-when-the-live-model-is-missing ()
+  (cl-letf (((symbol-function 'executable-find) (lambda (_c) "/usr/bin/parecord"))
+            ((symbol-function 'file-executable-p) (lambda (_f) t))
+            ((symbol-function 'file-readable-p)
+             (lambda (f) (not (equal f my/dictate-live-model)))))
+    (should (string-match-p "live-dictation model" (my/dictate-live--ready-reason)))))
+
+(ert-deftest dictate/live-ready-reason-also-checks-the-base-requirements ()
+  ;; my/dictate--ready-reason (parecord/ffmpeg missing) is consulted first, not
+  ;; duplicated: live dictation needs everything C-c m needs, plus its own two things.
+  (cl-letf (((symbol-function 'executable-find) (lambda (_c) nil)))
+    (should (string-match-p "parecord\\|ffmpeg" (my/dictate-live--ready-reason)))))
+
+(ert-deftest dictate/live-ready-is-nil-when-everything-is-present ()
+  (cl-letf (((symbol-function 'executable-find) (lambda (_c) "/usr/bin/parecord"))
+            ((symbol-function 'file-executable-p) (lambda (_f) t))
+            ((symbol-function 'file-readable-p) (lambda (_f) t)))
+    (should-not (my/dictate-live--ready-reason))))
+
+(ert-deftest dictate/live-toggle-starts-then-stops ()
+  (dict-isolated
+    (cl-letf (((symbol-function 'my/dictate-live--ready-reason) (lambda () nil))
+              ((symbol-function 'my/dictate-live--ensure-server) (lambda () nil))
+              ((symbol-function 'my/dictate-live--rotate) (lambda (&optional _stop) nil)))
+      (my/dictate-live)
+      (should my/dictate-live--active)
+      (my/dictate-live)
+      (should-not my/dictate-live--active))))
+
+(ert-deftest dictate/live-starting-twice-is-a-user-error ()
+  (dict-isolated
+    (cl-letf (((symbol-function 'my/dictate-live--ready-reason) (lambda () nil))
+              ((symbol-function 'my/dictate-live--ensure-server) (lambda () nil))
+              ((symbol-function 'my/dictate-live--rotate) (lambda (&optional _stop) nil)))
+      (my/dictate-live-start)
+      (should-error (my/dictate-live-start) :type 'user-error))))
+
+(ert-deftest dictate/live-stopping-when-not-active-is-a-user-error ()
+  (dict-isolated
+    (should-error (my/dictate-live-stop) :type 'user-error)))
+
+(ert-deftest dictate/live-start-sets-an-advancing-marker ()
+  ;; The real regression: without insertion-type t, chunks land in reverse order. See the
+  ;; section comment above.
+  (dict-isolated
+    (cl-letf (((symbol-function 'my/dictate-live--ready-reason) (lambda () nil))
+              ((symbol-function 'my/dictate-live--ensure-server) (lambda () nil))
+              ((symbol-function 'my/dictate-live--rotate) (lambda (&optional _stop) nil)))
+      (my/dictate-live-start)
+      (should (eq (marker-insertion-type my/dictate-live--target-marker) t)))))
+
+(ert-deftest dictate/blank-audio-tag-is-recognized-but-real-speech-is-not ()
+  (should (my/dictate-live--blank-p "[BLANK_AUDIO]"))
+  (should (my/dictate-live--blank-p "[SILENCE]"))
+  (should (my/dictate-live--blank-p "[MUSIC]"))
+  (should-not (my/dictate-live--blank-p ""))
+  (should-not (my/dictate-live--blank-p "hello there"))
+  ;; a real sentence that happens to end in a bracketed aside must not be mistaken for one
+  (should-not (my/dictate-live--blank-p "he said hello [laughing]")))
+
+(ert-deftest dictate/multipart-body-has-the-right-shape ()
+  (let* ((f (make-temp-file "dictate-multipart-test-"))
+         (_ (with-temp-file f (insert "not really a wav, just some bytes")))
+         (body (unwind-protect (my/dictate-live--multipart-body f "TESTBOUNDARY")
+                 (delete-file f))))
+    (should (string-match-p "\\`--TESTBOUNDARY\r\n" body))
+    (should (string-match-p "name=\"response_format\"" body))
+    (should (string-match-p "\r\n\r\ntext\r\n" body))
+    (should (string-match-p "name=\"file\"; filename=\"chunk.wav\"" body))
+    (should (string-match-p "Content-Type: audio/wav" body))
+    (should (string-match-p "not really a wav, just some bytes" body))
+    (should (string-match-p "--TESTBOUNDARY--\r\n\\'" body))))
+
+;;; Against the real whisper-server in this environment (skips if not built/downloaded)
+
+(ert-deftest dictate/live-server-really-starts-and-answers ()
+  (skip-unless (file-executable-p my/dictate-server-binary))
+  (skip-unless (file-readable-p my/dictate-live-model))
+  (dict-isolated
+    (unwind-protect
+        (progn
+          (my/dictate-live--ensure-server)
+          (should (process-live-p my/dictate-live--server-process))
+          (should (my/dictate-live--server-up-p)))
+      (when (process-live-p my/dictate-live--server-process)
+        (delete-process my/dictate-live--server-process)))))
+
+(ert-deftest dictate/live-transcribe-a-real-known-recording ()
+  ;; The real HTTP round trip, using a known-good pre-recorded WAV in place of a live
+  ;; microphone --- confirms the server, the by-hand multipart body, and response parsing
+  ;; all really work together, the same real-pipeline confidence
+  ;; `dictate/a-real-known-recording-transcribes-correctly' gives the non-live path.
+  (skip-unless (file-executable-p my/dictate-server-binary))
+  (skip-unless (file-readable-p my/dictate-live-model))
+  (skip-unless (file-readable-p "/tmp/whisper-test-sample.wav"))
+  (dict-isolated
+    (unwind-protect
+        (progn
+          (my/dictate-live--ensure-server)
+          (let ((text (my/dictate-live--transcribe "/tmp/whisper-test-sample.wav")))
+            (should (string-match-p "quick brown fox" text))))
+      (when (process-live-p my/dictate-live--server-process)
+        (delete-process my/dictate-live--server-process)))))
 
 ;;; Against the real, locally-built whisper.cpp in this environment (skips if absent)
 

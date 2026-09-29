@@ -373,6 +373,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c k` | `my/shortcuts` | **this config:** this configuration's own keybindings, grouped by topic and foldable, plus how to open/close/use Magit, Treemacs, Consult, gptel, newsticker and this project's own buffers; shown automatically next to the start screen the first time Emacs opens with no file |
 | `C-c n` | `newsticker-treeview` | **this config:** real news headlines across 10 popular categories (Top Stories, World, USA, Business, Technology, Politics, Science, Health, Entertainment, Sports), fetched with Emacs's own networking, no external `wget` needed |
 | `C-c m` | `my/dictate` | **this config:** toggle dictation: start recording from the microphone, press again to stop, transcribe (local Whisper) and insert at point |
+| `C-c M` | `my/dictate-live` | **this config:** toggle *live* dictation: text appears every few seconds while you are still speaking, instead of only once you stop ([DICTATE.md](DICTATE.md)) |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

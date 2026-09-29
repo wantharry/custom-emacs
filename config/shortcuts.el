@@ -109,6 +109,9 @@
     ("Dictation (this config)" "C-c m starts recording"
      "C-c m again stops it, transcribes, and inserts the result"
      nil)
+    ("Live dictation (this config)" "C-c M starts recording"
+     "C-c M again stops it --- text appears every few seconds while you speak, not only at the end"
+     nil)
     ("Evil, vi keys" "C-c v turns it on"
      "C-c v again turns it off"
      nil))

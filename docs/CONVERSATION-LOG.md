@@ -349,11 +349,73 @@ Emacs process --- fixed the same way `llm-council/is-not-loaded-until-used` alre
 does it, by checking in a fresh subprocess instead of the shared one. 602 tests, 582
 pass, 0 fail, 20 skipped across the full offline suite after all of this.
 
+### Live dictation (`C-c M`): transcribed as you speak, not only once you stop
+
+User: "i see its transcribing, but once i stop and transcribe its doing it, i want live
+transcribe as i am speaking it should be transcribing." `C-c m` is push-to-talk; this is
+a genuinely new, second command (`C-c M`, capital), not a change to `C-c m`.
+
+**Why repeated `whisper-cli` calls can't be live**: *measured* --- a 1.9s clip and a
+3.6s clip both took ~3.1-3.2s to transcribe, proving the cost is fixed per-invocation
+overhead, not audio length. whisper.cpp ships a second binary for exactly this,
+`whisper-server` (loads the model once, answers HTTP requests against it), which
+`C-c M` starts on first use and deliberately leaves running afterward.
+
+**Real, measured speed/accuracy tradeoff**: `small.en` stayed ~2.6-2.8s/chunk even
+warm and even quantized (q5_0, no real speed win on this hardware); only `base.en` +
+greedy decode (`-bo 1 -bs 1`) got genuinely faster than the audio itself, ~0.6-0.7s/chunk.
+Real cost: `base.en` misheard "emacs" as "e-max" once, where `small.en` got the same
+sentence 100% correct. Accepted on purpose for live responsiveness; `C-c m` is
+unaffected. See [DICTATE.md](DICTATE.md) for the full numbers.
+
+**Four real bugs, all found by an actual real end-to-end test** (PulseAudio's own
+`RDPSink`/`RDPSink.monitor` loopback in this environment plays a synthesized clip while
+`parecord` genuinely records it back, so live dictation runs against real captured
+audio, not a canned response):
+
+1. Chunks landed in reverse order --- a plain `(point-marker)` (insertion-type `nil`)
+   does not advance past text inserted at its own position. Fixed with
+   `(set-marker-insertion-type my/dictate-live--target-marker t)`.
+2. A file-missing race at stop time --- a manual stop landing right as a rotation tick
+   fired could signal a just-spawned recording process before it ever created its WAV
+   file. Fixed by treating a missing chunk file as silence instead of an error.
+3. **The subtlest one**: the original readiness check polled the server with a real
+   HTTP GET via `url-retrieve-synchronously`. *Measured, repeatedly*: any prior `url.el`
+   GET to the server --- even one that completed and was cleaned up correctly --- left
+   `url.el` in a state that silently broke the very next `url-retrieve-synchronously`
+   POST (the real transcription request): empty body back, no error anywhere. Confirmed
+   the server was never at fault with raw `curl` (identical GET-then-POST always worked
+   there, each request its own process). Disabling `url-http-attempt-keepalives` on
+   both requests did **not** fix it. Replacing the readiness check with a bare
+   `open-network-stream` TCP probe --- never touching `url.el` at all --- did.
+4. Even with that fixed, the very first real request right after a (re)start still came
+   back empty, consistently: the listening socket accepts connections a real, short
+   time before `whisper-server`'s request handling is actually ready to serve one. A
+   plain 0.5s settle after the port starts answering fixed it reliably across many
+   repeated runs.
+
+Bugs 3 and 4 were caught by, and are now regression-tested by, a real, opt-in ERT test
+(`dictate/live-transcribe-a-real-known-recording`) that POSTs a known pre-recorded WAV
+to a real, freshly-started `whisper-server` and checks the actual transcribed text ---
+not a mock. It took a genuinely long, methodical isolation process (comparing a single
+fresh start against a kill-then-restart cycle, disabling keep-alives, bypassing `url.el`
+entirely for the readiness check, then bisecting a settle delay from 0s up) to pin bug 4
+down after bug 3's fix alone did not make the failure go away. 32 tests in
+`tests/ert/dictate.el` (14 new), 0 fail; 615 tests, 595 pass, 0 fail, 20 skipped across
+the full offline suite. **Windows: not yet built or tested** for the `whisper-server`
+side --- only Linux/WSL is verified end to end so far.
+
 ## Where things stand as of the last entry
 
-- All features above are committed and pushed to `origin/main`, including the Windows
-  dist rebuild (verified clean, `test_dist.py` all green) and the new, finished Linux
-  bundle (also verified, see its own section above).
+- Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---
+  per the standing workflow-pacing instruction above, a single feature gets its own
+  tests run and committed, not an automatic dist rebuild; both bundles are one feature
+  past their last rebuild as of this entry. `Windows: whisper-server not yet built or
+  tested` either way (see its own section above) --- `C-c M` would need that done first
+  regardless of when the bundle itself is next rebuilt.
+- All other features above are committed and pushed to `origin/main`, including the
+  Windows dist rebuild (verified clean, `test_dist.py` all green) and the new, finished
+  Linux bundle (also verified, see its own section above) from before live dictation.
 - A commenting pass (WHAT/WHY/HOW style) is in progress across the config files touched
   this session; see "Commenting pass" above for exactly what's done and what isn't yet
   (`config/llm.el` and the Magit/Treemacs/Consult/Evil wiring beyond what's listed there

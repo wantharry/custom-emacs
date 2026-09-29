@@ -1,26 +1,31 @@
 # Dictation: speech-to-text into the buffer (local Whisper)
 
-Status as of 2026-09-28, on Ubuntu 24.04 (WSL2) **and** on the Windows bundle.
-Everything marked *measured* was run for real on both, using a synthesized test
+Status as of 2026-09-29. `C-c m` (push-to-talk) confirmed on Ubuntu 24.04 (WSL2)
+**and** on the Windows bundle. `C-c M` (live, see below) confirmed on Linux/WSL only
+so far. Everything marked *measured* was run for real, using a synthesized test
 sentence (since testing can't literally speak into a microphone) played through the
-same real recording/transcription pipeline `C-c m` uses.
+same real recording/transcription pipeline these commands use.
 
 ## What is set up
 
 `C-c m` (`my/dictate`) toggles dictation: press it once to start recording from the
 microphone, press it again to stop --- the recording is transcribed and the resulting
-text is inserted at the point where you started. Runs entirely locally: no cloud, no
-API key, no network request of any kind.
+text is inserted at the point where you started. `C-c M` (`my/dictate-live`, capital
+M) is the live variant: text appears every few seconds while you are still speaking
+(see "Live dictation" below). Both run entirely locally: no cloud, no API key, no
+network request of any kind ever leaves the machine.
 
 | Piece | What it does | Where |
 |---|---|---|
 | `parecord` (PulseAudio) | records the microphone to a WAV file | already on this system; not bundled |
-| `whisper-cli` (whisper.cpp) | transcribes the WAV file | self-built; not bundled (see below) |
+| `whisper-cli` (whisper.cpp) | transcribes a WAV file, once, for `C-c m` | self-built; not bundled (see below) |
+| `whisper-server` (whisper.cpp) | transcribes many WAV files without reloading the model, for `C-c M` | self-built; not bundled (see "Live dictation" below) |
 | a GGML model (`ggml-small.en.bin`) | what `whisper-cli` transcribes with | downloaded separately; not bundled (465 MB) |
-| `config/dictate.el` | wires the above into `C-c m` | tracked |
+| a smaller GGML model (`ggml-base.en.bin`) | what `whisper-server`/`C-c M` transcribes with | downloaded separately; not bundled (148 MB) |
+| `config/dictate.el` | wires the above into `C-c m` and `C-c M` | tracked |
 
-Nothing loads, and no process starts, until `C-c m` is pressed; if `parecord`,
-`whisper-cli` or the model are missing, it says exactly which one in the echo area
+Nothing loads, and no process starts, until `C-c m` or `C-c M` is pressed; if
+anything each one needs is missing, it says exactly which one in the echo area
 instead of failing confusingly.
 
 ## Works on both platforms, with genuinely different plumbing
@@ -178,11 +183,12 @@ auto-detect:
 
 - English only by default (`small.en`); swap in a multilingual model (drop the `.en`)
   for other languages, at some cost to English accuracy.
-- Push-to-talk, not continuous streaming: you get the transcription after you stop
-  recording, not word-by-word as you speak. This is deliberate --- whisper.cpp's own
-  real-time streaming mode is known to be less accurate (a sliding window that
-  re-corrects itself), and this project's own test showed push-to-talk gets clean,
-  100%-correct results.
+- `C-c m` is push-to-talk: you get the transcription after you stop recording, not
+  word-by-word as you speak. This is deliberate --- whisper.cpp's own real-time
+  streaming mode is known to be less accurate (a sliding window that re-corrects
+  itself), and this project's own test showed push-to-talk gets clean, 100%-correct
+  results. `C-c M` (see "Live dictation" below) trades a little of that accuracy for
+  text appearing every few seconds instead.
 - CPU-only in this environment specifically (no working CUDA toolkit or NVIDIA Vulkan
   driver here); real GPU acceleration needs the CUDA toolkit installed properly, which
   needs `sudo`.
@@ -194,6 +200,115 @@ auto-detect:
   text lands, even if you switch buffers while recording; if that buffer is killed
   before you stop, the transcription is reported in a message instead of inserted.
 
+## Live dictation (`C-c M`): transcribed as you speak, not only once you stop
+
+`C-c m` is push-to-talk: nothing appears until you stop recording. `C-c M` (capital)
+is live: text appears every few seconds while you are still speaking, one chunk at a
+time, without waiting for you to stop.
+
+### Why this needs a second whisper.cpp binary, not just calling `whisper-cli` more often
+
+*Measured*: re-invoking `whisper-cli` on short chunks does **not** work for live use
+--- a 1.9s clip and a 3.6s clip both took **~3.1-3.2s** to transcribe, proving the cost
+is almost entirely fixed per-invocation overhead (loading the model, setting up the
+decoder), not proportional to audio length. Chunking on top of that would perpetually
+fall behind real speech.
+
+whisper.cpp itself ships a second binary for exactly this, `whisper-server`
+(`examples/server`): an HTTP server that loads the model **once** and answers
+`POST /inference` requests against it. `config/dictate.el` starts it the first time
+`C-c M` is pressed and, deliberately, leaves it running afterward --- restarting it
+every session would mean paying its model-load cost every time, for a server that is
+otherwise idle and harmless in the meantime.
+
+### Real, measured speed vs. accuracy tradeoff
+
+| Model / server config | Time per ~2-3s chunk | Notes |
+|---|---|---|
+| `small.en` via `whisper-server`, default decode | ~2.6-2.8s | model *size* dominates, not whether it's warm |
+| `small.en` via `whisper-server`, greedy decode (`-bo 1 -bs 1`) | ~2.7-2.8s | decode strategy barely mattered |
+| `small.en`, quantized (`q5_0`, 487MB → 167MB) | ~2.5s | full accuracy kept, but **no real speed win** on this hardware |
+| `base.en` via `whisper-server`, greedy decode | **~0.6-0.7s** | the config live dictation actually uses |
+
+`base.en` + greedy decode is the only combination that is genuinely faster than the
+audio itself. The real cost of choosing it: in one real test, `base.en` misheard
+"emacs" as "e-max" in a sentence `small.en` transcribed 100% correctly. Live mode
+accepts that tradeoff on purpose, for responsiveness; `C-c m` is unaffected and keeps
+using `small.en`.
+
+Chunks are cut every `my/dictate-live-chunk-seconds` (default 3s) --- comfortably
+longer than the ~0.6-0.7s a chunk takes to transcribe, so the pipeline never falls
+behind, while still feeling reasonably live. Word boundaries do not line up with fixed
+3-second cuts, so a sentence spanning a cut point can land split across two chunks
+(e.g. "...as I keep the" / "speaking, new text..."); this is an expected, inherent
+artifact of fixed-interval chunking, not a bug.
+
+### Four real bugs found via genuine testing (not simulated)
+
+All four were caught with a real, end-to-end test: PulseAudio's `RDPSink`/`RDPSink.monitor`
+loopback in this environment lets a synthesized speech clip be played
+(`paplay --device=RDPSink`) while `parecord` genuinely records it back (after
+`pactl set-default-source RDPSink.monitor`), so live dictation runs against real
+captured audio, not a canned response.
+
+1. **Chunks landed in reverse order.** `(point-marker)` defaults to insertion-type
+   `nil`, meaning the marker does not advance past text inserted exactly at its own
+   position --- so each new chunk was inserted *before* the previous one. Fixed with
+   `(set-marker-insertion-type my/dictate-live--target-marker t)`.
+2. **A file-missing race at stop time.** Stopping right as a rotation tick was already
+   in flight could signal the just-spawned recording process before it ever created its
+   WAV file, and `whisper.cpp` would then fail on a missing file. Fixed by treating a
+   missing chunk file the same as silence (`(and finished-wav (file-exists-p finished-wav))`)
+   instead of letting the error escape a timer callback.
+3. **A GET readiness check silently broke the POST that followed it.** The original
+   readiness check polled the server with a real HTTP GET via `url-retrieve-synchronously`.
+   *Measured directly, repeatedly*: any prior `url.el` GET to the server --- even one
+   that completed and was cleaned up correctly --- left `url.el` in a state that made
+   the **very next** `url-retrieve-synchronously` POST (the real transcription request)
+   come back with an empty body, no error anywhere. Confirmed server-side innocence with
+   raw `curl` (the identical GET-then-POST sequence against the same server always
+   worked when each request is its own process). Binding `url-http-attempt-keepalives`
+   to nil on both requests did **not** fix it either --- the readiness check now uses a
+   bare `open-network-stream` TCP probe instead of going through `url.el` at all, which
+   cannot poison anything that follows it.
+4. **The server answers before it can really answer.** Even with the TCP-probe fix, the
+   very first real transcription request right after a (re)start still came back empty,
+   consistently --- *measured*: the listening socket accepts connections a real, short
+   time before `whisper-server`'s request handling is actually ready to serve one. A
+   plain 0.5s settle after the port starts answering fixed it reliably across repeated
+   runs; every request after that first one always worked.
+
+### Setting it up
+
+Same `whisper.cpp` checkout as `C-c m` (see "Setting it up" above) builds this too ---
+just build one more target and grab one more model:
+
+```sh
+# from the same whisper.cpp checkout used for whisper-cli
+cmake --build build -j"$(nproc)" --target whisper-server   # no SDL2 needed for this target
+
+bash ./models/download-ggml-model.sh base.en
+
+cp build/bin/whisper-server ~/.local/share/whisper-cpp/
+cp models/ggml-base.en.bin ~/.local/share/whisper-cpp/models/
+```
+
+`whisper-server`'s shared-library dependencies are the same `libwhisper.so*`/`libggml*.so*`
+already placed alongside `whisper-cli` for `C-c m`, so nothing else to copy.
+
+**Windows: not yet built or tested.** Only the Linux/WSL side has been verified end to
+end; cross-compiling `whisper-server` the same way `whisper-cli.exe` is cross-compiled
+(see above) has not been attempted.
+
+### Custom paths
+
+```elisp
+(setq my/dictate-server-binary   "/path/to/whisper-server"
+      my/dictate-live-model      "/path/to/ggml-base.en.bin"
+      my/dictate-live-port       8765    ; loopback only; change if this collides
+      my/dictate-live-chunk-seconds 3)   ; how often a chunk is cut and sent off
+```
+
 ## Tests
 
 `tests/ert/dictate.el`: wiring (key bound, nothing loaded until used, does not slow
@@ -204,3 +319,12 @@ Two tests touch the real, locally-built whisper.cpp in this environment (skip if
 absent): that a clean stop really produces a valid WAV (the exact bug described above),
 and the full pipeline end to end using a known pre-recorded WAV in place of a live
 microphone.
+
+Live dictation (`C-c M`) has its own tests in the same file: wiring, declining clearly
+when `whisper-server`/its model is missing, the start/stop/toggle state machine, the
+advancing-marker regression test for bug #1 above, the `[BLANK_AUDIO]`-tag predicate,
+and the multipart body shape --- all fast, no real tools needed. Two more tests touch
+the real, locally-built `whisper-server` (skip if absent, same pattern as the two
+above): that it really starts and answers, and the full HTTP round trip transcribing a
+known pre-recorded WAV --- this second one is exactly what caught bugs #3 and #4 above,
+consistently, before either fix.

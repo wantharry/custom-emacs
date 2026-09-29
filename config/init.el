@@ -616,6 +616,13 @@ installed, offer to install it from NonGNU ELPA."
 (autoload 'my/dictate (expand-file-name "dictate" user-emacs-directory)
   "Toggle dictation: start recording, or (pressed again) stop and insert the result." t)
 (global-set-key (kbd "C-c m") #'my/dictate)
+;; `C-c M' (capital) is LIVE dictation: text appears every few seconds while you are still
+;; speaking, via a second whisper.cpp binary (`whisper-server') kept running, instead of
+;; only once, all at once, when you stop.  Same autoload-stub reasoning as `C-c m' just
+;; above --- nothing here loads until first pressed. See config/dictate.el and docs/DICTATE.md.
+(autoload 'my/dictate-live (expand-file-name "dictate" user-emacs-directory)
+  "Toggle live dictation: transcribed a few seconds at a time while you speak." t)
+(global-set-key (kbd "C-c M") #'my/dictate-live)
 
 ;;; Documentation buffer ----------------------------------------------------------
 
