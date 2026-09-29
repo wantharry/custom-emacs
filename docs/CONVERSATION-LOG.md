@@ -601,6 +601,37 @@ rather than a silent one.
 in `tests/ert/config.el` (1 new), 0 fail; 624 tests, 604 pass, 0 fail, 20 skipped
 across the full offline suite.
 
+### Follow-up: cloud backends (ChatGPT, Claude, Gemini) registered, none active
+
+Same conversation, user: "there should be option for chatgpt and other models right for
+api key... in case i want to use other cloud models." `config/llm.el` already had two
+commented-out, ready-to-uncomment examples (Anthropic, OpenAI) at its bottom --- moved
+them from "manually uncomment to use" to "always registered, so they show up in
+`gptel-menu` without editing config," plus added Gemini as a third. Confirmed directly,
+not assumed, that this is safe: `gptel-make-openai` (and the same shape for `-anthropic`/
+`-gemini`) ends with `(setf (alist-get name gptel--known-backends ...) backend)`, never
+touching the active `gptel-backend` itself --- so registering all three changes nothing
+about Ollama staying the default from the fix just above; you would only end up talking
+to one if you deliberately picked it from `C-c a m`.
+
+**A real bug, caught immediately by the same real-subprocess testing method, not
+assumed clean**: the first version hit `void-function (gptel-make-openai)`.
+`gptel-make-openai`/`-anthropic`/`-gemini` each live in their own file
+(`gptel-openai.el`/etc.), none loaded just because `gptel` itself is --- the exact same
+reason `my/llm-setup-ollama` already `require`s `gptel-ollama` explicitly before calling
+`gptel-make-ollama`; missed adding the equivalent `require`s for these three at first.
+Fixed, re-verified through the same real, fresh-subprocess method as the Ollama-default
+fix (through `gptel-transient`, i.e. `C-c a m` --- the exact path that broke the first
+attempt at that fix too): `gptel--known-backends` correctly ends up
+`(ChatGPT Claude Gemini Ollama)`, active backend still `Ollama`. One more real bug in
+the new test itself, caught by running it rather than assumed correct: `princ` does not
+quote strings the way `%S`/`prin1` would, so the first version of the regex (expecting
+quoted names) never matched real output.
+
+41 tests in `tests/ert/llm.el` (1 more new, 3 total this session), 0 fail, stable
+across 3 repeated runs; 625 tests, 605 pass, 0 fail, 20 skipped across the full
+offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

@@ -127,6 +127,26 @@ a blank line, then BODY, exactly the part `my/llm-ollama-models' looks for."
                                "--eval" "(princ (gptel-ollama-p gptel-backend))")))))
     (should (string-match-p "t\\'" out))))
 
+;; WHAT: ChatGPT/Claude/Gemini show up as choices in `gptel-menu' too, alongside
+;; Ollama, without becoming the active backend.  WHY: a real bug caught directly, not
+;; anticipated --- the first version of this registration hit `void-function
+;; (gptel-make-openai)': `gptel-make-openai'/`-anthropic'/`-gemini' each live in their
+;; own file, none loaded just because `gptel' itself is, same reason `my/llm-setup-
+;; ollama' already `require's `gptel-ollama' explicitly before calling
+;; `gptel-make-ollama'.  A real, fresh subprocess again (not mocked), through the same
+;; real entry point (`gptel-transient', i.e. `C-c a m') that broke the Ollama-default
+;; fix above --- the exact path this needs to keep working through too.
+(ert-deftest llm/cloud-backends-are-registered-but-ollama-stays-active ()
+  (llm-need-gptel)
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(require 'gptel-transient)"
+                               "--eval" "(princ (list (sort (mapcar #'car gptel--known-backends) #'string<) (gptel-backend-name gptel-backend)))")))))
+    (should (string-match-p "(ChatGPT Claude Gemini Ollama) Ollama" out))))
+
 (ert-deftest llm/chat-sets-up-ollama-only-once ()
   (llm-need-gptel)
   (require 'gptel-ollama)

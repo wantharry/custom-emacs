@@ -87,31 +87,52 @@ always matches what is actually pulled."
 (with-eval-after-load 'gptel
   (add-hook 'gptel-post-response-functions #'my/llm--follow-response))
 
-;;; Adding a cloud backend (Anthropic, OpenAI, ...) ------------------------------------
+;;; Cloud backends: ChatGPT, Claude, Gemini, all *available*, none of them active -------
 ;;
-;; This file is tracked by git: never put a real API key in it.  Instead:
+;; WHAT: registers three well-known cloud backends with `gptel-menu' (`C-c a m') so they
+;; show up as choices --- picking one is then a matter of `C-c a m' → Backend, no config
+;; editing needed for that part.  WHY: Ollama stays the actual default either way (see
+;; the "Chat with an LLM" section of `init.el', which runs after this and sets it) ---
+;; `gptel-make-*' only *registers* a backend into `gptel-menu''s list, it does not
+;; activate it (confirmed directly in `gptel-openai.el': it ends with `(setf (alist-get
+;; name gptel--known-backends ...) backend)', nothing touching `gptel-backend' itself) ---
+;; so having these three always registered costs nothing and changes nothing about the
+;; default; you would only ever end up talking to one of these if you deliberately picked
+;; it from the menu. HOW, to actually use one once picked:
 ;;
-;; 1. Put the key in `~/.authinfo.gpg' (recommended, encrypted) or `~/.authinfo', one
-;;    line, e.g. for Anthropic:
+;; 1. This file is tracked by git: never put a real API key in it. Put it in
+;;    `~/.authinfo.gpg' (recommended, encrypted) or `~/.authinfo' instead, one line per
+;;    service:
+;;      machine api.openai.com login apikey password sk-...
 ;;      machine api.anthropic.com login apikey password sk-ant-...
+;;      machine generativelanguage.googleapis.com login apikey password AIza...
+;; 2. `C-c a m' → Backend → the one you want. Without a key in place, the backend still
+;;    shows up (nothing here fails just because a key is missing --- `auth-source-pick-
+;;    first-password' below just returns nil, which fails only once you actually try to
+;;    send something, exactly like the real 401 that prompted adding this at all), it
+;;    just won't successfully send anything until you add one.
 ;;
-;; 2. Uncomment and adjust one of these (each only needs to run once; `with-eval-after-
-;;    load' means it costs nothing until `gptel' is actually loaded, i.e. until `C-c a a'
-;;    or `C-c a m' is used):
-;;
-;; (with-eval-after-load 'gptel
-;;   (gptel-make-anthropic "Claude"
-;;     :key (lambda () (auth-source-pick-first-password :host "api.anthropic.com"))
-;;     :stream t))
-;;
-;; (with-eval-after-load 'gptel
-;;   (gptel-make-openai "ChatGPT"
-;;     :key (lambda () (auth-source-pick-first-password :host "api.openai.com"))
-;;     :stream t
-;;     :models '(gpt-4o gpt-4o-mini)))
-;;
-;; 3. `M-x gptel-menu' (`C-c a m') to switch to it: whichever backend `gptel-make-*' ran
-;;    last becomes the default, but the menu lets you pick per-buffer.
+;; More providers gptel supports the same way (`gptel-make-perplexity', `-deepseek',
+;; `-xai', `-azure', `-kagi', ...): copy one of the three below and change the function
+;; name, host and env var/`:key' lookup --- see `config/elpa/gptel-*/gptel-*.el' for
+;; each one's exact keyword arguments.
+(with-eval-after-load 'gptel
+  ;; `gptel-make-openai'/`-anthropic'/`-gemini' each live in their own file
+  ;; (gptel-openai.el/gptel-anthropic.el/gptel-gemini.el), none of them loaded just
+  ;; because `gptel' itself is --- same reason `my/llm-setup-ollama' above explicitly
+  ;; `require's `gptel-ollama' before calling `gptel-make-ollama'.
+  (require 'gptel-openai)
+  (require 'gptel-anthropic)
+  (require 'gptel-gemini)
+  (gptel-make-openai "ChatGPT"
+    :key (lambda () (auth-source-pick-first-password :host "api.openai.com"))
+    :stream t)
+  (gptel-make-anthropic "Claude"
+    :key (lambda () (auth-source-pick-first-password :host "api.anthropic.com"))
+    :stream t)
+  (gptel-make-gemini "Gemini"
+    :key (lambda () (auth-source-pick-first-password :host "generativelanguage.googleapis.com"))
+    :stream t))
 
 (provide 'llm)
 ;;; llm.el ends here

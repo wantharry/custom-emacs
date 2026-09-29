@@ -78,13 +78,34 @@ already running in WSL.
 | A real request through `gptel-request`, asked to reply with one word | **"PONG"** (`qwen2.5-coder:7b`) | **"PONG"** (`qwen2.5-coder:7b`), reached over `localhost:11434` from Windows |
 | Emacs startup cost | unchanged: `gptel` is not loaded until `C-c a a`/`C-c a m` | same |
 
-## Adding a cloud backend (Anthropic, OpenAI, ...)
+## Cloud backends (ChatGPT, Claude, Gemini)
 
-Ollama needs no key. A cloud backend does --- see the "Adding a cloud backend" section at
-the bottom of `config/llm.el` for exactly where that goes: the key lives in
-`~/.authinfo.gpg` (or `~/.authinfo`), **never** in `config/llm.el` itself, which is
-tracked by git. Two ready-to-uncomment examples are there (Anthropic, OpenAI); `C-c a m`
-then lets you switch to it per buffer.
+Ollama needs no key and stays the default either way, but three cloud backends are
+already **registered** with `gptel-menu` (`C-c a m` → Backend): ChatGPT (OpenAI), Claude
+(Anthropic), Gemini (Google). Registering a backend (`gptel-make-*`, at the bottom of
+`config/llm.el`) only makes it a selectable *choice* --- confirmed directly in gptel's
+own source, `gptel-make-openai` ends by adding itself to `gptel--known-backends`, never
+touching the active `gptel-backend` --- so having all three always registered changes
+nothing about Ollama being the default; you would only ever end up talking to one of
+these if you deliberately pick it from the menu.
+
+To actually use one once picked: the key lives in `~/.authinfo.gpg` (recommended,
+encrypted) or `~/.authinfo`, **never** in `config/llm.el` itself, which is tracked by
+git --- one line per service:
+
+```
+machine api.openai.com login apikey password sk-...
+machine api.anthropic.com login apikey password sk-ant-...
+machine generativelanguage.googleapis.com login apikey password AIza...
+```
+
+Without a key, the backend still shows up in the menu (nothing fails just because a key
+is missing), it simply won't successfully send anything until you add one --- the same
+401 Unauthorized this whole default-backend fix started from.
+
+More providers gptel supports the same way (`gptel-make-perplexity`, `-deepseek`, `-xai`,
+`-azure`, `-kagi`, ...) aren't registered by default; copy one of the three in
+`config/llm.el` and change the function name, host and key lookup to add another.
 
 ## Point follows the response
 
