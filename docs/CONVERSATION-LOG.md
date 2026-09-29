@@ -230,6 +230,43 @@ dependencies installed) --- that's the natural next check if this gets picked up
   (or whichever existing file is most similar) is the fastest way to find every spot that
   needs the new filename added alongside it.
 
+### Crash-safe auto-save and session restore (`C-c w`)
+
+User asked: buffers should auto-save, a crash should be recoverable, and Emacs's whole
+state (open buffers, window layout) should come back next time --- with a way to reset to
+default --- "is there a package like that?" Answer: no package needed, `desktop-save-mode'
+(session/window restore) and `auto-save-visited-mode' (real-file auto-save) are both
+built into Emacs. New file `config/session.el`, `C-c w s`/`C-c w r`/`C-c w l` (save now /
+reset / list what's tracked). Full details in [SESSION.md](SESSION.md); the short version:
+
+- Verified with a real `kill -9` crash (window split, 2 files, one edited after
+  unlocking): edited content survived (`auto-save-visited-mode`), and a fresh Emacs
+  restored both files, the split, AND correctly re-locked the file that had been left
+  unlocked --- restoring a buffer goes through the same `find-file` machinery as opening
+  it by hand, so the read-only lock always reapplies.
+- **Two real bugs found only by that actual crash test, not by reading the source**:
+  (1) `desktop-save`'s second argument is `RELEASE` (let go of the lock), not "force
+  save" --- passing it non-nil, an easy mistake made once here, silently defeats the
+  periodic autosave forever, since it never gets to claim ownership; (2) the stock 30s
+  `desktop-auto-save-timeout` default is too long --- a session crashed well within that
+  window had no saved desktop at all; shortened to 10s here.
+- **A whole detour chasing a phantom "hang"**: real GUI test runs kept timing out with
+  zero output, looking exactly like a genuine deadlock (checked with `/proc/PID/status`,
+  `wchan`, fd lists --- no gdb/strace available in this environment). It was never a hang
+  at all: twice, a test *script* tried to `insert` into a buffer the read-only lock had
+  correctly just re-locked, erroring out mid-timer-callback before ever reaching the
+  `kill-emacs` that would have ended it --- the process just sat there alive,
+  indistinguishable from stuck without a way to see the actual (silent, off-screen)
+  error. Lesson worth repeating: when something built on real, working infrastructure
+  looks impossibly stuck, suspect the test's own script before the infrastructure ---
+  especially inside a callback whose errors go nowhere visible.
+- `desktop-read` is unconditionally a no-op under `noninteractive` (Emacs's own
+  documented behavior) --- the real, headless round-trip test in `tests/ert/session.el`
+  has to briefly let-bind `noninteractive' to nil to exercise it at all in `--batch`.
+- `C-c w l` (list what's tracked) was a follow-up ask ("can it list states like
+  buffers?") --- uses `desktop-save-buffer-p`, desktop.el's own real filter, so the list
+  never drifts from what would actually be saved.
+
 ## Where things stand as of the last entry
 
 - All features above are committed and pushed to `origin/main`, including the Windows

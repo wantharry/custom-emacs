@@ -89,6 +89,7 @@ research-emacs/
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | Java and Rust (full support), and HTML/CSS/JS/TS/JSX/JSON (tree-sitter editing so far): what is installed, what it costs (measured), how to use and extend it |
 | [docs/LLM.md](docs/LLM.md) | Chatting with an LLM (`C-c a a`): the local Ollama backend, how it works, how it reaches the same Ollama from both WSL/Linux and the Windows bundle, adding a cloud backend |
 | [docs/DICTATE.md](docs/DICTATE.md) | Speech-to-text into the buffer (`C-c m`): a local Whisper build, a real bug it caught and the fix, measured accuracy and speed, setting it up |
+| [docs/SESSION.md](docs/SESSION.md) | Crash-safe auto-save and session restore (`C-c w`): auto-saving the real file as you edit, saving/restoring open buffers and window layout, two real bugs a real crash test caught and fixed |
 | [docs/START-SCREEN.md](docs/START-SCREEN.md) | The screen Emacs opens on: your last 5 files, folders and projects as links, expandable, and `C-c h` to get back to it |
 | [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Portable bundles: unzip and run. The Windows zip (built and tested), what is inside, how it differs from the Linux build, limits, how to rebuild it |
 | [docs/SEARCH-OPTIONS.md](docs/SEARCH-OPTIONS.md) | The inventory of every way to search in Emacs: what is built in, what was added here, what was pruned, and which packages exist but are not installed (with versions and overlap) |

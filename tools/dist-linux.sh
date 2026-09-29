@@ -55,7 +55,7 @@ for f in "$STAGE"/lib/gdk-pixbuf/loaders/*.so; do "$PATCHELF" --set-rpath '$ORIG
 for f in "${BINS[@]}"; do "$PATCHELF" --set-rpath '$ORIGIN/../../lib' "$f"; done
 
 echo "== settings, packages, grammars (no personal history)"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,session.el} "$STAGE/config/"
 cp -a "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"      # download state, not needed
 [ -d "$ROOT/config/tree-sitter" ] && cp -a "$ROOT/config/tree-sitter" "$STAGE/config/tree-sitter"

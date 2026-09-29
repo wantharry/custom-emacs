@@ -283,6 +283,9 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable; on any entry, `m`/`d`/`t` open it with Magit/Dired/Treemacs directly ([START-SCREEN.md](START-SCREEN.md)) |
 | `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
 | `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |
+| `C-c w s` | `my/session-save` | **this config:** save the session (open buffers, window layout) right now ([SESSION.md](SESSION.md)) |
+| `C-c w r` | `my/session-reset` | **this config:** discard the saved session: back to the plain start screen next time |
+| `C-c w l` | `my/session-list` | **this config:** list every buffer currently part of the session |
 | `C-x 0` | `delete-window` | close this window |
 | `C-x 1` | `delete-other-windows` | keep only this window |
 | `C-x 2` | `split-window-below` | split top and bottom |

@@ -102,7 +102,10 @@
   (should (eq (key-binding (kbd "C-x C-b")) 'ibuffer))
   (should (eq (key-binding (kbd "M-o")) 'other-window))
   (should (eq (key-binding (kbd "C-c r")) 'recentf-open))
-  (should (eq (key-binding (kbd "C-c v")) 'my/toggle-evil)))
+  (should (eq (key-binding (kbd "C-c v")) 'my/toggle-evil))
+  (should (eq (key-binding (kbd "C-c w s")) 'my/session-save))
+  (should (eq (key-binding (kbd "C-c w r")) 'my/session-reset))
+  (should (eq (key-binding (kbd "C-c w l")) 'my/session-list)))
 
 (ert-deftest config/source-files-are-well-formed ()
   (dolist (name '("init.el" "early-init.el"))

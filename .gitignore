@@ -16,6 +16,7 @@
 !/config/llm-council.el
 !/config/shortcuts.el
 !/config/dictate.el
+!/config/session.el
 
 # Python bytecode from the test runner
 __pycache__/

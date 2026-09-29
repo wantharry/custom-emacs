@@ -474,6 +474,17 @@ installed, offer to install it from NonGNU ELPA."
 ;; start screen at all, versus deferring to a file given on the command line.
 (setq initial-buffer-choice #'my/start-initial-buffer)
 
+;;; Session: crash-safe auto-save, and restoring open buffers/windows next time -----
+
+;; C-c w s saves the session by hand; C-c w r discards it (back to the plain start
+;; screen). Every visited, edited buffer is also auto-saved to its real file as you
+;; type, not just to a recovery shadow copy. No package: `desktop-save-mode' and
+;; `auto-save-visited-mode', both built into Emacs. Loaded eagerly, right after the
+;; start screen, for the same reason startpage.el is: restoring a saved session has to
+;; happen during startup, too early for a lazy autoload to help. See config/session.el
+;; and docs/SESSION.md.
+(require 'session (expand-file-name "session" user-emacs-directory))
+
 ;;; Shortcuts reference ----------------------------------------------------------
 
 ;; This configuration's own keybindings (not the built-in Emacs ones docs/KEYBOARD.md

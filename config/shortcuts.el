@@ -97,6 +97,10 @@
     ("Shortcuts buffer (this config)" "C-c k"
      "q"
      (("TAB" . "fold/unfold a topic")))
+    ("Session list (this config)" "C-c w l"
+     "q"
+     (("RET / click" . "switch to that buffer")
+      ("g" . "refresh")))
     ("Dictation (this config)" "C-c m starts recording"
      "C-c m again stops it, transcribes, and inserts the result"
      nil)
@@ -133,6 +137,10 @@ by hand.")
     ("Editing lock"
      ("C-c e e" allow-editing "make this buffer editable")
      ("C-c e l" stop-editing "lock this buffer read-only again"))
+    ("Session (crash-safe auto-save and restore)"
+     ("C-c w s" my/session-save "save the session (open buffers, window layout) now")
+     ("C-c w r" my/session-reset "discard it: back to the plain start screen next time")
+     ("C-c w l" my/session-list "list every buffer currently part of the session"))
     ("Documentation"
      ("C-c d" my/docs "show every guide in one buffer, built at startup")
      ("C-c D" my/docs-rebuild "rebuild it after a guide changes")
