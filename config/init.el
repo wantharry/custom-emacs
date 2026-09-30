@@ -439,12 +439,15 @@ installed, offer to install it from NonGNU ELPA."
 ;; the project or of the whole disk (matched with ripgrep), with a live search when the
 ;; index has nothing.  See fastfind.el and docs/NAVIGATING-CODE.md.
 ;;   C-c f f  project file (anywhere, outside a project)   C-c f g  anywhere on the disk
+;;   C-c f a  anywhere on the disk, asynchronously (Consult/fd, never blocks)
 ;;   C-c f r  rebuild the whole-disk index now
 ;; Autoloaded by full path: putting `user-emacs-directory' itself on `load-path' makes
 ;; Emacs print a startup warning.
 (defconst my/ff-library (expand-file-name "fastfind" user-emacs-directory))
 (autoload 'my/ff-find-file my/ff-library "Find a file in the current project." t)
 (autoload 'my/ff-find-file-global my/ff-library "Find a file anywhere on the disk." t)
+(autoload 'my/ff-find-file-global-async my/ff-library
+  "Find a file anywhere on the disk, asynchronously (Consult/fd)." t)
 (autoload 'my/ff-reindex my/ff-library "Rebuild the whole-disk file index." t)
 (autoload 'my/ff-status my/ff-library "Show the state of the file indexes." t)
 
@@ -757,6 +760,11 @@ installed, offer to install it from NonGNU ELPA."
 
 (global-set-key (kbd "C-c f f") #'my/ff-find-file)
 (global-set-key (kbd "C-c f g") #'my/ff-find-file-global)
+;; Same "bind to the real command if its dependency is installed, otherwise to a command
+;; that just explains why not" pattern as `C-c a c' above --- `my/ff-find-file-global-
+;; async' itself also declines clearly if called some other way (`M-x'), but binding it
+;; to `my/consult-missing' here means the key itself never even reaches that far.
+(global-set-key (kbd "C-c f a") (if (locate-library "consult") #'my/ff-find-file-global-async #'my/consult-missing))
 (global-set-key (kbd "C-c f r") #'my/ff-reindex)
 (global-set-key (kbd "C-c f p") #'my/find-git-repos)
 (global-set-key (kbd "C-c v") #'my/toggle-evil)

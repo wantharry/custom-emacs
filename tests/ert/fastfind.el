@@ -30,7 +30,11 @@ and the global search limited to ROOT."
              (make-directory (file-name-directory (concat ,root f)) t)
              (test-write-file (concat ,root f) "x"))
            (let ((my/ff-cache-dir ff-cache) (my/ff-global-roots (list ,root))
-                 (my/ff-excluded-paths nil) (my/ff-project-stale-seconds 3600))
+                 (my/ff-excluded-paths nil) (my/ff-project-stale-seconds 3600)
+                 ;; No debounce delay here: these tests care about matching/ranking
+                 ;; behavior, not the debounce itself (which has its own dedicated tests
+                 ;; below); zero keeps every test here exactly as fast as before it existed.
+                 (my/ff-debounce-seconds 0))
              ,@body))
        (ignore-errors (delete-directory ,root t)))))
 
@@ -342,7 +346,9 @@ gone is not enough: the step that moves the finished file into place runs just a
   (should (eq (key-binding (kbd "C-c f f")) 'my/ff-find-file))
   (should (eq (key-binding (kbd "C-c f g")) 'my/ff-find-file-global))
   (should (eq (key-binding (kbd "C-c f r")) 'my/ff-reindex))
-  (dolist (c '(my/ff-find-file my/ff-find-file-global my/ff-reindex my/ff-status))
+  (when (locate-library "consult")
+    (should (eq (key-binding (kbd "C-c f a")) 'my/ff-find-file-global-async)))
+  (dolist (c '(my/ff-find-file my/ff-find-file-global my/ff-find-file-global-async my/ff-reindex my/ff-status))
     (should (commandp c))))
 
 (ert-deftest ff/the-background-refresh-is-on-by-default-and-switchable ()
@@ -367,5 +373,71 @@ gone is not enough: the step that moves the finished file into place runs just a
       (let* ((t0 (float-time)) (r (my/ff--search-index idx "needle")) (dt (- (float-time) t0)))
         (should (equal r '("/data/deep/needle-widget-service.txt")))
         (should (< dt 1.0))))))                                        ; measured 20 to 130 ms
+
+;;; Debounce: a real search only runs once typing actually pauses (C-c f f / C-c f g)
+
+;; WHAT/WHY: these mock `sit-for' itself (its return value, `t' = waited the full time,
+;; `nil' = interrupted by pending input --- both documented, both real possible
+;; outcomes) rather than trying to genuinely trigger the interruption via
+;; `unread-command-events'.  A real, found-the-hard-way limitation, not a shortcut taken
+;; for convenience: confirmed directly that `--batch' mode (which is how this whole test
+;; suite runs) does not honor `sit-for''s pending-input interruption the way a real
+;; command loop does --- `input-pending-p' correctly reports `t' after queuing fake
+;; input, but `sit-for' still waits out the full delay regardless in `--batch'
+;; specifically. `sit-for' itself being interruptible by pending input in *real*
+;; interactive use is `sit-for''s own, long-established, widely-relied-upon documented
+;; behavior (the same primitive `company-mode'/`corfu' and others build exactly this kind
+;; of debounce on) --- not this project's to re-prove. What IS this project's to prove,
+;; and what these two tests actually check, is that `my/ff--table' itself responds
+;; correctly to each of `sit-for''s two possible outcomes.
+(ert-deftest ff/debounce-skips-the-search-when-sit-for-is-interrupted ()
+  (ff-with-tree r
+    (my/ff-reindex t)
+    (let ((table (my/ff--table #'my/ff--global-index-file (list r) r)))
+      (cl-letf (((symbol-function 'sit-for) (lambda (&rest _) nil)))
+        (should-not (all-completions "shape" table nil))))))
+
+(ert-deftest ff/debounce-runs-the-search-when-sit-for-completes-uninterrupted ()
+  (ff-with-tree r
+    (my/ff-reindex t)
+    (let ((table (my/ff--table #'my/ff--global-index-file (list r) r)))
+      (cl-letf (((symbol-function 'sit-for) (lambda (&rest _) t)))
+        (should (equal (car (all-completions "shape" table nil)) "src/main/java/demo/Shape.java"))))))
+
+;;; C-c f a: the fully asynchronous alternative (Consult/fd, never blocks)
+
+;; WHAT/WHY: verifies this file's own responsibility --- it calls `consult-fd' with the
+;; right roots, and declines clearly without Consult installed --- not Consult's own
+;; async pipeline itself, which is Consult's own, separately tested, concern.
+
+(ert-deftest ff/global-async-declines-clearly-without-consult ()
+  (cl-letf (((symbol-function 'locate-library) (lambda (&rest _) nil)))
+    (should-error (my/ff-find-file-global-async) :type 'user-error)))
+
+(ert-deftest ff/global-async-searches-the-same-roots-as-the-synchronous-command ()
+  (ff-with-tree r
+    (skip-unless (locate-library "consult"))
+    (require 'consult)
+    (let (captured)
+      (cl-letf (((symbol-function 'consult-fd) (lambda (&optional dir &rest _) (setq captured dir))))
+        (my/ff-find-file-global-async)
+        (should (equal captured my/ff-global-roots))))))
+
+(ert-deftest ff/an-empty-query-is-never-debounced ()
+  ;; Debouncing an empty query would mean a pointless pause the moment the minibuffer
+  ;; opens, before anything has been typed --- `my/ff--candidates' already never
+  ;; searches for one; this confirms the debounce wrapper does not add a wait on top of
+  ;; that, by timing it directly rather than just assuming so: with NO pending input, a
+  ;; real (non-empty) query would genuinely wait out the full debounce (proven by the
+  ;; test above) --- a fast return here, under the same long debounce setting, means the
+  ;; empty-string branch really did skip `sit-for' rather than happening to look the
+  ;; same for an unrelated reason (an empty query already having no candidates either way).
+  (ff-with-tree r
+    (my/ff-reindex t)
+    (let* ((my/ff-debounce-seconds 2)
+           (table (my/ff--table #'my/ff--global-index-file (list r) r))
+           (t0 (float-time)))
+      (all-completions "" table nil)
+      (should (< (- (float-time) t0) 0.5)))))
 
 ;;; fastfind.el ends here

@@ -671,6 +671,59 @@ zero calls across a real `recentf-save-list` invocation, not just that the varia
 set). 22 tests in `tests/ert/config.el` (1 new), 0 fail, stable across 3 repeated runs;
 626 tests, 606 pass, 0 fail, 20 skipped across the full offline suite.
 
+### Whole-disk search stops blocking: debounce for C-c f f/g, a fully async C-c f a
+
+User asked why typing into the whole-disk finder (`C-c f g`/`C-c f f` outside a
+project) felt laggy per letter --- confirmed for real, not assumed, that this is a
+genuine, already-documented cost (the file header's own measured "7 to 97ms per
+keystroke over ~975,000 paths", and the user's own real index came back at 988,397
+files) --- a fresh, real search runs synchronously on every keystroke, not just once.
+Then asked specifically for it to be asynchronous instead. Offered two different
+scopes (debounce only vs. a full async rewrite); user: "can we write both for
+different commands."
+
+**Debounce for the existing `C-c f f`/`C-c f g`**: `my/ff--table`'s completion-table
+closure now waits `my/ff-debounce-seconds` (150ms) via `sit-for` before actually
+searching, once per distinct query string. `sit-for` --- not a timer --- is the whole
+trick: it returns immediately, without waiting, the moment more input is already
+pending, which is exactly what every keystroke except the last one in a fast burst is;
+Emacs's own completion machinery already re-invokes the table after every keystroke as
+part of its normal redisplay cycle, so the one call that is NOT interrupted (the one
+after which nothing further is typed) is naturally the one that runs the real search
+--- no new minibuffer-refresh machinery needed, unlike a timer-based approach would need.
+
+**A real, found-the-hard-way testing limitation, not a shortcut**: the first version of
+this feature's tests tried to simulate "more input is already pending" via
+`unread-command-events`, the same technique `tests/gui/gui-tests.el` already uses for
+real keystroke-driven tests. Confirmed directly, not assumed: `--batch` mode (how this
+whole suite runs) does **not** honor `sit-for`'s pending-input interruption the way a
+real command loop does --- `input-pending-p` correctly reports `t` after queuing fake
+input, but `sit-for` still waited out the full delay regardless, every time, in
+`--batch` specifically. Rescoped the tests to what is actually this project's
+responsibility to prove: that `my/ff--table` responds correctly to each of `sit-for`'s
+two documented possible return values (mocking `sit-for` itself, not trying to
+re-trigger its own interruption mechanics) --- `sit-for` being interruptible by pending
+input in real interactive use is `sit-for`'s own long-established, widely-relied-upon
+behavior (the same primitive `company-mode`/`corfu` build their own debouncing on), not
+something this suite needs to re-prove.
+
+**A fully asynchronous alternative, `C-c f a`**: rather than hand-rolling an async
+subprocess pipeline (filters, sentinels, a minibuffer-refresh trigger) from scratch,
+`my/ff-find-file-global-async` reuses `consult-fd` (already installed, already used by
+`C-c s f` for project-scoped search) --- confirmed directly in Consult's own
+documentation, not assumed, that its `dir` argument accepts a **list** of search paths,
+so `my/ff-global-roots` (the exact same roots `C-c f g` searches) can be passed
+straight through with no new plumbing. Verified fully end to end, not just unit-tested:
+built the exact `fd` command line Consult's own internals produce for a real query
+against a real directory, ran it for real, got real correct file results back. The
+real, disclosed tradeoff: `fd`'s own literal/regex name matching, not the fuzzy
+"letters in any order" scoring `C-c f g`/`C-c f f` use --- a genuinely different tool,
+not a drop-in replacement, in exchange for genuinely never blocking, not even for a
+debounce pause.
+
+42 tests in `tests/ert/fastfind.el` (5 new, 1 extended), 0 fail, stable across 3
+repeated runs; 631 tests, 611 pass, 0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

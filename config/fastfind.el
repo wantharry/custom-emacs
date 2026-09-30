@@ -97,6 +97,27 @@ Linux under WSL the Windows drive under /mnt is left out.")
 ;; fallback paths deliberately, or on a machine where ripgrep misbehaves for some reason.
 (defvar my/ff-rg 'auto
   "The ripgrep program: `auto' finds it, nil forces the fallbacks (grep, then Lisp).")
+;; WHAT: how long to wait for a pause in typing before actually searching.  WHY: a real,
+;; reported problem --- without this, a real search command runs synchronously on every
+;; single keystroke, which can feel laggy typing into the whole-disk search specifically
+;; (the file header comment's own measured cost, 7-97ms per keystroke over ~975,000
+;; paths, is a real, perceptible delay at the high end, especially on Windows where
+;; spawning that subprocess costs more to begin with). HOW: `my/ff--table' below waits
+;; this long via `sit-for', not a timer --- `sit-for' returns immediately, without
+;; waiting the full delay, the moment more input is already pending, which is exactly
+;; what a fast typist mid-word is: every keystroke except the last one in a burst gets
+;; interrupted almost instantly and just keeps showing the previous result, and the
+;; *last* keystroke (the one after which nothing further is typed, by definition) is the
+;; one whose `sit-for' actually completes and runs the real search. This is why a timer
+;; (which would need its own machinery to force the minibuffer to redisplay once it
+;; fires) is not needed here: Emacs's own completion machinery already re-invokes this
+;; table after every keystroke as part of its normal redisplay cycle, so the one
+;; genuinely-uninterrupted call already lands exactly where a timer would have fired one.
+;; The real tradeoff: candidates lag behind by whatever was last actually searched during
+;; a fast burst, not literally live on every letter --- `my/ff-find-file-global-async'
+;; (`C-c f a') is the fully asynchronous alternative when that tradeoff isn't wanted.
+(defvar my/ff-debounce-seconds 0.15
+  "Seconds of no new typing before the fast finder actually searches again.")
 
 ;;; Tools
 
@@ -667,8 +688,14 @@ STRIP, if non-nil, is a folder removed from the front of each shown path."
                    (annotation-function . ,(lambda (_c) (if (cdr last-result) "  (not in the index: live search)" "")))))
        ((memq action '(nil t lambda))
         (unless (equal string last-query)
-          (setq last-query string
-                last-result (my/ff--candidates (funcall index-thunk) roots string)))
+          ;; An empty query never searches at all (see `my/ff--candidates'), so there is
+          ;; nothing to debounce --- waiting here too would just be a pointless pause the
+          ;; moment the minibuffer opens, before anything has been typed.
+          (if (string-empty-p string)
+              (setq last-query string last-result (cons nil nil))
+            (when (sit-for my/ff-debounce-seconds)
+              (setq last-query string
+                    last-result (my/ff--candidates (funcall index-thunk) roots string)))))
         (let ((shown (mapcar (lambda (p) (if (and strip (string-prefix-p strip p)) (substring p (length strip)) p))
                              (car last-result))))
           (cond ((eq action t) shown)
@@ -716,6 +743,34 @@ STRIP, if non-nil, is a folder removed from the front of each shown path."
       (my/ff-reindex))
     (find-file (my/ff--read "Find file (whole disk): "
                             (my/ff--table #'my/ff--global-index-file roots nil)))))
+
+;; WHAT: `C-c f a' --- find a file anywhere on the disk without ever blocking Emacs while
+;; typing, not even for the debounce's occasional pause.  WHY: a real, reported problem
+;; --- even debounced, `my/ff-find-file-global' still runs a real, synchronous, blocking
+;; search each time it actually fires; for someone who wants zero perceived blocking at
+;; all, this instead reuses `consult-fd' (`C-c s f', already used here for project-scoped
+;; file finding): a real, already-installed, battle-tested asynchronous pipeline
+;; (throttled input, a streamed, non-blocking subprocess, live minibuffer refresh as
+;; results arrive) instead of building a new one from scratch just for this. HOW:
+;; `consult-fd' accepts its DIR argument as either one directory or, per its own
+;; documented behavior, a LIST of search paths --- passing `my/ff-global-roots' directly
+;; searches the exact same roots `C-c f g' does, just through Consult's own machinery.
+;;
+;; The real tradeoff, not hidden: `consult-fd' matches file names literally/by regex
+;; (whatever `fd' itself supports --- see `consult-fd-args'), not the fuzzy "letters in
+;; any order" scoring `my/ff-find-file-global' uses --- genuinely different matching
+;; behavior, not a drop-in replacement, in exchange for genuinely never blocking.
+;;;###autoload
+(defun my/ff-find-file-global-async ()
+  "Find a file anywhere on the disk asynchronously (via Consult and fd), so Emacs is
+never blocked while you type --- see `my/ff-find-file-global' (`C-c f g') for the
+debounced-but-still-synchronous alternative, and its own doc string for the real
+difference in matching behavior between the two."
+  (interactive)
+  (unless (locate-library "consult")
+    (user-error "my/ff-find-file-global-async needs Consult: run ./build.sh packages"))
+  (require 'consult)
+  (consult-fd my/ff-global-roots))
 
 ;; WHAT: `C-c f f' --- find a file in the current project, or fall back to the whole disk
 ;; if there isn't one.  WHY/HOW: `project-current' (no PROMPT argument, so it never asks

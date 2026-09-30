@@ -62,9 +62,21 @@ its own finder, written in Emacs Lisp with **no package** (the same idea as `fzf
 |---|---|---|
 | `C-c f f` | `my/ff-find-file` | find a file in this project; outside a project, anywhere on the disk |
 | `C-c f g` | `my/ff-find-file-global` | find a file anywhere on the disk |
+| `C-c f a` | `my/ff-find-file-global-async` | the same, but never blocks Emacs at all (Consult/fd; see below) |
 | `C-c f r` | `my/ff-reindex` | rebuild the whole-disk index now |
 
 `M-x my/ff-status` tells you how old the indexes are and which search program is in use.
+
+**A real, reported problem, and two different fixes.** A fresh search runs every time you type a
+character --- fine for a small project index, but on the whole-disk index (subprocess spawn is
+real, measured overhead, worse on Windows) it could feel like each keystroke pauses briefly.
+`C-c f g`/`C-c f f` now **debounce**: typing fast just keeps showing the previous result until you
+actually pause (150ms by default, `my/ff-debounce-seconds`), rather than searching on every single
+letter --- a real search still blocks briefly each time it runs, just far less often. `C-c f a` goes
+further: it hands the whole-disk search to `consult-fd` (the same engine behind `C-c s f`'s
+project-scoped search) instead, whose own async pipeline never blocks at all, not even once ---
+the tradeoff is `fd`'s own literal/regex name matching, not the fuzzy "letters in any order"
+scoring `C-c f g`/`C-c f f` use, so it is a genuinely different tool, not a drop-in replacement.
 
 **How it works.**
 
