@@ -17,6 +17,7 @@
 !/config/shortcuts.el
 !/config/dictate.el
 !/config/emacs-session.el
+!/config/calendar-year.el
 
 # Python bytecode from the test runner
 __pycache__/

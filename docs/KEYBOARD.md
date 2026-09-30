@@ -270,6 +270,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x <left>` | `previous-buffer` | previous buffer |
 | `C-x <right>` | `next-buffer` | next buffer |
 | `C-c r` | `recentf-open` | **this config:** open a recent file |
+| `C-c y` | `my/calendar-year` | **this config:** a real year-at-a-glance calendar, 12 months in a grid (`C-u C-c y` for a different year); `M-x calendar` on its own only ever shows 3 months in a single row |
 | `C-c t` | `my/treemacs` | **this config:** show or hide the project file tree ([TREEMACS.md](TREEMACS.md)) |
 | `C-c T` | `my/treemacs-reveal` | **this config:** show the tree and move to the current file in it |
 | `C-x g` | `magit-status` | **this config:** Git status, stage and commit with single keys ([MAGIT.md](MAGIT.md)) |

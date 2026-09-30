@@ -147,6 +147,8 @@ by hand.")
     ("Recent work"
      ("C-c h" my/start "the start screen: recent files, folders and projects")
      ("C-c r" recentf-open "open a recent file"))
+    ("Calendar"
+     ("C-c y" my/calendar-year "a real year-at-a-glance calendar, 12 months in a grid"))
     ("Editing lock"
      ("C-c e e" allow-editing "make this buffer editable")
      ("C-c e l" stop-editing "lock this buffer read-only again"))

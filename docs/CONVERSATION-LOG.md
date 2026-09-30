@@ -810,6 +810,52 @@ after. 23 tests in `tests/ert/config.el` (0 net new, 1 rewritten), 0 fail, stabl
 across 3 repeated runs; 633 tests, 613 pass, 0 fail, 20 skipped across the full offline
 suite.
 
+### A real year-at-a-glance calendar, built by hand: `C-c y` (`my/calendar-year`)
+
+User, after the 12-month revert: "so we cant fix?" Checked properly before answering
+either way: a real web search turned up no existing package that lays out a whole
+year as a grid (`calfw` exists, but is a month/week/day event-calendar, not a year
+grid) --- confirmed, not assumed, before concluding this needed building by hand.
+Asked the user to choose between building it properly or leaving the default 3-month
+view; they chose to build it.
+
+New file `config/calendar-year.el` (matching this project's own "substantial feature
+gets its own file" convention, not crammed into `init.el`): `M-x calendar` (`calendar-
+generate`) lays every month out in one row by calling `calendar-generate-month' once
+per month at increasing column indents --- the exact same primitive, just called once
+per *row* of 3 months instead of once for 12 in a row nothing can wrap sanely, each
+row built in its own scratch buffer and the results assembled into a plain, separate,
+read-only `*Year Calendar*` buffer (`special-mode`, `q` to close) that never touches
+the real `*Calendar*` buffer, `calendar-total-months`, or the diary. Bound to `C-c y`
+(`C-u C-c y` prompts for a year).
+
+Verified for real, learning directly from the exact mistake earlier this session:
+every claim about the real buffer (12 months present, a real month-row's actual
+rendered width, read-only, `q` bound, default year, reusing the same buffer on a
+second call) checked through a real, fresh subprocess with the full config loaded, not
+assumed from the underlying primitive working in isolation. Real measured numbers: 33
+total lines, a real month-row 71 columns wide (narrower than the already-proven-safe
+76-column default 3-month view, nowhere near the reverted attempt's 300).
+
+Needed touching far more than the one new file, a lesson from the `emacs-session.el`
+rename earlier this session applied immediately rather than re-discovered the hard
+way: a new hand-written config file has to be added to every hardcoded file list this
+project's build/test tooling keeps (`build.sh`, `tools/dist-windows.sh`, `tools/dist-
+linux.sh`, `tools/test-windows.sh`, `tools/doctor.sh`, `tests/run-all.sh`,
+`tests/test_dist.py`, `tests/test_repo.py`, `tests/test_tui.py`, `.gitignore`) --- found
+this out for real again anyway, the first test run crashing with a real "Cannot open
+load file" until every one of those was updated.
+
+Two real, self-caused test bugs, both found and fixed by actually running the tests,
+not assumed correct on writing: one test wrongly expected January 1st, 2027 to sit
+alone on its own calendar row (it is a Friday, so it shares that row with the 2nd); a
+second wrongly anchored a regex to both ends of a string that had real startup log
+lines ahead of the value being checked, the same anchoring mistake made and fixed
+earlier this session for the gptel-defaults-to-Ollama tests.
+
+10 tests in `tests/ert/calendar-year.el` (new file), 0 fail, stable across 3 repeated
+runs; 643 tests, 623 pass, 0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

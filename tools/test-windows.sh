@@ -35,7 +35,7 @@ for f in "$ROOT"/tests/ert/*.el; do
       bare) echo "\"%EMACS_BIN%\" -Q --batch -l \"%ROOT%\\tests\\ert\\helper.el\" -l \"%ROOT%\\tests\\ert\\$name.el\" -f ert-run-tests-batch-and-exit > \"$(W "$log")\" 2>&1" ;;
       *)
         dir="$WT/init-$name"; mkdir -p "$dir"
-        cp "$B"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el} "$dir/"
+        cp "$B"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el} "$dir/"
         if [ "$harness" = config ]; then cp -r "$B/config/elpa" "$dir/elpa"; fi
         cp -r "$B/config/tree-sitter" "$dir/tree-sitter"
         echo "set \"CONFIG_DIR=$(W "$dir")\""

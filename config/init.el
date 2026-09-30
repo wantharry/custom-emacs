@@ -55,7 +55,7 @@
     (when font
       (set-face-attribute 'default nil :font font :height 120))))
 
-;;; Calendar (M-x calendar) ----------------------------------------------------
+;;; Calendar (M-x calendar / C-c y for a whole year) ---------------------------
 
 ;; A real mistake, made and reverted in the same session: `calendar-total-months' was
 ;; briefly set to 12 here, on the assumption that "shows more months" meant a sensible
@@ -67,9 +67,17 @@
 ;; month names, never what that actually renders as in a real window --- the same
 ;; mistake category as the word-wrap fix earlier this session, and the org/session.el
 ;; bug before that: tested in isolation, not through the real, visible result). Left at
-;; the stock default (3) as a result --- Emacs's calendar genuinely has no built-in
-;; multi-row "whole year" grid view to switch to instead; `<'/`>' scroll the same
+;; the stock default (3) as a result --- `M-x calendar'`'s own `<'/`>' scroll that same
 ;; three-month window forward/backward through the year one month at a time.
+;;
+;; `C-c y' (`my/calendar-year') is the real fix instead: a genuine year-at-a-glance grid
+;; (4 rows of 3 months), built by hand in config/calendar-year.el on top of `calendar-
+;; generate-month' --- the same primitive `M-x calendar' itself uses for one row, just
+;; called once per row here instead of once for all 12 in a row nothing can wrap sanely.
+;; See that file's own header comment for the full story.
+(autoload 'my/calendar-year (expand-file-name "calendar-year" user-emacs-directory)
+  "Show all 12 months of a year in a grid, 3 months per row." t)
+(global-set-key (kbd "C-c y") #'my/calendar-year)
 
 ;;; Editing ------------------------------------------------------------------
 
