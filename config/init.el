@@ -57,19 +57,19 @@
 
 ;;; Calendar (M-x calendar) ----------------------------------------------------
 
-;; WHAT: show 12 months at once instead of the default 3.  WHY: a real, reported
-;; question --- `M-x calendar''s own docstring says "Display a three-month Gregorian
-;; calendar" outright; this is not a bug, just Emacs's own default. `calendar-total-
-;; months' (a plain `defvar', not a `defcustom', so it never shows up in `M-x
-;; customize') is the real, documented knob --- confirmed directly, not assumed: 3
-;; months shown at the default, 12 with this set, counted from the real calendar
-;; buffer's own content both times. HOW: set here, before `calendar.el' itself has even
-;; loaded (it is lazy, only pulled in the first time `M-x calendar' runs) --- safe and
-;; idiomatic: `defvar' only ever sets a variable's value if it is not already bound, so
-;; this value wins once calendar.el's own `(defvar calendar-total-months 3 ...)' runs
-;; later. `calendar-offset' (also in calendar.el) shifts *which* months are centered,
-;; not how many are shown, if the exact position of "today" among the 12 ever matters.
-(setq calendar-total-months 12)
+;; A real mistake, made and reverted in the same session: `calendar-total-months' was
+;; briefly set to 12 here, on the assumption that "shows more months" meant a sensible
+;; multi-row year grid.  It does not --- `calendar.el' lays every month out in a single
+;; row, so 12 months is one line 12 * calendar-month-width columns wide (300 on this
+;; build, measured directly, not guessed).  On any normal window that just wraps and
+;; scrambles --- confirmed for real, reported by the user right after the first version
+;; of this comment claimed it was "verified" (it was, but only that the *text* held 12
+;; month names, never what that actually renders as in a real window --- the same
+;; mistake category as the word-wrap fix earlier this session, and the org/session.el
+;; bug before that: tested in isolation, not through the real, visible result). Left at
+;; the stock default (3) as a result --- Emacs's calendar genuinely has no built-in
+;; multi-row "whole year" grid view to switch to instead; `<'/`>' scroll the same
+;; three-month window forward/backward through the year one month at a time.
 
 ;;; Editing ------------------------------------------------------------------
 

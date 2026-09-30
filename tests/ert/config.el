@@ -25,25 +25,26 @@
 (ert-deftest config/long-lines-wrap-at-word-boundaries-not-mid-word ()
   (should (default-value 'word-wrap)))
 
-;; WHAT: `M-x calendar' shows 12 months, not the stock default of 3.  WHY: a real,
-;; reported question --- `calendar''s own docstring says "Display a three-month
-;; Gregorian calendar" outright; not a bug, just Emacs's own default, changed here via
-;; `calendar-total-months' (a plain `defvar', not a `defcustom'). HOW: a real, fresh
-;; subprocess that actually opens a real calendar buffer and counts real month headers
-;; in it, not just that the variable holds 12 --- confirmed directly that setting the
-;; variable alone is not the same as confirming the real buffer content changes with it
-;; (`calendar-total-months' is made buffer-local by `calendar-mode' itself, so a stale
-;; or wrongly-scoped `setq' could set the variable correctly and still not affect a
-;; newly opened calendar).
-(ert-deftest config/calendar-shows-12-months ()
+;; WHAT: `M-x calendar' stays at the stock 3-month display --- a real reversal, not the
+;; original design.  WHY: `calendar-total-months' was briefly set to 12 here, verified
+;; only by counting month names in the buffer's *text*, which did hold 12 --- but
+;; `calendar.el' lays every month out in a single row, so 12 months rendered as one
+;; line 300 columns wide, wrapping and scrambling on any normal window (reported by the
+;; user immediately). Emacs's calendar has no multi-row year-grid view to switch to
+;; instead, so this stays at 3. HOW: a real, fresh subprocess that actually opens a real
+;; calendar buffer and counts real month headers in it, not just that the variable
+;; holds the default --- the same real-buffer-content check that should have caught the
+;; width problem the first time, had it also measured the line width, not just the
+;; month count.
+(ert-deftest config/calendar-stays-at-the-default-3-months ()
   (let ((out (with-output-to-string
                (with-current-buffer standard-output
                  (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
                                "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
                                "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                                "--eval" "(calendar)"
-                               "--eval" "(with-current-buffer calendar-buffer (princ (how-many \"[A-Z][a-z]+ 20[0-9][0-9]\" (point-min) (point-max))))")))))
-    (should (string-match-p "12" out))))
+                               "--eval" "(with-current-buffer calendar-buffer (princ (list (how-many \"[A-Z][a-z]+ 20[0-9][0-9]\" (point-min) (point-max)) (- (line-end-position 1) (line-beginning-position 1)))))")))))
+    (should (string-match-p "(3 76)" out))))
 
 (ert-deftest config/indentation-defaults ()
   (should-not (default-value 'indent-tabs-mode))

@@ -787,6 +787,29 @@ affect a newly opened buffer if scoped wrong; this rules that out for real. 23 t
 `tests/ert/config.el` (1 new), 0 fail, stable across 3 repeated runs; 633 tests, 613
 pass, 0 fail, 20 skipped across the full offline suite.
 
+### Follow-up, same day: the 12-month calendar was reverted --- it looked jumbled for real
+
+Shipped in the Windows zip, then user: "did you test it, its all jumbled when i do the
+calendar." A real testing gap, not a random report: the earlier test confirmed the
+buffer's *text* held 12 month names, but never checked what that actually renders as.
+Measured directly once asked: `calendar.el` lays every month out in a single row, not a
+multi-row grid --- 12 months is one real line 300 columns wide (`calendar-month-width`
+is 25 here), which wraps and scrambles on any normal window. Reverted to the stock
+default (3, a real 76-column line, measured) --- Emacs's calendar genuinely has no
+built-in year-grid view to switch to instead; `M-x calendar`'s own `<`/`>` scroll the
+same three-month window forward/backward through the year one month at a time. This is
+the same mistake *category* as the word-wrap fix and the Org/`session.el` bug earlier
+this session: verified in isolation (the text), not through the real, visible result
+(what it looks like) --- three real findings this session now share that exact shape.
+
+`config/calendar-shows-12-months` (the test written for the reverted change) rewritten
+to `config/calendar-stays-at-the-default-3-months`, now checking the real rendered line
+width too (76 columns), not just the month count --- specifically so a future change
+back toward "show more months" has to notice the width problem before shipping, not
+after. 23 tests in `tests/ert/config.el` (0 net new, 1 rewritten), 0 fail, stable
+across 3 repeated runs; 633 tests, 613 pass, 0 fail, 20 skipped across the full offline
+suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---
