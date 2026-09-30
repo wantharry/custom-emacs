@@ -766,6 +766,27 @@ suite. The Linux and Windows dist zips now also show the (expected, already-anti
 on top of everything already accumulated --- resolves the same way, on the next rebuild
 of each.
 
+### M-x calendar shows 12 months instead of 3
+
+User: "i dont seem to get 12 months in emacs calendar, only see three months how to
+change it." Not a bug --- `calendar`'s own docstring says "Display a **three**-month
+Gregorian calendar" outright --- but a real, genuine, documented variable controls it:
+`calendar-total-months` (a plain `defvar`, not a `defcustom`, so it never shows up in
+`M-x customize` --- found by reading `calendar.el`'s own source, not guessed). Verified
+directly before adding it, not assumed from the docstring alone: opened a real calendar
+buffer and counted real month headers in it, 3 by default, 12 with the variable set,
+both confirmed for real. Set in `config/init.el` before `calendar.el` itself has even
+loaded (safe and idiomatic: `defvar` only sets a value if unbound, so this wins once
+calendar.el's own later `defvar` runs).
+
+New test `config/calendar-shows-12-months` opens a real calendar buffer through a real,
+fresh subprocess and counts real month headers, rather than only checking the variable
+holds 12 --- deliberately, since `calendar-total-months` is made buffer-local by
+`calendar-mode` itself, so a correctly-set variable could still, in principle, fail to
+affect a newly opened buffer if scoped wrong; this rules that out for real. 23 tests in
+`tests/ert/config.el` (1 new), 0 fail, stable across 3 repeated runs; 633 tests, 613
+pass, 0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

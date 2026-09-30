@@ -55,6 +55,22 @@
     (when font
       (set-face-attribute 'default nil :font font :height 120))))
 
+;;; Calendar (M-x calendar) ----------------------------------------------------
+
+;; WHAT: show 12 months at once instead of the default 3.  WHY: a real, reported
+;; question --- `M-x calendar''s own docstring says "Display a three-month Gregorian
+;; calendar" outright; this is not a bug, just Emacs's own default. `calendar-total-
+;; months' (a plain `defvar', not a `defcustom', so it never shows up in `M-x
+;; customize') is the real, documented knob --- confirmed directly, not assumed: 3
+;; months shown at the default, 12 with this set, counted from the real calendar
+;; buffer's own content both times. HOW: set here, before `calendar.el' itself has even
+;; loaded (it is lazy, only pulled in the first time `M-x calendar' runs) --- safe and
+;; idiomatic: `defvar' only ever sets a variable's value if it is not already bound, so
+;; this value wins once calendar.el's own `(defvar calendar-total-months 3 ...)' runs
+;; later. `calendar-offset' (also in calendar.el) shifts *which* months are centered,
+;; not how many are shown, if the exact position of "today" among the 12 ever matters.
+(setq calendar-total-months 12)
+
 ;;; Editing ------------------------------------------------------------------
 
 (setq-default indent-tabs-mode nil
