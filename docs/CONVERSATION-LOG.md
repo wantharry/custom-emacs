@@ -856,6 +856,37 @@ earlier this session for the gptel-defaults-to-Ollama tests.
 10 tests in `tests/ert/calendar-year.el` (new file), 0 fail, stable across 3 repeated
 runs; 643 tests, 623 pass, 0 fail, 20 skipped across the full offline suite.
 
+### Follow-up, same day: step through years without leaving the buffer (`<`/`>`)
+
+User: "can i change the year in this calendar?" `C-u C-c y` already did (a prefix arg
+prompts for any year), but asked without prompting first: real in-buffer stepping,
+`<`/`>`, matching what `M-x calendar`'s own `<`/`>` (scroll by month) already trains
+anyone to expect from a calendar buffer, rather than re-typing the prefix-arg command
+for "just one year forward."
+
+Added `my/calendar-year-next`/`-previous`, both routed through one shared
+`my/calendar-year--redraw` so the very first display and every later step build the
+grid exactly the same way --- no separate "just update the label" code path to
+accidentally fall out of sync with the real content. A new buffer-local
+`my/calendar-year--year` remembers what is currently shown, the same reason the real
+`*Calendar*` buffer keeps its own `displayed-month`/`displayed-year` --- this is
+deliberately this file's own copy, not reused from the real calendar, since the two
+buffers stay otherwise fully independent (see the file's own header comment). Verified
+through the real, fully-loaded config again, not assumed from the arithmetic alone:
+stepping to a different year re-derives the *whole* grid (12 real months, the real
+71-column width), not just the year label on line 1.
+
+Two more real, self-caused test bugs, both caught by actually running the tests: one
+test's `buffer-substring` call still started from `(point-min)` after copying a
+"move forward 3 lines" step from a width-measuring test elsewhere in the same file,
+capturing the whole first several lines instead of just the year label; the other
+expected `princ` to print a string in quotes the way `%S`/`prin1` would --- the exact
+same mistake made and fixed twice already this session (the gptel-defaults-to-Ollama
+tests, the recentf-autosave test), a third time in a row now.
+
+12 tests in `tests/ert/calendar-year.el` (2 new), 0 fail, stable across 3 repeated
+runs; 645 tests, 625 pass, 0 fail, 20 skipped across the full offline suite.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

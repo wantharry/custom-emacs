@@ -53,11 +53,53 @@
       (calendar-increment-month month year 1))
     (buffer-string)))
 
-;; WHAT: the results buffer's major mode --- read-only, `q' to close, nothing else
-;; needed.  WHY: `special-mode' already provides exactly that (the same base Magit's
-;; status buffer and `M-x list-processes' use), so there is nothing to add by hand.
+;; WHAT: the year currently on screen, remembered per-buffer.  WHY: `my/calendar-year-
+;; next'/`-previous' (below) need to know what year to move from without asking again
+;; --- the same reason `displayed-month'/`displayed-year' exist in the real `*Calendar*'
+;; buffer, just this file's own copy rather than reusing those (this buffer is
+;; deliberately independent of the real calendar's state; see the file header comment).
+(defvar-local my/calendar-year--year nil
+  "The year currently shown in this `*Year Calendar*' buffer.")
+
+;; WHAT: redraw the CURRENT buffer for YEAR.  WHY: the one place that actually builds
+;; the grid, shared by the first display (`my/calendar-year') and stepping to another
+;; year (`my/calendar-year-next'/`-previous') so both stay in exact sync --- there is
+;; only one way this buffer's content is ever produced.
+(defun my/calendar-year--redraw (year)
+  (let ((month 1) (rows (/ 12 my/calendar-year-months-per-row)) (inhibit-read-only t))
+    (erase-buffer)
+    (insert (format "%d\n\n" year))
+    (dotimes (row rows)
+      (insert (my/calendar--month-row month year my/calendar-year-months-per-row))
+      (setq month (+ month my/calendar-year-months-per-row))
+      (unless (= row (1- rows)) (insert "\n")))
+    (goto-char (point-min))
+    (setq my/calendar-year--year year)))
+
+;; WHAT: step the year shown in this buffer by DELTA (1 or -1) without leaving it or
+;; being asked again.  WHY: a real, reported want --- `C-u C-c y' already lets you jump
+;; to any year, but re-typing that for "just one year forward/back" is not what `M-x
+;; calendar''s own `<'/`>' (scroll by month) trained anyone to expect. HOW: bound to the
+;; same `<'/`>' keys for exactly that reason --- this buffer's equivalent operation,
+;; just a year at a time instead of a month.
+(defun my/calendar-year-next (&optional n)
+  "Show N years after the one currently displayed (1, by default)."
+  (interactive "p")
+  (my/calendar-year--redraw (+ my/calendar-year--year (or n 1))))
+
+(defun my/calendar-year-previous (&optional n)
+  "Show N years before the one currently displayed (1, by default)."
+  (interactive "p")
+  (my/calendar-year-next (- (or n 1))))
+
+;; WHAT: the results buffer's major mode --- read-only, `q' to close, `<'/`>' to step a
+;; year at a time.  WHY: `special-mode' already provides the read-only/`q' part (the
+;; same base Magit's status buffer and `M-x list-processes' use); only the year-
+;; stepping keys are this file's own to add.
 (define-derived-mode my/calendar-year-mode special-mode "Year Calendar"
-  "Major mode for `my/calendar-year''s results buffer.")
+  "Major mode for `my/calendar-year''s results buffer."
+  (define-key my/calendar-year-mode-map (kbd "<") #'my/calendar-year-previous)
+  (define-key my/calendar-year-mode-map (kbd ">") #'my/calendar-year-next))
 
 ;;;###autoload
 (defun my/calendar-year (&optional year)
@@ -65,23 +107,14 @@
 a grid, `my/calendar-year-months-per-row' months per row --- a real year-at-a-glance
 view Emacs's own `M-x calendar' cannot produce (see this file's own header comment for
 why). A plain, separate, read-only buffer; does not touch the real `*Calendar*' buffer
-or the diary."
+or the diary. `<'/`>' step to the previous/next year without leaving the buffer."
   (interactive (list (if current-prefix-arg
                          (read-number "Year: " (nth 5 (decode-time)))
                        (nth 5 (decode-time)))))
-  (let ((buf (get-buffer-create "*Year Calendar*"))
-        (month 1)
-        (rows (/ 12 my/calendar-year-months-per-row)))
+  (let ((buf (get-buffer-create "*Year Calendar*")))
     (with-current-buffer buf
       (unless (derived-mode-p 'my/calendar-year-mode) (my/calendar-year-mode))
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert (format "%d\n\n" year))
-        (dotimes (row rows)
-          (insert (my/calendar--month-row month year my/calendar-year-months-per-row))
-          (setq month (+ month my/calendar-year-months-per-row))
-          (unless (= row (1- rows)) (insert "\n")))
-        (goto-char (point-min))))
+      (my/calendar-year--redraw year))
     (switch-to-buffer buf)))
 
 ;; WHAT/WHY/HOW: register this file under the Emacs feature name `calendar-year',

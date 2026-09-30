@@ -116,4 +116,34 @@
                                "--eval" "(princ (length (seq-filter (lambda (b) (equal (buffer-name b) \"*Year Calendar*\")) (buffer-list))))")))))
     (should (string-match-p "1\\'" (string-trim out)))))
 
+;;; Stepping to another year without leaving the buffer (`<'/`>')
+
+(ert-deftest calendar-year/next-and-previous-step-the-year-and-fully-redraw ()
+  ;; A real, reported want: `C-u C-c y' already lets you jump to any year, but
+  ;; stepping one year at a time without being asked again is what `M-x calendar''s
+  ;; own `<'/`>' (scroll by month) trained anyone to expect. Checks the *whole* redraw
+  ;; (month count, real rendered width), not just the year label, so a future change
+  ;; that only updates the label without truly rebuilding the grid cannot pass by
+  ;; accident.
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(my/calendar-year 2027)"
+                               "--eval" "(with-current-buffer \"*Year Calendar*\" (my/calendar-year-next) (my/calendar-year-previous 2))"
+                               "--eval" "(with-current-buffer \"*Year Calendar*\" (let ((year-label (buffer-substring (point-min) (line-end-position)))) (forward-line 3) (princ (list year-label (how-many \"[A-Z][a-z]+ 2026\" (point-min) (point-max)) (- (line-end-position) (line-beginning-position))))))")))))
+    ;; 2027 -> next -> 2028 -> previous 2 -> 2026
+    (should (string-match-p "(2026 12 71)" out))))
+
+(ert-deftest calendar-year/next-and-previous-keys-are-bound-in-the-real-buffer ()
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(my/calendar-year 2027)"
+                               "--eval" "(with-current-buffer \"*Year Calendar*\" (princ (list (key-binding (kbd \"<\")) (key-binding (kbd \">\")))))")))))
+    (should (string-match-p "(my/calendar-year-previous my/calendar-year-next)" out))))
+
 ;;; calendar-year.el ends here
