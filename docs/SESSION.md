@@ -12,7 +12,7 @@ Two layers, both built into Emacs --- no package:
 | `auto-save-visited-mode` | Any buffer you deliberately unlock (`C-c e e`) and edit is written back to its real file a few seconds after you stop typing --- no manual `C-x C-s` needed, and nothing to separately "recover" after a crash, since the real file already has it. |
 | `desktop-save-mode` | Saves which files/buffers are open and the window layout (splits), automatically, and restores them the next time Emacs starts. |
 
-Both are on by default, no setup needed. `config/session.el` has the full WHAT/WHY/HOW
+Both are on by default, no setup needed. `config/emacs-session.el` has the full WHAT/WHY/HOW
 commentary; this doc is the narrative version, with the real numbers.
 
 ## The three keys
@@ -89,6 +89,26 @@ config.
 | `C-c w r`, then a fresh start | Nothing restored; plain start screen, as on a first run |
 | A clean exit right after `C-c w r` | No prompt (a real risk found and fixed --- see below) |
 
+## A real bug found only after a much later, unrelated change (Org mode restored)
+
+**This file used to be named `session.el`, providing the feature `session`** --- until
+2026-09-29, when restoring Org mode to the Linux build (see [PRUNING.md](PRUNING.md))
+turned that into a real, live collision: a well-known third-party ELPA package is also
+called `session` (`session-globals-exclude` is one of its own variables), and Org's own
+`org-compat.el` registers `(eval-after-load 'session ...)` expecting exactly that
+package. Since this file also `(provide 'session)`d, simply running `M-x org-mode` in a
+completely normal, fully-loaded session started erroring with "Symbol's value as
+variable is void: session-globals-exclude" --- confirmed directly, not assumed: a bare
+`(require 'org)` outside this config never hit it (nothing had registered the `session`
+feature name yet); only going through the real, already-loaded config did. Renamed the
+file and the feature to `emacs-session` (matching this project's own "feature name =
+filename" convention throughout, not a special case) rather than working around or
+disabling Org's own hook, which is entirely legitimate for anyone who actually has the
+real `session` package installed. `tests/ert/emacs-session.el`'s own
+`emacs-session/does-not-collide-with-orgs-own-session-package-hook` runs `M-x org-mode`
+through the real, fully-loaded config (not `(require 'org)` in isolation) specifically
+so this can't silently come back.
+
 ## Two real bugs found while testing this for real (not just reading the source)
 
 - **`desktop-save`'s second argument is `RELEASE`, not "force save."** Passing it a non-
@@ -97,7 +117,7 @@ config.
   that bug, the periodic 10-second autosave silently never wrote a single file, no matter
   how long a session ran, because it only ever updates a desktop this Emacs process
   already *owns* (`(eq (emacs-pid) (desktop-owner))`), and ownership never got claimed.
-  Caught only by an actual crash-and-restore cycle; `tests/ert/session.el`'s
+  Caught only by an actual crash-and-restore cycle; `tests/ert/emacs-session.el`'s
   `session/save-and-claim-ownership-never-release-the-lock` pins this down for good.
 - **The stock `desktop-auto-save-timeout` default (30 seconds, `auto-save-timeout`) is too
   long for real crash protection.** A session crashed 6-13 idle seconds in had no desktop
@@ -143,7 +163,7 @@ doesn't make obvious:
   `noninteractive`** (Emacs's own documented behavior) --- meaning it never does anything
   in `--batch` mode. This doesn't affect real use (interactive Emacs is never
   `noninteractive`), but it does mean the automated test for a real restore round trip
-  (`tests/ert/session.el`) has to briefly let-bind `noninteractive` to `nil` around the
+  (`tests/ert/emacs-session.el`) has to briefly let-bind `noninteractive` to `nil` around the
   call to test it at all.
 - Restoring frame *geometry* (exact size/position on screen) across very different
   displays/window managers is inherently less reliable than restoring buffers and window
@@ -156,7 +176,7 @@ doesn't make obvious:
 
 ## Tests
 
-`tests/ert/session.el` (25 tests): keys bound; loaded eagerly (not autoloaded, and why);
+`tests/ert/emacs-session.el` (25 tests): keys bound; loaded eagerly (not autoloaded, and why);
 does not slow startup; every deliberate configuration choice (where the desktop lives,
 `desktop-save`/`desktop-load-locked-desktop`/`desktop-auto-save-timeout`/`desktop-
 restore-eager`); a real regression test pinning down the `RELEASE`-argument bug for good;

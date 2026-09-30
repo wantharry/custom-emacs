@@ -724,6 +724,48 @@ debounce pause.
 42 tests in `tests/ert/fastfind.el` (5 new, 1 extended), 0 fail, stable across 3
 repeated runs; 631 tests, 611 pass, 0 fail, 20 skipped across the full offline suite.
 
+### A real bug found by asking "what else can we do now": Org mode crashed session.el
+
+User asked what else was worth doing, given everything learned this session. While
+checking whether Org's own conventional keybindings (`C-c a`/`C-c c`/`C-c l`) would
+conflict with anything, found something worse first: `M-x org-mode`, run through the
+real, fully-loaded config (not `(require 'org)` in isolation, which is all the earlier
+Org-restoration work had actually tested), crashed with "Symbol's value as variable is
+void: session-globals-exclude" --- reproduced first, then traced to the real cause, not
+guessed: `config/session.el` (this project's own crash-safe-session feature, unrelated
+to Org, written back when Org was still pruned) `(provide 'session)`d --- the exact
+same feature name as a real, well-known third-party ELPA package Org's own
+`org-compat.el` has a compatibility hook for (`(eval-after-load 'session ...)`,
+expecting that package's own `session-globals-exclude` variable). A bare `(require
+'org)` outside this config never hit it, since nothing had registered the `session`
+feature name yet in that isolated context --- confirmed directly why the earlier
+restoration work's own verification missed this: it never tested Org together with the
+rest of the actual, already-loaded config, only in isolation.
+
+Fixed by renaming the file and the feature to `emacs-session`, matching this project's
+own "feature name = filename" convention throughout (not a special-cased workaround),
+rather than touching Org's own hook, which is entirely legitimate for anyone who
+actually has the real `session` package installed. This touched far more than the one
+file: the 26 tests in `tests/ert/session.el` (renamed `tests/ert/emacs-session.el`,
+every `session/...` test name updated to `emacs-session/...` to match), `config/init.el`'s
+own `require`, and six more places across the build/test tooling that referenced the
+old filename by name (`build.sh`, `tools/dist-windows.sh`, `tools/dist-linux.sh`,
+`tools/test-windows.sh`, `tools/doctor.sh`, `tests/run-all.sh`, `tests/test_dist.py`,
+`tests/test_repo.py`, `tests/test_tui.py`, `.gitignore`) --- found via a real, repo-wide
+grep, not assumed to be "just the one file," and re-checked afterward with a second
+grep pass that turned up more (`.gitignore`, `tools/test-windows.sh`,
+`tests/test_tui.py`) the first pass's narrower pattern had missed.
+
+New regression test `emacs-session/does-not-collide-with-orgs-own-session-package-hook`
+runs `M-x org-mode` through the real, fully-loaded config specifically so this exact
+failure mode --- verified in isolation, broken in the real integrated system --- cannot
+silently come back. 26 tests in `tests/ert/emacs-session.el` (1 new), 0 fail, stable
+across 3 repeated runs; 632 tests, 612 pass, 0 fail, 20 skipped across the full offline
+suite. The Linux and Windows dist zips now also show the (expected, already-anticipated)
+"file renamed" version of the usual stale-bundle signal for this one file specifically,
+on top of everything already accumulated --- resolves the same way, on the next rebuild
+of each.
+
 ## Where things stand as of the last entry
 
 - Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---

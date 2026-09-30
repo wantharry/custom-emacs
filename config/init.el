@@ -578,9 +578,11 @@ installed, offer to install it from NonGNU ELPA."
 ;; type, not just to a recovery shadow copy. No package: `desktop-save-mode' and
 ;; `auto-save-visited-mode', both built into Emacs. Loaded eagerly, right after the
 ;; start screen, for the same reason startpage.el is: restoring a saved session has to
-;; happen during startup, too early for a lazy autoload to help. See config/session.el
-;; and docs/SESSION.md.
-(require 'session (expand-file-name "session" user-emacs-directory))
+;; happen during startup, too early for a lazy autoload to help. See
+;; config/emacs-session.el (named that, not the shorter `session', to avoid a real
+;; collision with a well-known third-party package Org has its own compatibility code
+;; for --- see that file's own header comment) and docs/SESSION.md.
+(require 'emacs-session (expand-file-name "emacs-session" user-emacs-directory))
 
 ;;; Shortcuts reference ----------------------------------------------------------
 

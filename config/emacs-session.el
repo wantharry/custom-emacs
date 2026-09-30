@@ -1,4 +1,19 @@
-;;; session.el --- crash-safe, persistent editing sessions --- no package needed  -*- lexical-binding: t; -*-
+;;; emacs-session.el --- crash-safe, persistent editing sessions --- no package needed  -*- lexical-binding: t; -*-
+
+;; Named `emacs-session', not the shorter `session', on purpose: a real, found-the-hard-
+;; way collision --- a well-known third-party ELPA package is also called `session'
+;; (`session-globals-exclude' is one of its own variables), and Org's own compatibility
+;; code registers `(eval-after-load 'session ...)' expecting exactly that package. Once
+;; Org was restored to this build (see docs/PRUNING.md), simply opening any Org buffer
+;; after this file had already loaded (which it always has, by then) triggered Org's
+;; hook against THIS file instead, erroring with "Symbol's value as variable is void:
+;; session-globals-exclude" the moment `(require 'org)' ran --- confirmed directly, not
+;; assumed: a plain `(require 'org)' outside this config never hit it; only loading it
+;; through this config, where this file's own `(provide 'session)' had already
+;; satisfied Org's `eval-after-load' trigger, did. Renaming the feature (and the file,
+;; to match this project's own "feature name = filename" convention throughout) is the
+;; fix, not disabling or working around Org's own hook, which is legitimate and correct
+;; for anyone who actually has the real `session' package installed.
 
 ;; Two layers, both built into Emacs:
 ;;
@@ -411,5 +426,5 @@ disturbing the live, automatically-saved session."
 (define-key my/session-mode-map "L" #'my/session-named-list)
 (global-set-key (kbd "C-c w") my/session-mode-map)
 
-(provide 'session)
-;;; session.el ends here
+(provide 'emacs-session)
+;;; emacs-session.el ends here

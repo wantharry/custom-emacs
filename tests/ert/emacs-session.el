@@ -1,4 +1,4 @@
-;;; session.el --- crash-safe auto-save and session restore (C-c w)  -*- lexical-binding: t; -*-
+;;; emacs-session.el --- crash-safe auto-save and session restore (C-c w)  -*- lexical-binding: t; -*-
 ;; harness: config
 ;;
 ;; Several of these tests exist specifically because the real behavior surprised the real
@@ -7,36 +7,63 @@
 ;; - `desktop-save's second argument is RELEASE, not "force save" --- passing it non-nil
 ;;   (an easy mistake, made here at first) releases the desktop lock instead of claiming
 ;;   it, silently defeating the whole periodic-autosave mechanism forever.  Caught only by
-;;   a real crash-and-restore cycle, not by reading the source. See `session/save-and-
+;;   a real crash-and-restore cycle, not by reading the source. See `emacs-session/save-and-
 ;;   claim-ownership-never-release-the-lock' below, which pins this down for good.
 ;; - The read-only lock (init.el's `my/make-file-buffer-read-only') really does reapply to
 ;;   a buffer `desktop-read' restores, since desktop.el restores buffers via `find-file-
-;;   noselect' --- confirmed for real (see `session/restore-round-trip...' below).
+;;   noselect' --- confirmed for real (see `emacs-session/restore-round-trip...' below).
 
-(require 'session (expand-file-name "session" (or (getenv "CONFIG_DIR") user-emacs-directory)))
+(require 'emacs-session (expand-file-name "emacs-session" (or (getenv "CONFIG_DIR") user-emacs-directory)))
 
 ;;; Wiring
 
-(ert-deftest session/keys-are-bound ()
+(ert-deftest emacs-session/keys-are-bound ()
   (should (eq (key-binding (kbd "C-c w s")) 'my/session-save))
   (should (eq (key-binding (kbd "C-c w r")) 'my/session-reset))
   (should (eq (key-binding (kbd "C-c w l")) 'my/session-list)))
 
-(ert-deftest session/is-loaded-eagerly-not-autoloaded ()
+(ert-deftest emacs-session/is-loaded-eagerly-not-autoloaded ()
   ;; Unlike most feature files here (dictate.el, llm.el, ...), this one has to be loaded
   ;; while init.el itself is still loading --- see the file header comment in
-  ;; config/session.el for why (desktop.el's own `after-init-hook' entry is what actually
-  ;; restores a saved session, and that only works if desktop-save-mode is already on by
-  ;; the time it fires).
+  ;; config/emacs-session.el for why (desktop.el's own `after-init-hook' entry is what
+  ;; actually restores a saved session, and that only works if desktop-save-mode is
+  ;; already on by the time it fires).
   (let ((out (with-output-to-string
                (with-current-buffer standard-output
                  (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
                                "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
                                "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
-                               "--eval" "(princ (list (featurep 'session) desktop-save-mode auto-save-visited-mode))")))))
+                               "--eval" "(princ (list (featurep 'emacs-session) desktop-save-mode auto-save-visited-mode))")))))
     (should (string-match-p "(t t t)" out))))
 
-(ert-deftest session/does-not-slow-startup ()
+;; WHAT: `org-mode' works, in the real, fully-loaded config, with this file already
+;; loaded (which it always is by the time anything else runs --- see the test just
+;; above).  WHY: this is the actual regression this file's own name change fixed, not a
+;; hypothetical --- confirmed directly, reproduced first, only fixed after: with this
+;; file `(provide 'session)' (its name before this fix), simply running `M-x org-mode'
+;; after a completely normal startup errored with "Symbol's value as variable is void:
+;; session-globals-exclude". Cause: Org's own `org-compat.el' registers
+;; `(eval-after-load 'session ...)', expecting the real, well-known third-party
+;; `session' package (`session-globals-exclude' is one of its variables) --- this file
+;; satisfied that same trigger under its old name purely by coincidence, running Org's
+;; hook against a file that never defined that variable at all. A plain `(require
+;; 'org)' with no config loaded never hit this (nothing had registered the `session'
+;; feature name yet); only going through the real, fully-loaded config did --- exactly
+;; why this checks the real thing end to end, in a fresh subprocess, rather than
+;; `(require 'org)' in isolation.
+(ert-deftest emacs-session/does-not-collide-with-orgs-own-session-package-hook ()
+  (skip-unless (locate-library "org"))
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(with-temp-buffer (org-mode))"
+                               "--eval" "(princ \"org-mode-worked\")")))))
+    (should (string-match-p "org-mode-worked" out))
+    (should-not (string-match-p "session-globals-exclude" out))))
+
+(ert-deftest emacs-session/does-not-slow-startup ()
   (let ((best most-positive-fixnum))
     (dotimes (_ 3)
       (let ((t0 (float-time)))
@@ -48,30 +75,30 @@
     (should (< best 0.5))))
 
 ;;; Configuration: every value here is deliberate, not a default left untouched --- see
-;;; config/session.el's own comments for the real reasoning (and, for desktop-auto-save-
+;;; config/emacs-session.el's own comments for the real reasoning (and, for desktop-auto-save-
 ;;; timeout and desktop-load-locked-desktop, the real bugs/gaps that led to each one).
 
-(ert-deftest session/desktop-points-at-its-own-directory ()
+(ert-deftest emacs-session/desktop-points-at-its-own-directory ()
   (should (equal desktop-dirname my/session-dir))
   (should (equal desktop-path (list my/session-dir)))
   (should (file-directory-p my/session-dir)))
 
-(ert-deftest session/saves-automatically-with-no-prompts ()
+(ert-deftest emacs-session/saves-automatically-with-no-prompts ()
   (should (eq desktop-save t)))
 
-(ert-deftest session/a-stale-lock-from-a-crash-is-recovered-not-asked-about ()
+(ert-deftest emacs-session/a-stale-lock-from-a-crash-is-recovered-not-asked-about ()
   ;; `check-pid': load anyway if the process that owned the lock is no longer running
   ;; locally (exactly the situation after a crash) --- never the built-in default `ask',
   ;; which would block an automatic startup restore on a question nothing answers.
   (should (eq desktop-load-locked-desktop 'check-pid)))
 
-(ert-deftest session/auto-save-timeout-is-short-not-the-30s-default ()
+(ert-deftest emacs-session/auto-save-timeout-is-short-not-the-30s-default ()
   ;; Confirmed for real: with the stock 30s default (`auto-save-timeout'), a session
   ;; crashed well before that idle threshold elapsed had no saved desktop at all.
   (should (integerp desktop-auto-save-timeout))
   (should (<= desktop-auto-save-timeout 10)))
 
-(ert-deftest session/restore-eager-is-a-small-number-not-unbounded ()
+(ert-deftest emacs-session/restore-eager-is-a-small-number-not-unbounded ()
   ;; Keeps a big saved session from blocking startup --- this config measures and cares
   ;; about startup speed; a huge session should restore lazily, not synchronously.
   (should (integerp desktop-restore-eager))
@@ -79,7 +106,7 @@
 
 ;;; The real regression test: `desktop-save's RELEASE argument
 
-(ert-deftest session/save-and-claim-ownership-never-release-the-lock ()
+(ert-deftest emacs-session/save-and-claim-ownership-never-release-the-lock ()
   "`desktop-save's SECOND argument is RELEASE (let go of the lock), not \"force
 save\" --- an easy, real mistake (made once while building this feature) that
 silently defeats the periodic autosave forever, since it never gets to claim
@@ -97,7 +124,7 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
 
 ;;; Reset: `C-c w r' --- discard the saved session, but keep future saves working
 
-(ert-deftest session/reset-clears-then-removes-then-keeps-dirname-usable ()
+(ert-deftest emacs-session/reset-clears-then-removes-then-keeps-dirname-usable ()
   (let (calls (my/session-dir "/tmp/fake-session-dir-for-test/"))
     (cl-letf (((symbol-function 'desktop-clear) (lambda () (push 'clear calls)))
               ((symbol-function 'desktop-remove)
@@ -118,7 +145,7 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
 ;;; needed for this --- confirmed separately, by hand, that the same thing holds with a
 ;;; real window split and a real `kill -9'; this is the fast, always-run version of that.
 
-(ert-deftest session/restore-round-trip-reopens-files-and-reapplies-the-read-only-lock ()
+(ert-deftest emacs-session/restore-round-trip-reopens-files-and-reapplies-the-read-only-lock ()
   (test-with-temp-dir dir
     (let* ((desktop-dirname dir) (desktop-path (list dir)) (desktop-save t)
            (a (concat dir "a.txt")) (b (concat dir "b.txt")))
@@ -165,7 +192,7 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
 
 ;;; Listing what's in the session (C-c w l): "can it list states like buffers?"
 
-(ert-deftest session/tracked-buffers-uses-desktops-own-real-filter ()
+(ert-deftest emacs-session/tracked-buffers-uses-desktops-own-real-filter ()
   ;; Not a hand-rolled guess at which buffers count: `desktop-save-buffer-p' is the exact
   ;; predicate `desktop-save' itself uses, so this test (and the feature) automatically
   ;; stays correct even if that predicate's own rules ever change.
@@ -181,7 +208,7 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
         (when (get-buffer "tracked.txt") (kill-buffer "tracked.txt"))
         (when (get-buffer " *not-a-file*") (kill-buffer " *not-a-file*"))))))
 
-(ert-deftest session/list-buffer-shows-every-tracked-file-and-marks-modified-ones ()
+(ert-deftest emacs-session/list-buffer-shows-every-tracked-file-and-marks-modified-ones ()
   (test-with-temp-dir dir
     (let ((a (concat dir "a.txt")) (b (concat dir "b.txt")))
       (with-temp-file a (insert "a"))
@@ -202,7 +229,7 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
           (when (get-buffer name) (kill-buffer name)))
         (when (get-buffer my/session-list-buffer-name) (kill-buffer my/session-list-buffer-name))))))
 
-(ert-deftest session/list-buffer-close-key-is-real ()
+(ert-deftest emacs-session/list-buffer-close-key-is-real ()
   (unwind-protect
       (progn
         (my/session-list)
@@ -228,20 +255,20 @@ temp directories, so these tests never touch the real config's own session state
              (desktop-dirname live-dir) (desktop-path (list live-dir)))
          ,@body))))
 
-(ert-deftest session/named-keys-are-bound ()
+(ert-deftest emacs-session/named-keys-are-bound ()
   (should (eq (key-binding (kbd "C-c w S")) 'my/session-save-as))
   (should (eq (key-binding (kbd "C-c w O")) 'my/session-open))
   (should (eq (key-binding (kbd "C-c w D")) 'my/session-delete))
   (should (eq (key-binding (kbd "C-c w L")) 'my/session-named-list)))
 
-(ert-deftest session/name-is-sanitized ()
+(ert-deftest emacs-session/name-is-sanitized ()
   (should-error (my/session--sanitize-name "") :type 'user-error)
   (should-error (my/session--sanitize-name "a/b") :type 'user-error)
   (should-error (my/session--sanitize-name ".") :type 'user-error)
   (should-error (my/session--sanitize-name "..") :type 'user-error)
   (should (equal (my/session--sanitize-name "  work  ") "work")))
 
-(ert-deftest session/save-as-does-not-disturb-the-live-session ()
+(ert-deftest emacs-session/save-as-does-not-disturb-the-live-session ()
   (session--with-isolated-dirs
     (let ((f (concat live-dir "live.txt")))
       (with-temp-file f (insert "x"))
@@ -258,7 +285,7 @@ temp directories, so these tests never touch the real config's own session state
             (should-not (file-exists-p (expand-file-name desktop-base-file-name live-dir))))
         (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
 
-(ert-deftest session/open-restores-the-snapshot-and-keeps-the-live-dir-anchored ()
+(ert-deftest emacs-session/open-restores-the-snapshot-and-keeps-the-live-dir-anchored ()
   (session--with-isolated-dirs
     (let ((f (concat live-dir "live.txt")))
       (with-temp-file f (insert "x"))
@@ -274,7 +301,7 @@ temp directories, so these tests never touch the real config's own session state
             (should (equal desktop-dirname live-dir)))
         (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
 
-(ert-deftest session/open-can-be-repeated-without-the-lock-blocking-it ()
+(ert-deftest emacs-session/open-can-be-repeated-without-the-lock-blocking-it ()
   ;; The real bug: `desktop-read' claims the lock of whatever it reads and never
   ;; releases it, so a second `desktop-read' of the SAME directory by the same process
   ;; silently declines ("Not reloading the desktop"). `my/session-open' must release the
@@ -295,7 +322,7 @@ temp directories, so these tests never touch the real config's own session state
             (should (get-buffer "live.txt")))       ; must still restore it, not skip
         (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
 
-(ert-deftest session/save-as-can-be-repeated-under-the-same-name-with-no-prompt ()
+(ert-deftest emacs-session/save-as-can-be-repeated-under-the-same-name-with-no-prompt ()
   ;; The other real bug: leaving `desktop-file-modtime' at the live session's own value
   ;; made a second save under the same name think the file had changed out from under
   ;; it and ask "Overwrite this desktop file?" -- which, with no terminal attached,
@@ -312,17 +339,17 @@ temp directories, so these tests never touch the real config's own session state
                           (error t))))
         (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
 
-(ert-deftest session/open-with-no-such-name-is-a-clear-error ()
+(ert-deftest emacs-session/open-with-no-such-name-is-a-clear-error ()
   (session--with-isolated-dirs
     (should-error (my/session-open "does-not-exist") :type 'user-error)))
 
-(ert-deftest session/open-and-delete-with-nothing-saved-yet-is-a-clear-error ()
+(ert-deftest emacs-session/open-and-delete-with-nothing-saved-yet-is-a-clear-error ()
   (session--with-isolated-dirs
     (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "")))
       (should-error (call-interactively #'my/session-open) :type 'user-error)
       (should-error (call-interactively #'my/session-delete) :type 'user-error))))
 
-(ert-deftest session/delete-asks-first-and-only-deletes-on-yes ()
+(ert-deftest emacs-session/delete-asks-first-and-only-deletes-on-yes ()
   (session--with-isolated-dirs
     (let ((f (concat live-dir "live.txt")))
       (with-temp-file f (insert "x"))
@@ -339,7 +366,7 @@ temp directories, so these tests never touch the real config's own session state
                 (should-not (file-directory-p dir)))))  ; confirmed: gone
         (when (get-buffer "live.txt") (kill-buffer "live.txt"))))))
 
-(ert-deftest session/named-list-shows-every-saved-name-and-none-yet-message ()
+(ert-deftest emacs-session/named-list-shows-every-saved-name-and-none-yet-message ()
   (session--with-isolated-dirs
     (unwind-protect
         (progn
@@ -359,7 +386,7 @@ temp directories, so these tests never touch the real config's own session state
             (should (string-match-p "2 saved" txt))))
       (when (get-buffer my/session-named-list-buffer-name) (kill-buffer my/session-named-list-buffer-name)))))
 
-(ert-deftest session/named-list-close-key-is-real ()
+(ert-deftest emacs-session/named-list-close-key-is-real ()
   (unwind-protect
       (progn
         (my/session-named-list)
@@ -367,4 +394,4 @@ temp directories, so these tests never touch the real config's own session state
           (should (eq (key-binding (kbd "q")) 'quit-window))))
     (when (get-buffer my/session-named-list-buffer-name) (kill-buffer my/session-named-list-buffer-name))))
 
-;;; session.el ends here
+;;; emacs-session.el ends here
