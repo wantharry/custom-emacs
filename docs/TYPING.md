@@ -282,7 +282,7 @@ Goal: move a line to another place with only the keyboard.
 | `C-x k` | `kill-buffer` | Close a file |
 | `C-x 3` | `split-window-right` | Two panes side by side |
 | `C-x 2` | `split-window-below` | Two panes top and bottom |
-| `C-x o` | `other-window` | Move between panes (try `M-o` too) |
+| `C-x o` | `other-window` | Move between panes (try `M-o` too --- this config jumps straight to one by letter) |
 | `C-x 1` | `delete-other-windows` | Back to one pane |
 | `C-x 0` | `delete-window` | Close this pane |
 

@@ -184,7 +184,7 @@
 
 (ert-deftest config/key-bindings ()
   (should (eq (key-binding (kbd "C-x C-b")) 'ibuffer))
-  (should (eq (key-binding (kbd "M-o")) 'other-window))
+  (should (eq (key-binding (kbd "M-o")) 'ace-window))
   (should (eq (key-binding (kbd "C-c r")) 'recentf-open))
   (should (eq (key-binding (kbd "C-c v")) 'my/toggle-evil))
   (should (eq (key-binding (kbd "C-c w s")) 'my/session-save))

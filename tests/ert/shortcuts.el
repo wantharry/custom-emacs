@@ -15,7 +15,9 @@
   (let ((optional '(magit-status magit-file-dispatch consult-line consult-ripgrep
                     consult-fd consult-buffer gptel-menu my/llm-chat my/llm-council
                     my/treemacs my/treemacs-reveal
-                    embark-act embark-dwim embark-bindings)))
+                    embark-act embark-dwim embark-bindings
+                    avy-goto-char-timer symbol-overlay-put ace-window
+                    helpful-callable helpful-variable helpful-key helpful-symbol)))
     (dolist (topic my/shortcuts-list)
       (dolist (row (cdr topic))
         (cl-destructuring-bind (key command _desc) row

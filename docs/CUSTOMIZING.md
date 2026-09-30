@@ -55,7 +55,7 @@ ignored on purpose; see `.gitignore`.
 | Languages | Pins tree-sitter grammar versions (Java, Rust, and HTML/CSS/JS/TS/JSX/JSON), remaps the built-in modes to their `-ts-` counterpart when a grammar exists, and keeps language servers manual. See [LANGUAGES.md](LANGUAGES.md) |
 | LLM chat | `C-c a a` opens a chat buffer (a local Ollama model, set up automatically), `C-c a m` its menu. See [LLM.md](LLM.md) |
 | Shortcuts | `C-c k` shows this configuration's own keybindings, grouped by topic and foldable; shown automatically next to the start screen. See [START-SCREEN.md](START-SCREEN.md) |
-| Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → other window, `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
+| Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → jump to a window by letter (`ace-window`), `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
 | Startup report | Prints Emacs version, load time and GC count to the echo area once |
 
 The only third-party packages are **Evil**, **Magit**, **Treemacs** (with its helpers), **Consult** and **gptel**, and all are optional: they are installed by

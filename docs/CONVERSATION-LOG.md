@@ -887,19 +887,120 @@ tests, the recentf-autosave test), a third time in a row now.
 12 tests in `tests/ert/calendar-year.el` (2 new), 0 fail, stable across 3 repeated
 runs; 645 tests, 625 pass, 0 fail, 20 skipped across the full offline suite.
 
+### Five small navigation/search extras: avy, ace-window, wgrep, helpful, symbol-overlay
+
+User: "whatelese is mind blowing good in search or other?" --- surveyed real,
+already-documented options in docs/SEARCH-OPTIONS.md rather than guessing, found `avy`/
+`ace-window` already sitting on disk (pulled in as Treemacs's own dependencies) but
+never bound to a key, and recommended `wgrep`, `helpful`, `symbol-overlay` as genuinely
+new, well-regarded additions. User: "yes", then "install wgrep , helpful, symbol
+overlay" --- installed all three via `./build.sh packages` and wired up all five
+together (avy/ace-window were free, already present).
+
+Bindings: `C-'` → `avy-goto-char-timer` (jump the cursor anywhere visible by typing a
+few characters), `M-o` → `ace-window` (jump to a window by letter; strictly supersedes
+`other-window` with only 2 windows open, so nothing is lost), `M-i` →
+`symbol-overlay-put`, `C-h f`/`v`/`k`/`o` → `helpful-callable`/`-variable`/`-key`/
+`-symbol` (richer pages, same keys). All five follow this config's standing
+"`locate-library` + autoload + fallback command" pattern for optional packages; none
+loads eagerly (confirmed directly: `featurep` nil for all five right after loading the
+full config).
+
+A real, found-while-wiring-this-up conflict: `M-o` was already separately, deliberately
+bound to plain `other-window` in this file's own later "Keys" section (from earlier,
+unrelated work) --- since that section runs *after* the new one, it silently won and
+the `ace-window` binding never took effect on the first attempt. Fixed by removing the
+older, now-redundant line rather than picking a different key.
+
+`wgrep` needed the most care, and turned up a genuine, previously-invisible bug in this
+config, not in wgrep itself. It wires itself into `grep-mode` entirely on its own via
+`grep-setup-hook` (confirmed directly in its source), so `(with-eval-after-load 'grep
+(require 'wgrep))` is the whole integration --- lazy, costs nothing until a real grep
+runs. But testing the actual promise (`C-c C-p` to edit, `C-c C-e' to save every
+matched file at once) against a real temp file kept failing silently: `wgrep-finish-edit`
+reported "(0 changed)" and the real file on disk never changed, no error shown anywhere.
+Chased it all the way through wgrep's own source (`wgrep-commit-file`, `wgrep-apply-
+change`, `wgrep-check-file`) with advice-add tracing at each layer before finding it:
+`wgrep-commit-file` silently rejects the whole edit if the underlying file's buffer is
+`buffer-read-only` and `wgrep-change-readonly-file` is nil (the default) --- and this
+config makes *every* file-visiting buffer read-only by default, on purpose, with the
+hook that does it deliberately placed last (depth 90) so nothing else can undo it (see
+"Every file opens read-only" in KEYBOARD.md). wgrep was doing exactly what it's told;
+the interaction with this config's own lock was simply never considered. Fixed with
+`(setq wgrep-change-readonly-file t)`: running `wgrep-finish-edit` in the first place
+already *is* the one deliberate action the lock exists to gate behind, the same
+reasoning already used for the git-commit-message/Treemacs-persist exceptions in
+`my/always-editable-file-regexp`. Verified for real, end to end, after the fix: edited
+a real match in a real `*grep*` buffer over a real temp file, `wgrep-finish-edit` then
+`wgrep-save-all-buffers`, and the real file on disk changed exactly as edited.
+
+Doc-table-driven testing (`tests/ert/keybindings.el`, which auto-checks every `| \`KEY\`
+| \`command\` |` row in the guides against the real, live keymaps) caught real drift no
+one had touched yet: docs/KEYBOARD.md, docs/SEARCHING.md and docs/SEARCH-OPTIONS.md all
+still listed the *stock* `describe-function`/`describe-variable`/`describe-key`/
+`describe-symbol` for `C-h f`/`v`/`k`/`o` and stock `other-window` for `M-o` in their own
+separate tables --- updated all three files, plus two hardcoded (non-table-driven)
+assertions in `tests/ert/keybindings.el` and `tests/ert/config.el` that still expected
+`other-window` directly. `docs/SEARCH-OPTIONS.md`'s own package-survey table (written
+before any of this was installed) also still said "Not installed"/"not bound to a key"
+for all five --- updated every one of those lines to their real, current status,
+including the wgrep/read-only-lock interaction above.
+
+No new bespoke tests needed for the four plain global bindings (avy/ace-window/
+symbol-overlay/helpful): the doc-table check and `tests/ert/shortcuts.el` (config/
+shortcuts.el's own "every listed key still runs the command it claims" test) already
+cover them once the docs and shortcuts list were updated; both packages added to the
+`optional` skip-list in `tests/ert/shortcuts.el` matching Magit/Consult/Embark's own
+treatment there. `wgrep` got its own new file, `tests/ert/wgrep.el` (4 tests): not
+loaded at startup (a real subprocess check, not in-process --- an in-process one would
+be order-dependent on whatever else in the same file already touched `grep`, a mistake
+caught before it shipped), loads once a real grep actually runs, `C-c C-p` bound in a
+real grep buffer, and the edit-and-save-to-disk round trip itself, pinning down the bug
+above so it can never silently regress.
+
+4 new tests (`tests/ert/wgrep.el`), 0 fail; 649 tests, 629 pass, 0 fail, 20 skipped
+across the full offline suite.
+
+### Org mode's C-c footprint disabled for now (a config-level toggle, not un-pruning it again)
+
+User asked why so many Org commands were showing up under `C-c`, having never used Org:
+measured directly, a plain buffer's `C-c` has 19 bindings (this config's own), but a
+real `.org` buffer's has 103 --- Org's own long-standing convention, not something this
+config added, and mode-local so it never leaks into other files. User: "remove org mode
+then for now later i will decicde", then "you can keep the documentation".
+
+**Not** a repeat of the pruning question from earlier this session (see "Org mode
+restored" above) --- Org is still fully installed, `org-macs`/`org-element-ast` are
+still force-kept for the calendar parser, `gptel-org.el` still works, nothing about the
+build changed. This is purely a `config/init.el`-level toggle: `.org` files no longer
+auto-activate `org-mode` (they now open in plain `fundamental-mode`, confirmed
+directly --- no other `auto-mode-alist` rule claims `.org`), done by deleting Org's own
+`("\\.org\\'" . org-mode)` entries from `auto-mode-alist` after Org's autoloads have
+already registered them. `M-x org-mode` still works perfectly fine by hand any time
+(confirmed directly), and the emacs-session/org collision regression test from earlier
+this session (which explicitly runs `M-x org-mode`, not via `.org` file association)
+still passes unaffected. Per the user's own request, no documentation touched or
+removed: docs/KEYBOARD.md never had a Org-commands section to begin with (an earlier
+answer to "give me commands for org mode?" was conversational only, never written to
+the guides), and the "Org mode restored" pruning-decision history above is left exactly
+as it was.
+
+Easily reversible later: delete the one `(setq auto-mode-alist ...)` form in
+config/init.el's new "Org mode: disabled for now" section, or just keep using `M-x
+org-mode` by hand whenever wanted in the meantime.
+
 ## Where things stand as of the last entry
 
-- Live dictation (`C-c M`) is committed but the dist bundles are **not yet rebuilt** ---
-  per the standing workflow-pacing instruction above, a single feature gets its own
-  tests run and committed, not an automatic dist rebuild; both bundles are one feature
-  past their last rebuild as of this entry. `whisper-server.exe` is now built and
-  confirmed working on the user's real Windows machine (see the follow-up section
+- Several features have piled up since the last dist rebuild (org/session.el collision
+  fix, the 12-month calendar revert + real `calendar-year.el` replacement + its `<`/`>`
+  nav, the five-package search/nav batch with the wgrep read-only-lock fix, and Org's
+  `C-c` footprint being disabled) --- past the standing "batch after 3-4 features"
+  threshold, so the **Windows zip is due for a rebuild** right after this entry (Linux
+  still explicitly on hold until the user asks for it). `whisper-server.exe` is built
+  and confirmed working on the user's real Windows machine (see the follow-up section
   above), placed directly at `~/.local/share/whisper-cpp/` the same way `whisper-cli.exe`
   already was --- **not** added to the dist zip itself, matching this project's existing
-  "heavy runtime dependency, never bundled" convention for whisper.cpp. The Windows zip
-  in Downloads right now predates this follow-up entirely (rebuilt once already this
-  session, before `C-c M` was even tried) and does not need rebuilding just for this ---
-  nothing about `whisper-server.exe` lives inside the zip.
+  "heavy runtime dependency, never bundled" convention for whisper.cpp.
 - All other features above are committed and pushed to `origin/main`, including the
   Windows dist rebuild (verified clean, `test_dist.py` all green) and the new, finished
   Linux bundle (also verified, see its own section above) from before live dictation.

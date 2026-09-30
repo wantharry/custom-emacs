@@ -228,6 +228,8 @@ Killing with `C-k` twice in a row accumulates into one clipboard entry.
 | `M-s h r` | `highlight-regexp` | highlight matches |
 | `M-%` | `query-replace` | replace, asking each time |
 | `C-M-%` | `query-replace-regexp` | regexp replace, asking each time |
+| `C-'` | `avy-goto-char-timer` | **this config:** jump the cursor anywhere visible by typing a few characters of it |
+| `M-i` | `symbol-overlay-put` | **this config:** highlight every occurrence of the symbol at the cursor (`M-i` again on a highlighted one removes it) |
 
 While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` quit.
 
@@ -299,7 +301,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x 2` | `split-window-below` | split top and bottom |
 | `C-x 3` | `split-window-right` | split left and right |
 | `C-x o` | `other-window` | move to the next window |
-| `M-o` | `other-window` | **this config:** same, one keystroke |
+| `M-o` | `ace-window` | **this config:** jump to a window by the letter shown in it (with only 2 windows open, behaves just like `other-window` did) |
 | `C-x ^` | `enlarge-window` | taller |
 | `C-x }` | `enlarge-window-horizontally` | wider |
 | `C-x {` | `shrink-window-horizontally` | narrower |
@@ -332,11 +334,11 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 |---|---|---|
 | `C-h t` | `help-with-tutorial` | **the built-in interactive tutorial. Do it first** |
 | `C-h ?` | `help-for-help` | list of every help key |
-| `C-h k` | `describe-key` | what does this key do? |
+| `C-h k` | `helpful-key` | **this config:** what does this key do? (richer than stock `describe-key`: real source, every caller, a live demo where one exists) |
 | `C-h c` | `describe-key-briefly` | one-line version |
-| `C-h f` | `describe-function` | describe a command or function |
-| `C-h v` | `describe-variable` | describe a setting |
-| `C-h o` | `describe-symbol` | describe anything |
+| `C-h f` | `helpful-callable` | **this config:** describe a command or function (richer than stock `describe-function`) |
+| `C-h v` | `helpful-variable` | **this config:** describe a setting (richer than stock `describe-variable`) |
+| `C-h o` | `helpful-symbol` | **this config:** describe anything (richer than stock `describe-symbol`) |
 | `C-h x` | `describe-command` | describe a command |
 | `C-h m` | `describe-mode` | current modes and their keys |
 | `C-h b` | `describe-bindings` | every key currently bound |

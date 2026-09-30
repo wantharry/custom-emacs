@@ -136,7 +136,9 @@ by hand.")
      ("C-c s l" consult-line "search this buffer, with a live preview")
      ("C-c s g" consult-ripgrep "search project text (ripgrep), with a live preview")
      ("C-c s f" consult-fd "find a project file by name (fd), with a live preview")
-     ("C-c s b" consult-buffer "switch to a buffer, recent file or bookmark"))
+     ("C-c s b" consult-buffer "switch to a buffer, recent file or bookmark")
+     ("C-'" avy-goto-char-timer "jump the cursor anywhere visible by typing a few characters")
+     ("M-i" symbol-overlay-put "highlight every occurrence of the symbol at the cursor"))
     ("Completion (embark: actions on the thing at point/candidate)"
      ("C-." embark-act "menu of actions for the thing at point, or the current candidate")
      ("C-;" embark-dwim "run the default action directly, no menu")
@@ -176,7 +178,12 @@ by hand.")
      ;; really runs the command it claims" test) as well as in the packages section above.
      ("C-c a c" my/llm-council "ask 3 local models at once, summarized by a bigger one"))
     ("Windows"
-     ("M-o" other-window "switch to the other window")))
+     ("M-o" ace-window "jump to a window by the letter shown in it"))
+    ("Help"
+     ("C-h f" helpful-callable "describe a command or function, richly")
+     ("C-h v" helpful-variable "describe a setting, richly")
+     ("C-h k" helpful-key "describe a key's command, richly")
+     ("C-h o" helpful-symbol "describe anything, richly")))
   "This configuration's own keybindings, grouped by topic, as (TOPIC (KEY COMMAND
 DESCRIPTION) ...).  COMMAND is only used to check the key still really runs it (see
 tests/ert/shortcuts.el); the buffer itself shows only KEY and DESCRIPTION.  Kept in

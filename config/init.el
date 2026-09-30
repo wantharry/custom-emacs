@@ -79,6 +79,24 @@
   "Show all 12 months of a year in a grid, 3 months per row." t)
 (global-set-key (kbd "C-c y") #'my/calendar-year)
 
+;;; Org mode: disabled for now -------------------------------------------------
+;; WHAT: `.org' files no longer auto-activate `org-mode' --- they open in plain
+;; `fundamental-mode' instead (confirmed directly: no other rule in `auto-mode-alist'
+;; claims `.org', so removing Org's own entry leaves the built-in default).  WHY: user
+;; request --- Org binds a huge number of commands under
+;; `C-c' (103, measured directly in a real org buffer, versus 19 on this config's own
+;; `C-c' outside one), and it was showing up unwanted for someone who doesn't use Org.
+;; This is a config-level toggle, easily reversed later (delete this form, or just
+;; `M-x org-mode' by hand any time --- the command itself still works fine, this only
+;; removes the automatic `.org' association).  Documentation for Org's own commands
+;; (docs/KEYBOARD.md) and the earlier org/session.el collision fix are left in place on
+;; purpose --- kept for whenever Org gets turned back on, per the user's own request.
+;; HOW: Org registers its own `("\\.org\\'" . org-mode)' (and similar) entries in
+;; `auto-mode-alist' unconditionally via its autoloads, before this file ever runs ---
+;; so removing them has to happen here, after the fact, rather than by simply never
+;; requiring Org in the first place.
+(setq auto-mode-alist (rassq-delete-all 'org-mode auto-mode-alist))
+
 ;;; Editing ------------------------------------------------------------------
 
 (setq-default indent-tabs-mode nil
@@ -574,6 +592,77 @@ installed, offer to install it from NonGNU ELPA."
   (global-set-key (kbd (car binding))
                   (if (locate-library "embark") (cdr binding) #'my/embark-missing)))
 
+;;; Small navigation/search extras: avy, ace-window, wgrep, helpful, symbol-overlay ----
+
+;; `avy' and `ace-window' were already on disk before this (pulled in as dependencies of
+;; Treemacs), just never bound to a key --- `C-'' now jumps the cursor to any visible
+;; spot by typing a few characters of it (stops as soon as what you typed is
+;; unambiguous, or shows a letter to pick from when it isn't); `M-o' replaces the plain
+;; `other-window' (cycle blindly through however many windows exist) with jumping
+;; straight to one by a letter shown in it --- with only 2 windows open (the common
+;; case), `ace-window' behaves exactly like `other-window' did, so nothing is lost. A
+;; real, found-while-wiring-this-up conflict: `M-o' was already separately bound to
+;; plain `other-window' in this file's own "Keys" section (a pre-existing, deliberate
+;; shortcut from earlier work, unrelated to this change) --- since that section runs
+;; *after* this one, it was silently winning and this binding never took effect on the
+;; first attempt. Removed that older, now-redundant line rather than picking a
+;; different key for this, since `ace-window' is a strict superset of what it did.
+(when (locate-library "avy")
+  (autoload 'avy-goto-char-timer "avy" "Jump to a visible spot by typing its first few characters." t))
+(defun my/avy-missing ()
+  (interactive)
+  (message "avy is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-'") (if (locate-library "avy") #'avy-goto-char-timer #'my/avy-missing))
+(when (locate-library "ace-window")
+  (autoload 'ace-window "ace-window" "Jump to a window by the letter shown in it." t))
+(global-set-key (kbd "M-o") (if (locate-library "ace-window") #'ace-window #'other-window))
+
+;; `wgrep' makes a `grep'-shaped results buffer (`M-x rgrep', or one `embark-export'
+;; builds from a `consult-ripgrep'/`C-x p g' search) directly editable: fix something
+;; across every matched file at once, `C-c C-p' to start editing, `C-c C-e' to save it
+;; back to all of them, `C-c C-k' to discard.  WHY `with-eval-after-load' rather than a
+;; plain `require': `wgrep' only ever needs to exist by the time a real `grep'-mode
+;; buffer is first created, which needs `grep.el' itself loaded anyway --- piggybacking
+;; on that means this never costs anything until a real search actually happens, the
+;; same "nothing loads until used" rule every other feature here follows.  HOW: `wgrep'
+;; wires itself into `grep-mode' entirely on its own, via `grep-setup-hook' (confirmed
+;; directly in its own source, not assumed) --- once required, nothing more to bind by
+;; hand.
+(when (locate-library "wgrep")
+  (with-eval-after-load 'grep (require 'wgrep)))
+;; A real, found-while-testing-this interaction: every file this config opens locks
+;; itself read-only by default (see "Every file opens read-only" below), and by default
+;; `wgrep' silently REFUSES to save into a read-only buffer --- `wgrep-finish-edit' would
+;; report "(0 changed)" with no further explanation, and the file on disk would just
+;; never change, confirmed directly by editing a real match and finding the real file
+;; untouched afterwards. `wgrep-change-readonly-file' is wgrep's own documented escape
+;; hatch for exactly this (any read-only file, not just this config's own lock) --- set
+;; here so it can, since running `wgrep-finish-edit' in the first place already IS the
+;; one deliberate action this config's read-only lock exists to gate behind (the same
+;; reasoning as the git-commit-message/Treemacs-persist exceptions in
+;; `my/always-editable-file-regexp' above).
+(setq wgrep-change-readonly-file t)
+
+;; `helpful' replaces the plain `C-h f'/`v'/`k'/`o' pages with much richer ones: the
+;; real source, every place that calls it, a live demo where one exists --- strictly
+;; more information, same keys, so there is nothing new to learn to get it.
+(when (locate-library "helpful")
+  (autoload 'helpful-callable "helpful" "Describe a function, richly." t)
+  (autoload 'helpful-variable "helpful" "Describe a variable, richly." t)
+  (autoload 'helpful-key "helpful" "Describe a key's command, richly." t)
+  (autoload 'helpful-symbol "helpful" "Describe whatever a symbol is, richly." t))
+(dolist (binding '(("C-h f" . helpful-callable) ("C-h v" . helpful-variable)
+                   ("C-h k" . helpful-key) ("C-h o" . helpful-symbol)))
+  (when (locate-library "helpful") (global-set-key (kbd (car binding)) (cdr binding))))
+
+;; `M-i' (`symbol-overlay-put') highlights every occurrence of whatever symbol the
+;; cursor is on, right in the buffer, until pressed again --- `tab-to-tab-stop' (its
+;; default binding, a legacy command from manual typewriter-style tab stops that is not
+;; otherwise used here) is safely free for this, its own package's own suggested key.
+(when (locate-library "symbol-overlay")
+  (autoload 'symbol-overlay-put "symbol-overlay" "Highlight every occurrence of the symbol at point." t))
+(global-set-key (kbd "M-i") (if (locate-library "symbol-overlay") #'symbol-overlay-put #'tab-to-tab-stop))
+
 ;;; Start screen ---------------------------------------------------------------
 
 ;; What Emacs shows when started without a file: the last 5 files, folders and projects,
@@ -795,7 +884,6 @@ installed, offer to install it from NonGNU ELPA."
 (global-set-key (kbd "C-c f p") #'my/find-git-repos)
 (global-set-key (kbd "C-c v") #'my/toggle-evil)
 (global-set-key (kbd "C-x C-b") #'ibuffer)
-(global-set-key (kbd "M-o") #'other-window)
 (global-set-key (kbd "C-c r") #'recentf-open)
 (global-set-key (kbd "C-c h") #'my/start)
 

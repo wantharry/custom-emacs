@@ -20,9 +20,9 @@ inventory; that page is the manual.
 |---|---|---|---|
 | **Open a file by name** | `find-file`, project file list, recent files, Dired, `find-name-dired`, file name at cursor, bookmarks, registers | the **fast finder** (`C-c f f`, `C-c f g`), the **start screen** (`C-c h`), the **Treemacs** tree (`C-c t`), **`consult-fd`** (`C-c s f`) | `projectile`, `find-file-in-project`, `fzf`, `affe`, `dirvish`, `dired-sidebar`, `neotree`, `fd-dired` |
 | **Find text in this buffer** | incremental search (5 variants), `occur`, `highlight-regexp`, `re-builder` | Evil's `/ ? n N * #` when you toggle Evil on (`C-c v`), **`consult-line`** (`C-c s l`, live preview) | `ctrlf`, `anzu`, `isearch-mb`, `swiper`, `phi-search`, `visual-regexp` |
-| **Find text in many files** | project search, `rgrep`, `lgrep`, `grep`, `vc-git-grep`, Dired search, `project-search`, tags search | **ripgrep** as the engine (4 to 10 times faster than grep), **`consult-ripgrep`** (`C-c s g`, live preview) | `deadgrep`, `rg`, `ripgrep`, `ag`, `wgrep` (edit the results in place) |
-| **Find code by meaning** | `xref` (definitions, references, apropos), `imenu`, Eglot (client), tags | **Eglot set up** for Java and Rust, right-click menu, Ctrl+Click, tree-sitter grammars (also HTML/CSS/JS/TS/JSX/JSON, highlighting only so far); on Windows the Java server is bundled, but not a JDK | `lsp-mode`, `consult-eglot`, `consult-lsp` (Consult itself is installed; these two extras are not), `dumb-jump`, `imenu-list`, `symbol-overlay` |
-| **Search and replace** | `query-replace` (+ regexp), project replace, Dired `Q`, `xref` results replace | the read-only lock (unlock a file first with `C-c e e`) | `visual-regexp`, `wgrep` |
+| **Find text in many files** | project search, `rgrep`, `lgrep`, `grep`, `vc-git-grep`, Dired search, `project-search`, tags search | **ripgrep** as the engine (4 to 10 times faster than grep), **`consult-ripgrep`** (`C-c s g`, live preview), **`wgrep`** (edit the results in place, `C-c C-p`) | `deadgrep`, `rg`, `ripgrep`, `ag` |
+| **Find code by meaning** | `xref` (definitions, references, apropos), `imenu`, Eglot (client), tags | **Eglot set up** for Java and Rust, right-click menu, Ctrl+Click, tree-sitter grammars (also HTML/CSS/JS/TS/JSX/JSON, highlighting only so far); on Windows the Java server is bundled, but not a JDK; **`symbol-overlay`** (`M-i`, highlight every use of a symbol) | `lsp-mode`, `consult-eglot`, `consult-lsp` (Consult itself is installed; these two extras are not), `dumb-jump`, `imenu-list` |
+| **Search and replace** | `query-replace` (+ regexp), project replace, Dired `Q`, `xref` results replace | the read-only lock (unlock a file first with `C-c e e`, or use `wgrep` (`C-c C-p`) which bypasses the lock on purpose) | `visual-regexp` |
 | **Buffers, recent files, places** | `switch-to-buffer`, `ibuffer`, project buffers, `recentf`, minibuffer history search, bookmarks, registers | the start screen (last 5 files, folders, projects); `savehist` on; **`consult-buffer`** (`C-c s b`) | `consult-recent-file`, `consult-bookmark`, `consult-mark` (all part of the `consult` package, already installed, just not bound to a key) |
 | **Commands, keys, help** | `M-x`, the `apropos` family, `describe-*`, Info, `man`, `shortdoc`, `finder-by-keyword` | `which-key` on, vertical minibuffer list with loose matching, inline completion preview | `marginalia`, `embark`, `vertico`, `orderless` (`consult` itself needs none of these), `ivy`+`counsel`, `helm` |
 | **Git history** | `vc-print-log`, `vc-log-search`, `vc-git-grep`, `vc-annotate`, `vc-dir` | **Magit** (`C-x g`) | Forge (GitHub) and Magit add-ons |
@@ -142,10 +142,10 @@ tree-sitter functions (`treesit-*`) that power accurate highlighting and `imenu`
 | `C-h a` | `apropos-command` | commands whose **name** contains a word |
 | `C-h d` | `apropos-documentation` | commands and variables whose **documentation** mentions a word |
 | `C-h u` | `apropos-user-option` | settings you can change |
-| `C-h o` | `describe-symbol` | everything about one symbol |
-| `C-h f` | `describe-function` | a function |
-| `C-h v` | `describe-variable` | a variable |
-| `C-h k` | `describe-key` | what a key does |
+| `C-h o` | `helpful-symbol` | everything about one symbol (this config's richer `helpful` page) |
+| `C-h f` | `helpful-callable` | a function (this config's richer `helpful` page) |
+| `C-h v` | `helpful-variable` | a variable (this config's richer `helpful` page) |
+| `C-h k` | `helpful-key` | what a key does (this config's richer `helpful` page) |
 | `C-h c` | `describe-key-briefly` | the same, in one line |
 | `C-h w` | `where-is` | which key runs a command |
 | `C-h x` | `describe-command` | a command |
@@ -287,7 +287,7 @@ numbers releases by date (MELPA).**
 | `ag` | melpa 2020-10-31 | A front-end for ag ('the silver searcher'), the C ack replacement | Silver searcher front-end; ripgrep replaced it |
 | `ack` | gnu 1.11 | interface to ack-like tools | Old grep alternative |
 | `pt` | melpa 2016-12-26 | A front-end for pt, The Platinum Searcher | Old grep alternative |
-| `wgrep` | nongnu 3.0.0 | Writable grep buffer and apply the changes to files | **Not present here**: edit a search-results list directly and save the changes to every file |
+| `wgrep` | nongnu 3.0.0 | Writable grep buffer and apply the changes to files | **Installed**: `C-c C-p` in a real grep results buffer, edit directly, `C-c C-e` saves to every file |
 | `wgrep-ag` | melpa 2023-02-02 | Writable ag buffer | Needs ag |
 | `wgrep-helm` | melpa 2023-02-02 | Writable helm-grep-mode buffer | Needs helm |
 | `visual-regexp` | melpa 2021-05-02 | A regexp/replace command for Emacs with interactive visual feedback | Preview a regexp replace as you type; overlaps `re-builder` + `M-%` |
@@ -297,10 +297,10 @@ numbers releases by date (MELPA).**
 | `isearch-mb` | gnu 0.8 | Control isearch from the minibuffer | Edit the search text like a normal prompt; overlaps `M-e` inside `C-s` |
 | `ctrlf` | melpa 2026-02-21 | Emacs finally learns how to ctrl+F | A modern take on `C-s`; a matter of taste |
 | `phi-search` | melpa 2025-06-11 | Another incremental search & replace, compatible with "multiple-cursors" | Only useful with multiple cursors |
-| `avy` | gnu 0.5.0 | Jump to arbitrary positions in visible text and select text quickly. | **Already on disk** (a Treemacs helper) but not bound to a key: jump to any visible spot by typing 2 characters |
+| `avy` | gnu 0.5.0 | Jump to arbitrary positions in visible text and select text quickly. | **Installed and bound**: `C-'`, jump to any visible spot by typing a few characters |
 | `ace-jump-mode` | melpa 2014-06-16 | A quick cursor location minor mode for emacs | The old avy |
 | `ace-link` | melpa 2024-11-01 | Quickly follow links | Jump to links in help and Info buffers; needs avy |
-| `ace-window` | gnu 0.10.0 | Quickly switch windows. | **Already on disk** (Treemacs helper): jump to a window by letter |
+| `ace-window` | gnu 0.10.0 | Quickly switch windows. | **Installed and bound**: `M-o`, jump to a window by letter |
 | `link-hint` | melpa 2025-09-11 | Use avy to open, copy, etc. visible links | Follow any link on screen by a letter; uses avy |
 | `jump-char` | melpa 2025-12-05 | Navigation by char | Jump to a character |
 | `evil-easymotion` | melpa 2026-06-02 | A port of vim's easymotion to emacs | Avy-style jumping for Evil |
@@ -351,7 +351,7 @@ numbers releases by date (MELPA).**
 | `smart-jump` | melpa 2021-03-04 | Smart go to definition | Tries several jump methods in turn |
 | `imenu-list` | melpa 2021-04-20 | Show imenu entries in a separate buffer | The `imenu` outline in a side window; overlaps `M-g i` |
 | `imenu-anywhere` | melpa 2021-02-01 | Ido/ivy/helm imenu across same mode/project/etc buffers | `imenu` across all open buffers of a project |
-| `symbol-overlay` | nongnu 4.3 | Highlight symbols with keymap-enabled overlays | Highlight every use of a symbol with one key; overlaps `M-s h .` |
+| `symbol-overlay` | nongnu 4.3 | Highlight symbols with keymap-enabled overlays | **Installed and bound**: `M-i`, highlight every use of a symbol with one key |
 | `highlight-symbol` | melpa 2016-01-02 | Automatic and manual symbol highlighting | Old version of the same |
 | `idle-highlight-mode` | nongnu 1.1.5 | Highlight the word the point is on | Highlight the symbol under the cursor automatically |
 | `expreg` | gnu 1.4.1 | Simple expand region | Expand the selection by syntax (uses tree-sitter); selection, not search |
@@ -361,7 +361,7 @@ numbers releases by date (MELPA).**
 <!-- keymap: none -->
 | Package | Archive, version | What it does (the archive's words) | Versus what we have |
 |---|---|---|---|
-| `helpful` | melpa 2025-04-08 | A better *help* buffer | Richer `C-h f`/`v`/`k` pages with source and callers |
+| `helpful` | melpa 2025-04-08 | A better *help* buffer | **Installed and bound**, in place of the stock `C-h f`/`v`/`k`/`o` pages: real source, every caller, a live demo where one exists |
 | `elisp-demos` | melpa 2026-08-26 | Elisp API Demos | Examples inside help pages |
 | `discover-my-major` | melpa 2018-06-06 | Discover key bindings and their meaning for the current Emacs major mode | Cheat sheet for the current mode |
 | `devdocs` | gnu 0.7 | Emacs viewer for DevDocs | Browse DevDocs.io documentation inside Emacs |
@@ -423,8 +423,11 @@ popularity.
 | # | Package | Archive | What it gave that was lacking | Status |
 |---|---|---|---|---|
 | **1** | **`consult`** (best with `vertico` and `orderless`) | GNU ELPA, 3.10 | One search box for **lines in this file** (`consult-line`, with a live preview as you move through the matches), **text across the project** (`consult-ripgrep`), **files**, and **open or recent buffers**, with the list narrowing as you type | **Installed.** Not paired with `vertico`/`orderless`: it runs fine over the built-in vertical list (`fido-vertical-mode`), confirmed by 2 real-window tests and 14 offline ones (`tests/ert/consult.el`) |
-| **2** | **`wgrep`** | NonGNU ELPA, 3.0.0 | **Edit the results** of a search and save the change to every file at once. This is the one capability that is still **missing**, not duplicated | Not installed. Still the natural next step if you want it |
-| **3** | **`avy`** | GNU ELPA, 0.5.0 | Jump the cursor to **any visible text** by typing 2 characters and a letter | Still **on disk** (a Treemacs helper) but not bound to a key |
+| **2** | **`wgrep`** | NonGNU ELPA, 3.0.0 | **Edit the results** of a search and save the change to every file at once. | **Installed.** `C-c C-p` in any real `grep`/`rgrep`/`consult-ripgrep`-exported results buffer, `C-c C-e` to save, `C-c C-k` to discard. A real, found-and-fixed interaction: this config locks every file read-only by default (see "Every file opens read-only" in [KEYBOARD.md](KEYBOARD.md)), and by default `wgrep` silently refuses to save into a read-only buffer (`wgrep-finish-edit` reports "(0 changed)" with no further explanation, and the file on disk never actually changes --- confirmed directly, not assumed). Fixed with `wgrep-change-readonly-file` set to `t`: running `wgrep-finish-edit` in the first place already *is* the one deliberate action the lock exists to gate behind. |
+| **3** | **`avy`** | GNU ELPA, 0.5.0 | Jump the cursor to **any visible text** by typing 2 characters and a letter | **Installed and bound**: `C-'` (was already on disk as a Treemacs helper, just not bound to a key before now) |
+| **4** | **`ace-window`** | GNU ELPA, 0.10.0 | Jump to a window by the letter shown in it | **Installed and bound**: `M-o` (replaces the plain `other-window` it used to run; with only 2 windows open it behaves exactly the same) |
+| **5** | **`helpful`** | MELPA, 2025-04-08 | Richer `C-h f`/`v`/`k`/`o` pages: real source, every caller, a live demo where one exists | **Installed and bound**, in place of the stock pages |
+| **6** | **`symbol-overlay`** | NonGNU ELPA | Highlight every occurrence of the symbol at the cursor with one key | **Installed and bound**: `M-i` |
 
 **What changed by installing `consult`:** `C-c s l/g/f/b` now exist (section 3, and [SEARCHING.md](SEARCHING.md#10-consult-one-search-box-for-several-of-the-above)).
 They sit **beside** `C-s`, `C-x p g`, the fast finder and `C-x b`, not in place of them; nothing that worked before changed.

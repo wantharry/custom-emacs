@@ -332,10 +332,10 @@ of the word, including ones that are not the same symbol); **Eglot is exact** bu
 | `M-x` | `execute-extended-command` | run any command by name; the list narrows as you type |
 | `C-h a` | `apropos-command` | find **commands** whose name contains a word |
 | `C-h d` | `apropos-documentation` | find commands and variables whose **documentation** mentions a word |
-| `C-h o` | `describe-symbol` | show everything about a function, variable or face |
-| `C-h f` | `describe-function` | show a function's documentation |
-| `C-h v` | `describe-variable` | show a variable's documentation and value |
-| `C-h k` | `describe-key` | press a key to see what it runs |
+| `C-h o` | `helpful-symbol` | show everything about a function, variable or face (this config's richer `helpful` page) |
+| `C-h f` | `helpful-callable` | show a function's documentation (this config's richer `helpful` page) |
+| `C-h v` | `helpful-variable` | show a variable's documentation and value (this config's richer `helpful` page) |
+| `C-h k` | `helpful-key` | press a key to see what it runs (this config's richer `helpful` page) |
 | `C-h w` | `where-is` | type a command name to see which key runs it |
 | `C-h b` | `describe-bindings` | list every key active in this buffer |
 | `C-h m` | `describe-mode` | describe the current mode and its keys |
