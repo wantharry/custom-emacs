@@ -6,6 +6,88 @@ behave the way it looked like it should. Different from [KEYBOARD.md](KEYBOARD.m
 the other guides: those are the polished, general reference; this one is just "things I
 asked about and the real answer", added to as they come up, in the order discovered.
 
+## Opening Emacs
+
+| Command | What it opens |
+|---|---|
+| `install/bin/emacs --init-directory=$PWD/config` | this repo, Linux/WSL, the normal pruned install |
+| `build/src/emacs --init-directory=$PWD/config` | this repo, straight from the build tree, unpruned |
+| double-click `Emacs.exe` inside the unzipped folder | the portable Windows bundle |
+| `./Emacs` inside the unzipped folder | the portable Linux bundle |
+
+`--init-directory=` is what makes it *this* config; without it, Emacs falls back to its own stock default.
+
+## Exiting Emacs
+
+| Command | What it does |
+|---|---|
+| `C-x C-c` | quit Emacs entirely (asks to save any unsaved files first) |
+| `q` (in Magit/Treemacs/Dired/ibuffer/start screen/docs/shortcuts buffers) | closes just that buffer/window --- does **not** quit Emacs |
+| `C-x 5 0` | close just the current frame (OS window) --- doesn't quit Emacs if other frames are open |
+
+## Opening/closing the browsing buffers
+
+| Open | Close | What |
+|---|---|---|
+| `C-x d` (asks for a directory) / `C-x C-j` (current file's own directory) | `q` | Dired |
+| `C-c t` (toggle) / `C-c T` (reveal the current file in it) | `q` (hide) / `Q` (fully reset) | Treemacs |
+| `C-c h` | `q` | Start screen --- recent files/folders/projects |
+| `C-c f p` | `q` | Git repos list --- every git repo on this computer |
+| `C-x g` (also `C-c g` for file-specific commands) | `q` (`C-u q` kills the buffer instead of just hiding it) | Magit status |
+| `C-c a a` | no dedicated key: `C-x k` / `kill-buffer` | LLM chat (gptel) |
+| `C-c a c` | `q` | LLM council --- 3 local models at once, summarized |
+| `C-c n` | `q` | News (newsticker) |
+| `C-c d` (`C-c D` rebuilds it) | `q` | Docs buffer --- every guide, one buffer |
+| `C-c k` | `q` | Shortcuts buffer --- this config's own keybindings |
+| `C-c w l` | `q` | Session list --- buffers in the current session |
+| `C-c w L` | `q` | Named sessions list |
+| `C-c y` | `q` | Year calendar |
+| `C-c m` starts recording | `C-c m` again --- stops, transcribes, inserts the result | Dictation |
+| `C-c M` starts recording | `C-c M` again --- stops (text already appeared as you spoke) | Live dictation |
+| `C-c v` turns it on | `C-c v` again turns it off | Evil, vi keys |
+
+## Ways to open a file, by scope
+
+| Scope | Command | What it does | Method |
+|---|---|---|---|
+| Folder | `C-x C-f` | open a file, completion starts from the current buffer's own directory | built-in completion (`basic`/`partial-completion`/`flex`) --- a directory listing, not a search engine |
+| Folder | `C-x d` then `RET` / `C-x C-j` | browse the directory in Dired, then open | directory listing (browse, no query typed) |
+| Folder | `C-c t` then `RET` | browse the Treemacs tree (whatever root was added), then open | tree listing (browse, no query typed) |
+| Folder | `C-c f d` | fuzzy search, current directory's subtree only, recursive | live only, no index --- ripgrep, else grep, else plain Elisp |
+| Project | `C-c f f` | fuzzy search, current buffer's project (falls back to whole disk if not in one) | cached per-project index, live fallback if the index has nothing --- same matcher tiers as `C-c f d` |
+| Project | `C-x p f` | Emacs's own built-in project file finder, same project-following behavior as `C-c f f` | built-in completion over `project-files`, same `basic`/`partial-completion`/`flex` styles as `C-x C-f` --- not fuzzy the way the fast finder is |
+| Project | `C-x p d` | open the project's root directory in Dired | directory listing (browse) |
+| Project | `C-c s f` | `consult-fd`: literal/regexp name match across the project, no live preview | external `fd` (falls back to `find`), async as-you-type, literal/regexp --- not fuzzy |
+| Disk | `C-c f g` | fuzzy search, the whole disk | cached whole-disk index, live fallback --- same matcher tiers as `C-c f f`/`C-c f d` |
+| Disk | `C-c f a` | same as `C-c f g`, but asynchronous (Consult/fd), never blocks Emacs | external `fd`, async as-you-type, literal/regexp --- different engine than the rest of this family |
+| History | `C-c h` then `RET`/number | reopen a recent file, folder or project from the start screen | stored history list (`recentf`/this config's own tracker) --- no query typed, just click/select |
+
+`gmtry` finds `Geometry.java` through the fuzzy-matcher commands (`C-c f f`/`f g`/`f d`) but
+not through `C-x p f`/`C-c s f` --- the real, practical difference between "fuzzy" and
+"literal/regexp/completion-style" above.
+
+## Searching text, by scope
+
+| Scope | Command | Match type | Live preview |
+|---|---|---|---|
+| This buffer | `C-s` / `C-r` | simple (`M-r` inside isearch toggles regexp) | yes |
+| This buffer | `C-M-s` / `C-M-r` | regexp | yes |
+| This buffer | `C-c s l` (`consult-line`) | completion-style word match | yes |
+| This buffer | `M-s o` (`occur`) | regexp | no --- lists matches in a separate buffer |
+| This buffer | `M-%` / `C-M-%` (`query-replace`/`-regexp`) | simple / regexp | no --- steps through matches asking `y`/`n`, not a jump-to-preview |
+| Directory (ask) | `C-u C-c s g` | ripgrep literal/regexp, prompts you to pick the directory | yes |
+| Directory (ask) | `C-u C-x p g` | regexp, prompts you to pick the directory | no --- static results buffer (`M-g n`/`p` to step) |
+| Project | `C-c s g` (`consult-ripgrep`) | ripgrep literal/regexp, grouped by file | yes |
+| Project | `C-x p g` (`project-find-regexp`) | regexp | no --- static results buffer (`M-g n`/`p` to step) |
+| Multiple open buffers | `M-x consult-line-multi` (no key bound) | completion-style word match | yes |
+| Multiple open buffers | `M-x multi-occur`/`multi-occur-in-matching-buffers` (no key bound) | regexp | no --- separate results buffer |
+
+"This buffer" and "a single file" are the same thing here --- a buffer visiting a file
+*is* that file, so there's no separate "search one file" scope beyond the buffer rows
+above. Directory scoping for text search isn't its own dedicated key (unlike `C-c f d` for
+file-name search) --- it piggybacks on the project-search commands' own prefix-argument
+handling (`C-u`), confirmed directly in both `consult.el` and `project.el`'s source.
+
 ## Fast finder (`C-c f f` / `C-c f g` / `C-c f d`)
 
 - **`C-c f f` always follows whichever project the *current buffer* belongs to** --- it is
