@@ -119,6 +119,93 @@ handling (`C-u`), confirmed directly in both `consult.el` and `project.el`'s sou
   `consult--find` (backing `consult-fd`) passes none at all. The reasoning: a filename-only
   match has no location *inside* the file to jump to and preview, unlike a text/line match.
 
+## LLM chat (`C-c a a`) and LLM council (`C-c a c`)
+
+- **Ollama is the default backend, set up automatically** the first time you use `C-c a
+  a` --- it queries Ollama's own `/api/tags` HTTP endpoint directly (not the `ollama`
+  CLI, which doesn't even need to be on `PATH`) for whatever models are actually pulled
+  right now, so the model list always matches reality with nothing to hand-edit. Works
+  identically from WSL/Linux Emacs and the Windows bundle: Ollama only needs to run once
+  (in WSL/Linux), and WSL2 forwards `localhost` both ways so Windows reaches the same
+  `http://localhost:11434` with no extra setup.
+- **`C-c a m`** opens `gptel-menu` to switch model, backend, or system prompt.
+  ChatGPT/Claude/Gemini are pre-registered as selectable backends (so they show up in
+  that menu with nothing to configure for that part), but **none is active by default**
+  --- registering a backend in `gptel` only adds it as a menu choice, it doesn't switch
+  to it. To actually use one: put a real API key in `~/.authinfo.gpg` (never in
+  `llm.el` itself, which is tracked by git), one line per service, then pick it from
+  `C-c a m` → Backend.
+- **`C-c a c`** (LLM council) asks **three small/fast local models in parallel**, then a
+  **separate, bigger model** compares and summarizes all three answers --- one buffer,
+  summary expanded at the top, each model's full raw answer folded shut below it (`TAB`
+  to expand, same outline mechanism as `C-c d`/`C-c k`). The three "council" models are
+  chosen automatically by size (closest to ~2--3GB on disk) so asking three at once
+  doesn't noticeably slow the machine; the summarizer is chosen separately (closest to
+  ~7B parameters) and **deliberately never the largest model pulled** --- a real, explicit
+  choice, since the largest model visibly slows this machine down for a task that
+  doesn't need it. Degrades gracefully with fewer models pulled: with only one model
+  available at all, it fills both roles (the only council answer, and its own
+  summarizer) instead of erroring.
+
+## Dictation (`C-c m` / `C-c M`)
+
+- **Fully local** --- no cloud, no API key, no network --- via a local `whisper.cpp`
+  build; verified for real on both platforms (a synthesized test sentence came back
+  100% correct on WSL/Linux and on real Windows).
+- **Recording start/stop genuinely differs by platform**, both confirmed necessary the
+  hard way, not just "for consistency": Linux/WSL uses `parecord` (PulseAudio), stopped
+  with an explicit `SIGTERM` and waited out --- `delete-process` alone doesn't give it a
+  chance to finalize the WAV header (the file exists but is missing its fmt/data
+  chunks, confirmed directly). Windows uses `ffmpeg` with a dshow audio input, stopped
+  by sending it `"q"` on stdin --- the only way it finalizes cleanly, since there's no
+  `SIGTERM`-equivalent signal on Windows.
+- Neither `whisper.cpp`/`ffmpeg` nor the actual model is bundled with this project (the
+  model alone is hundreds of MB) --- see [DICTATE.md](DICTATE.md) for setup.
+
+## Session (`C-c w ...`, crash-safe auto-save and restore)
+
+- Named `emacs-session.el`, **not** the shorter, more obvious `session.el` --- a real
+  collision found the hard way: a well-known third-party ELPA package is also called
+  `session`, and Org's own compatibility code expects exactly that package to be
+  loaded; a same-named file here satisfied Org's `eval-after-load` trigger and caused a
+  real crash (`Symbol's value as variable is void: session-globals-exclude`) the moment
+  Org loaded. Renaming the feature (and the file, matching this project's own
+  "feature name = filename" convention) was the fix, not disabling Org's hook, which is
+  legitimate for anyone with the real `session` package installed.
+- Two layers, both built into Emacs, no package: `auto-save-visited-mode` writes a
+  buffer you've unlocked (`C-c e e`) and edited back to its real file a few seconds
+  after you stop typing --- no manual `C-x C-s` needed. A buffer you never unlocked has
+  nothing to save, so nothing changes for it.
+
+## Year calendar (`C-c y`)
+
+- `M-x calendar` on its own **cannot** show 12 months in a sensible grid --- it always
+  lays every month out in a single row, so asking for 12 at once produces one line ~300
+  columns wide that wraps and scrambles. `my/calendar-year` instead calls
+  `calendar-generate-month` (the same primitive real `M-x calendar` itself uses) once
+  per row of 3 months, 4 rows total --- a real grid, not a wider single row.
+- It's a **separate, plain, read-only buffer** (`*Year Calendar*`), not the real
+  `*Calendar*` buffer `M-x calendar`/the diary use --- never touches
+  `calendar-total-months`, so it can't collide with or affect the stock calendar.
+
+## News (`C-c n`)
+
+- **Built entirely into Emacs** (`net/newsticker.el`) --- nothing installed, nothing
+  this config wrote beyond which feeds to fetch. Un-pruned from `prune.list` this
+  session specifically to get this back (it used to be stripped out of this minimal
+  build).
+- **No external tool needed, not even on Windows** --- fetches over Emacs's own
+  networking (`url-retrieve`), not by shelling out to `wget`/`curl`, so it works
+  identically in the portable Windows bundle with nothing extra bundled for it.
+- **10 real, currently-live feeds, one per category** (Top Stories, World, USA,
+  Business, Technology, Politics, Science, Health, Entertainment, Sports) --- each URL
+  was actually curl-verified live before being added, not assumed --- so `C-c n` groups
+  headlines the way a real newspaper's sections do, rather than one single "top
+  stories" firehose.
+- **Nothing loads and no network request happens until you actually press `C-c n`** ---
+  it's a normal autoloaded entry point, same lazy-load behavior as everything else in
+  this config.
+
 ## Magit
 
 - **"pathspec '...' did not match any file(s) known to git"** when checking out a branch
