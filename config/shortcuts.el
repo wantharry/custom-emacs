@@ -129,13 +129,14 @@ by hand.")
 (defconst my/shortcuts-list
   '(("Finding files"
      ("C-c f f" my/ff-find-file "instant fuzzy file finder (project, or whole disk outside one)")
+     ("C-c f d" my/ff-find-file-here "the same, scoped to just the current directory (recursively)")
      ("C-c f g" my/ff-find-file-global "the same over the whole disk")
      ("C-c f a" my/ff-find-file-global-async "the same, but never blocks Emacs (Consult/fd)")
      ("C-c f r" my/ff-reindex "rebuild the whole-disk file index"))
     ("Searching"
      ("C-c s l" consult-line "search this buffer, with a live preview")
      ("C-c s g" consult-ripgrep "search project text (ripgrep), with a live preview")
-     ("C-c s f" consult-fd "find a project file by name (fd), with a live preview")
+     ("C-c s f" consult-fd "find a project file by name (fd); no live preview, unlike the others here --- Consult's own design: a filename search has no match location to jump to")
      ("C-c s b" consult-buffer "switch to a buffer, recent file or bookmark")
      ("C-'" avy-goto-char-timer "jump the cursor anywhere visible by typing a few characters")
      ("M-i" symbol-overlay-put "highlight every occurrence of the symbol at the cursor"))

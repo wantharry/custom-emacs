@@ -279,7 +279,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c g` | `magit-file-dispatch` | **this config:** Git commands for this file |
 | `C-c s l` | `consult-line` | **this config:** search this buffer, with a live preview ([SEARCHING.md](SEARCHING.md#10-consult-one-search-box-for-several-of-the-above)) |
 | `C-c s g` | `consult-ripgrep` | **this config:** search project text (ripgrep), with a live preview |
-| `C-c s f` | `consult-fd` | **this config:** find a project file by name (fd), with a live preview |
+| `C-c s f` | `consult-fd` | **this config:** find a project file by name (fd) --- no live preview, unlike `C-c s l`/`s g` above: Consult's own design, since a filename match has no location to jump to and preview |
 | `C-c s b` | `consult-buffer` | **this config:** switch to a buffer, recent file or bookmark |
 | `C-.` | `embark-act` | **this config:** menu of actions for the thing at point, or the current minibuffer candidate ([SEARCHING.md](SEARCHING.md#11-the-minibuffer-itself-vertico-orderless-marginalia-embark)) |
 | `C-;` | `embark-dwim` | **this config:** run the default action directly, no menu |
@@ -367,6 +367,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-M-i` | `complete-symbol` | complete the symbol at the cursor |
 | `C-x p f` | `project-find-file` | open a file in the current project |
 | `C-c f f` | `my/ff-find-file` | **this config:** instant fuzzy file finder (project, or whole disk outside one) |
+| `C-c f d` | `my/ff-find-file-here` | **this config:** the same, scoped to just the current directory (recursively) --- ignores both the enclosing project and the whole disk |
 | `C-c f g` | `my/ff-find-file-global` | **this config:** the same over the whole disk |
 | `C-c f a` | `my/ff-find-file-global-async` | **this config:** the same over the whole disk, but never blocks Emacs (Consult/fd) ([NAVIGATING-CODE.md](NAVIGATING-CODE.md)) |
 | `C-c f r` | `my/ff-reindex` | **this config:** rebuild the whole-disk file index |

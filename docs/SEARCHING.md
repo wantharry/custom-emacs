@@ -394,8 +394,10 @@ everything, including `node_modules` and `.git`); **very large files** (a few me
 ## 10. Consult: one search box for several of the above
 
 `consult` is a small package installed alongside Evil, Magit and Treemacs. It gives four commands that share
-one idea: a completion list (the same vertical list `M-x` uses) that updates **live** as you type, with the
-match **previewed** in the real window before you commit to it.
+one idea: a completion list (the same vertical list `M-x` uses) that updates **live** as you type. Three of
+the four also **preview** the match in the real window before you commit to it (`C-c s l`, `C-c s g`, `C-c s b`);
+`C-c s f` (`consult-fd`) does not --- this is Consult's own design, not a setting here, since a filename-only
+match has no location inside the file to jump to and preview the way a text/line match does.
 
 <!-- keymap: global -->
 | Key | Command | Searches | Engine |

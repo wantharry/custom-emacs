@@ -7,6 +7,7 @@
 ;; otherwise grep, otherwise plain Emacs Lisp.
 ;;
 ;;   C-c f f   find a file in the current project (or anywhere if not in a project)
+;;   C-c f d   find a file under the current directory only (recursively)
 ;;   C-c f g   find a file anywhere on the disk
 ;;   C-c f r   rebuild the index now
 ;;
@@ -794,6 +795,36 @@ Outside a project, search the whole disk."
              (choice (my/ff--read (format "Find file (%s): " (file-name-nondirectory (directory-file-name root)))
                                   (my/ff--table (lambda () (my/ff--project-index root)) (list root) root))))
         (find-file (expand-file-name choice root))))))
+
+;; WHAT: `C-c f d' --- find a file under the current directory only, recursively, ignoring
+;; both the enclosing project (if any) and the whole disk.  WHY: `C-c f f' and `C-c f g'
+;; cover "this project" and "everywhere"; there was nothing for the narrower, often more
+;; useful case of "just this one folder and its subfolders", e.g. scoping a search to a
+;; single subpackage of a monorepo without it spilling into the rest of the project. HOW:
+;; deliberately has NO index of its own (unlike `my/ff-find-file'/`-global', which both
+;; maintain a cached index file rebuilt only when stale) --- a single directory's subtree is
+;; normally small enough that `my/ff--live-search' alone is already fast, so skipping the
+;; index entirely avoids the complexity of yet another cache file/staleness policy for a
+;; scope this narrow.  The index-thunk passed to `my/ff--table' returns a path that can
+;; never exist (`my/ff--no-index-file', under `my/ff-cache-dir' where no real index is ever
+;; written with this name), so `my/ff--search-index' always finds nothing and `my/ff--
+;; candidates' falls straight through to the live search every time, scoped to just this
+;; one root.  STRIP is ROOT itself, same as `my/ff-find-file', so results and the prompt
+;; show paths relative to the current directory rather than full absolute ones.
+(defun my/ff--no-index-file ()
+  "A path guaranteed not to exist, used to force `my/ff-find-file-here' to always live-search."
+  (expand-file-name "no-index-here" my/ff-cache-dir))
+
+;;;###autoload
+(defun my/ff-find-file-here ()
+  "Find a file under the current directory only, recursively.
+Unlike `my/ff-find-file' (`C-c f f'), this ignores the enclosing project (if any) and
+unlike `my/ff-find-file-global' (`C-c f g'), this never searches outside this directory."
+  (interactive)
+  (let* ((root (file-name-as-directory (expand-file-name default-directory)))
+         (choice (my/ff--read (format "Find file (%s): " (file-name-nondirectory (directory-file-name root)))
+                              (my/ff--table #'my/ff--no-index-file (list root) root))))
+    (find-file (expand-file-name choice root))))
 
 ;; WHAT: an informational command reporting the current state of both index kinds and
 ;; which matcher is in use.  WHY: a quick way to check "is the index built, how big/old

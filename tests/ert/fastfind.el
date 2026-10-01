@@ -440,4 +440,29 @@ gone is not enough: the step that moves the finished file into place runs just a
       (all-completions "" table nil)
       (should (< (- (float-time) t0) 0.5)))))
 
+;;; Finding just the current directory (C-c f d, my/ff-find-file-here)
+
+(ert-deftest ff/here-never-has-an-index-so-it-always-live-searches ()
+  (ff-with-tree r
+    (let ((res (my/ff--candidates (my/ff--no-index-file) (list r) "shape")))
+      (should (cdr res))                                              ; LIVE = t: no index was used
+      (should (cl-some (lambda (p) (string-match-p "Shape.java" p)) (car res))))))
+
+(ert-deftest ff/here-is-scoped-to-one-subfolder-not-the-whole-tree ()
+  (ff-with-tree r
+    ;; "Rect.java" lives only under src/main/java/demo/ (not docs/, and no other fixture
+    ;; file name contains "rect"); an unscoped search over the whole tree finds it
+    ;; (confirmed by ff--find below), but one scoped to the sibling docs/ folder must
+    ;; not --- this is the real difference between `C-c f d' and `C-c f f'/`C-c f g'.
+    (should (ff--find r "rect"))
+    (let* ((sub (concat r "docs/"))
+           (res (my/ff--candidates (my/ff--no-index-file) (list sub) "rect")))
+      (should-not (car res)))))
+
+(ert-deftest ff/here-shows-paths-relative-to-the-current-directory ()
+  (ff-with-tree r
+    (let* ((sub (concat r "docs/"))
+           (table (my/ff--table #'my/ff--no-index-file (list sub) sub)))
+      (should (member "GeometryNotes.md" (all-completions "geometry" table nil))))))
+
 ;;; fastfind.el ends here

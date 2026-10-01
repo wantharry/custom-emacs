@@ -481,12 +481,14 @@ installed, offer to install it from NonGNU ELPA."
 ;; the project or of the whole disk (matched with ripgrep), with a live search when the
 ;; index has nothing.  See fastfind.el and docs/NAVIGATING-CODE.md.
 ;;   C-c f f  project file (anywhere, outside a project)   C-c f g  anywhere on the disk
+;;   C-c f d  the current directory only, recursively (ignores project and disk scope)
 ;;   C-c f a  anywhere on the disk, asynchronously (Consult/fd, never blocks)
 ;;   C-c f r  rebuild the whole-disk index now
 ;; Autoloaded by full path: putting `user-emacs-directory' itself on `load-path' makes
 ;; Emacs print a startup warning.
 (defconst my/ff-library (expand-file-name "fastfind" user-emacs-directory))
 (autoload 'my/ff-find-file my/ff-library "Find a file in the current project." t)
+(autoload 'my/ff-find-file-here my/ff-library "Find a file under the current directory only." t)
 (autoload 'my/ff-find-file-global my/ff-library "Find a file anywhere on the disk." t)
 (autoload 'my/ff-find-file-global-async my/ff-library
   "Find a file anywhere on the disk, asynchronously (Consult/fd)." t)
@@ -546,18 +548,22 @@ installed, offer to install it from NonGNU ELPA."
 
 ;;; Consult: search built on the completion list -----------------------------------
 
-;; A handful of `consult' commands, each a fast, previewed search over one kind of thing:
-;; `C-c s l' this buffer, `C-c s g' text across the project (ripgrep), `C-c s f' files by
+;; A handful of `consult' commands, each a fast search over one kind of thing: `C-c s l'
+;; this buffer, `C-c s g' text across the project (ripgrep), `C-c s f' files by
 ;; name across the project (fd), `C-c s b' buffers, recent files and bookmarks in one list.
-;; Moving to a candidate shows it at once in the window (the preview); `RET' or click stays
-;; there, `C-g' returns to where you were.  Installed into config/elpa by `./build.sh
-;; packages'; nothing loads until first use.  Needs `rg' and `fd' for the fastest results;
-;; without them `consult-ripgrep'/`consult-fd' fall back to slower built-in tools.
+;; For `C-c s l'/`s g'/`s b' (content/location searches), moving to a candidate shows it
+;; at once in the window (the preview); `RET' or click stays there, `C-g' returns to where
+;; you were.  `C-c s f' is the one exception: Consult's own `consult-fd' wires up no
+;; preview at all (confirmed in its source, `consult--find' vs. `consult--grep') --- a
+;; filename-only match has no location within the file to jump to and preview, unlike the
+;; others here.  Installed into config/elpa by `./build.sh packages'; nothing loads until
+;; first use.  Needs `rg' and `fd' for the fastest results; without them
+;; `consult-ripgrep'/`consult-fd' fall back to slower built-in tools.
 ;; See docs/SEARCHING.md and docs/SEARCH-OPTIONS.md.
 (when (locate-library "consult")
   (autoload 'consult-line "consult" "Search this buffer, with a live preview." t)
   (autoload 'consult-ripgrep "consult" "Search project text with ripgrep, with a live preview." t)
-  (autoload 'consult-fd "consult" "Find a project file by name with fd, with a live preview." t)
+  (autoload 'consult-fd "consult" "Find a project file by name with fd (no live preview, unlike the others)." t)
   (autoload 'consult-buffer "consult" "Switch to a buffer, recent file or bookmark." t))
 (defun my/consult-missing ()
   (interactive)
@@ -874,6 +880,7 @@ installed, offer to install it from NonGNU ELPA."
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c f f") #'my/ff-find-file)
+(global-set-key (kbd "C-c f d") #'my/ff-find-file-here)
 (global-set-key (kbd "C-c f g") #'my/ff-find-file-global)
 ;; Same "bind to the real command if its dependency is installed, otherwise to a command
 ;; that just explains why not" pattern as `C-c a c' above --- `my/ff-find-file-global-
