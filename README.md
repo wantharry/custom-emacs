@@ -103,6 +103,7 @@ research-emacs/
 | [docs/KEYBOARD-200.md](docs/KEYBOARD-200.md) | A broader keybinding reference (197 entries): same groups as KEYBOARD.md plus Dired, ibuffer, packages and why each is efficient. Real bindings, not machine-checked |
 | [docs/KEYBOARD-500.md](docs/KEYBOARD-500.md) | The next tier up (526 entries, superset of KEYBOARD-200.md): full Dired/ibuffer/Magit transients/Treemacs/Org/Calc |
 | [docs/KEYBOARD-1000.md](docs/KEYBOARD-1000.md) | The largest tier (1008 entries, superset of KEYBOARD-500.md): Evil's full state maps, vc, package-menu, archive-mode, comint/shell/term |
+| [docs/MY-NOTES.md](docs/MY-NOTES.md) | A personal, running log of real gotchas and "why does it do that" answers found while actually using this config, added to as they come up (not a polished general guide like the others) |
 | [docs/TESTING.md](docs/TESTING.md) | The test suite: what it covers, how to run it, how to add tests |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problems hit while building this, and their fixes |
 
