@@ -207,6 +207,84 @@
   (should (eq (key-binding (kbd "C-c w D")) 'my/session-delete))
   (should (eq (key-binding (kbd "C-c w L")) 'my/session-named-list)))
 
+(ert-deftest config/toggle-frame-chrome-hides-and-shows-everything-together ()
+  ;; A real, found-by-using-it problem: the menu bar, tool bar and window decorations
+  ;; were toggled separately, by hand, one `eval-expression' at a time --- `C-c u' makes
+  ;; all three move together instead.
+  ;;
+  ;; A real design mistake this test itself caught on the first version: deciding which
+  ;; way to toggle by reading `menu-bar-mode''s own current state assumed all three
+  ;; start out matching. They do not here --- `early-init.el' starts the tool bar OFF
+  ;; (a startup-speed optimization) while the menu bar starts ON --- so a per-component
+  ;; flip could leave the tool bar visible after only two presses, never asked for.
+  ;; Fixed with `my/frame-chrome-hidden', a single tracked flag all three are set FROM,
+  ;; not independently flipped --- this test checks exactly that: after one toggle, all
+  ;; three agree with the new flag (not with their own, possibly mismatched, prior
+  ;; state), and a second toggle returns the flag to where it started.
+  (let ((menu-before menu-bar-mode) (tool-before tool-bar-mode)
+        (undecorated-before (frame-parameter nil 'undecorated))
+        (hidden-before my/frame-chrome-hidden))
+    (unwind-protect
+        (progn
+          (my/toggle-frame-chrome)
+          (should (eq menu-bar-mode (not my/frame-chrome-hidden)))
+          (should (eq tool-bar-mode (not my/frame-chrome-hidden)))
+          (should (eq (and (frame-parameter nil 'undecorated) t) (and my/frame-chrome-hidden t)))
+          (my/toggle-frame-chrome)
+          (should (eq my/frame-chrome-hidden hidden-before))
+          (should (eq menu-bar-mode (not my/frame-chrome-hidden)))
+          (should (eq tool-bar-mode (not my/frame-chrome-hidden))))
+      ;; Restore exactly, regardless of pass or fail: these are real global minor modes
+      ;; and a real frame parameter, not test-local state.
+      (menu-bar-mode (if menu-before 1 -1))
+      (tool-bar-mode (if tool-before 1 -1))
+      (set-frame-parameter nil 'undecorated undecorated-before)
+      (setq my/frame-chrome-hidden hidden-before))))
+
+(ert-deftest config/reset-to-defaults-restores-frame-and-theme-and-saves-cleanly ()
+  ;; The real, repeatedly-hit two-part problem `C-c U' exists to fix: (1) messing with
+  ;; the menu bar/tool bar/decorations/theme by hand never puts the LIVE frame back to
+  ;; this config's own actual defaults on its own, and (2) even after fixing the live
+  ;; state, forgetting the separate "now save it" step meant the old, messed-up state
+  ;; got auto-saved again on the very next exit anyway. This test checks both halves:
+  ;; the live frame/theme values end up at this config's real defaults, AND a save
+  ;; right afterward succeeds with no interactive prompt --- which only happens if the
+  ;; session was properly "owned" first (a real `desktop-read', not skipped the way
+  ;; `--batch' mode always skips it; see tests/ert/emacs-session.el's own note on this
+  ;; exact point) --- matching what a real interactive launch always does before a user
+  ;; could ever press `C-c U'.
+  (test-with-temp-dir dir
+    (let ((my/session-dir dir) (desktop-dirname dir) (desktop-path (list dir)) (desktop-save t)
+          (menu-before menu-bar-mode) (tool-before tool-bar-mode)
+          (undecorated-before (frame-parameter nil 'undecorated))
+          (themes-before custom-enabled-themes) (hidden-before my/frame-chrome-hidden))
+      (unwind-protect
+          (progn
+            ;; a real `desktop-read' first, exactly like a real interactive startup
+            ;; (and tests/ert/emacs-session.el's own established pattern for this) ---
+            ;; otherwise `desktop-save' below would hit an interactive
+            ;; "Overwrite this desktop file?" prompt instead of just saving, since it
+            ;; would not yet consider itself to own this directory.
+            (desktop-save dir) (desktop-release-lock dir)
+            (let ((noninteractive nil)) (desktop-read dir))
+            ;; mess everything up, the way the real sequence that motivated this did
+            (menu-bar-mode -1) (tool-bar-mode 1)
+            (set-frame-parameter nil 'undecorated t)
+            (when (fboundp 'my/load-theme-by-number) (my/load-theme-by-number ?1))
+            (my/reset-to-defaults)
+            (should menu-bar-mode)
+            (should-not tool-bar-mode)
+            (should-not (frame-parameter nil 'undecorated))
+            (should-not custom-enabled-themes)
+            (should-not my/frame-chrome-hidden))
+        (mapc #'disable-theme custom-enabled-themes)
+        (menu-bar-mode (if menu-before 1 -1))
+        (tool-bar-mode (if tool-before 1 -1))
+        (set-frame-parameter nil 'undecorated undecorated-before)
+        (dolist (theme themes-before) (load-theme theme t))
+        (setq my/frame-chrome-hidden hidden-before)
+        (ignore-errors (desktop-release-lock dir))))))
+
 (ert-deftest config/source-files-are-well-formed ()
   (dolist (name '("init.el" "early-init.el"))
     (with-temp-buffer

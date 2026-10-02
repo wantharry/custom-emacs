@@ -30,6 +30,79 @@
 (setq-default indicate-empty-lines t
               fill-column 80)
 
+;; WHAT: `C-c u' hides/shows the menu bar, tool bar and this frame's own window
+;; decorations (title bar/border) together, as one switch, rather than three separate
+;; `eval-expression'/`M-x' calls. WHY: a real, found-by-doing-it problem --- these three
+;; were toggled by hand, one at a time, to try a cleaner-looking frame; all three are
+;; also frame parameters/minor modes that this config's own session-restore system
+;; (`config/emacs-session.el', `desktop-save-mode') saves and restores automatically,
+;; so whichever state they were left in at the next save (on exit, or the periodic
+;; auto-save) is exactly what every future launch comes back showing --- confirmed
+;; directly, not assumed, after "it keeps showing no menu bar every time I open it"
+;; turned out to be the session system faithfully doing its job, not a bug. This command
+;; does not change anything about THAT persistence --- it is still true that whatever
+;; state these three are in at the next save is what sticks --- it only makes getting
+;; all three into a known, matching state (all shown, or all hidden) a single keystroke
+;; instead of three manual forms to remember and re-type.
+;; HOW: a real design mistake, caught by the test rather than assumed correct ---
+;; a first version decided which way to toggle by reading `menu-bar-mode''s own current
+;; state, on the assumption all three already started out matching. They do not: this
+;; config's own `early-init.el' pushes `(tool-bar-lines . 0)' onto `default-frame-alist'
+;; (a startup-speed optimization, unrelated to this feature), so the tool bar starts
+;; OFF while the menu bar starts ON. Reading menu-bar's state to decide tool-bar's new
+;; state meant two presses could leave the tool bar visible even though nothing had ever
+;; asked for that. Fixed with its own dedicated tracking variable instead of inferring
+;; from any one component's current (possibly mismatched) state.
+(defvar my/frame-chrome-hidden nil
+  "Whether `my/toggle-frame-chrome' last hid the menu bar/tool bar/decorations.")
+(defun my/toggle-frame-chrome ()
+  "Hide/show the menu bar, tool bar and this frame's window decorations together.
+Tracked by `my/frame-chrome-hidden' rather than read back from any one of the three, so
+repeated presses always alternate cleanly between \"all shown\" and \"all hidden\" no
+matter what state each started in. The window-decoration change applies to this frame
+only; the menu/tool bar change (like the modes themselves) applies to every frame."
+  (interactive)
+  (setq my/frame-chrome-hidden (not my/frame-chrome-hidden))
+  (if my/frame-chrome-hidden
+      (progn (menu-bar-mode -1) (tool-bar-mode -1)
+             (set-frame-parameter nil 'undecorated t))
+    (menu-bar-mode 1) (tool-bar-mode 1)
+    (set-frame-parameter nil 'undecorated nil)))
+(global-set-key (kbd "C-c u") #'my/toggle-frame-chrome)
+
+;; WHAT: `C-c U' (paired with `C-c u') puts the menu bar, tool bar, window decorations
+;; and color theme back to exactly what this config's own "UI"/"Themes" sections set at
+;; a fresh start --- then immediately saves that as the session restored next time.
+;; WHY: a real, repeatedly-hit two-part problem, not something guessed at --- (1)
+;; neither toggling these by hand nor `C-c w r' (`my/session-reset') actually puts the
+;; LIVE frame back to this config's own defaults: `my/session-reset' only deletes the
+;; *saved* file, so if the menu bar was off in the running Emacs at that moment, it
+;; stays off, and (2) even after fixing the live state by hand, forgetting the separate
+;; "now save it" step (`C-c w s') meant the old, hidden state got auto-saved again on
+;; the very next exit anyway, undoing the fix before it ever took effect --- confirmed
+;; directly, this exact sequence, more than once. This command does both halves at
+;; once, in the right order, so there is no second step left to forget.
+;; HOW: reuses the same logic the rest of this config already trusts, rather than
+;; re-stating what "default" means a second time in a second place: `my/load-theme-by-
+;; number' with `?0' is exactly what `C-c c 0' already does to return to no theme
+;; (disables every enabled theme, restores the fixed cursor color); `my/session-save' is
+;; exactly `C-c w s'. The menu-bar/tool-bar/decoration values set here are this file's
+;; own real startup defaults --- menu bar on (`(menu-bar-mode 1)' above), tool bar off
+;; (`early-init.el''s `(tool-bar-lines . 0)'), decorations on --- not separately
+;; invented ones.
+(defun my/reset-to-defaults ()
+  "Put the menu bar, tool bar, window decorations and color theme back to this config's
+own startup defaults, then immediately save that as the session restored next time."
+  (interactive)
+  (setq my/frame-chrome-hidden nil)
+  (menu-bar-mode 1)
+  (tool-bar-mode -1)
+  (set-frame-parameter nil 'undecorated nil)
+  (my/load-theme-by-number ?0)
+  (my/session-save)
+  (message "Frame and theme reset to defaults, and saved"))
+(global-set-key (kbd "C-c U") #'my/reset-to-defaults)
+
 ;; WHAT: wrap long lines at the last word boundary that fits, not at the exact character
 ;; the window edge happens to land on.  WHY: Emacs's own default (`word-wrap' nil) wraps
 ;; mid-word whenever a word straddles that boundary --- the continuation arrow shown in

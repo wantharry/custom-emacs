@@ -1246,6 +1246,72 @@ run modes and all of the above as real, verified findings rather than a generic 
 boilerplate guide. `docsbuffer/*` tests (15/15) confirm the new guide is automatically
 picked up by `C-c d`'s own `docs/*.md` glob, no registration needed anywhere.
 
+### Tagged a real v1.0 release, then two new commands from a real, repeated session-persistence confusion
+
+User: "Yes tag it" --- no existing version tags (`git tag -l` empty), so `v1.0` made
+sense as the first real one. Pushed it, which auto-triggered
+`.github/workflows/release.yml` (tag push, not `workflow_dispatch` this time); completed
+in 17m21s, published [v1.0](https://github.com/wantharry/custom-emacs/releases/tag/v1.0)
+with both Linux artifacts attached.
+
+Then a real, user-reported, repeated confusion while setting up remote access (Moonlight/
+Sunshine to an Apple TV, covered in detail in chat but not itself a repo change): the
+user turned `menu-bar-mode` off directly in a running Emacs, and it kept coming back off
+on every subsequent launch, with `C-c w r` (`my/session-reset`) **not** fixing it even
+after being told to run it. Traced to a real, three-times-explained-before-it-landed
+gap: `my/session-reset` only deletes the *saved* desktop file --- it does not touch the
+frame of the Emacs it's run in. Since menu-bar-mode was still off in that live session,
+the very next exit (or periodic auto-save) immediately captured a *fresh* snapshot with
+menu-bar still off, undoing the reset before the next launch ever happened. The same
+exact interaction applies to anything else this config's session-restore system
+(`desktop-save-mode`, via `config/emacs-session.el`) treats as part of a frame's
+state --- confirmed directly to include `tool-bar-mode` and the frame's own
+`undecorated` parameter too, both of which the user had also toggled by hand
+(`(set-frame-parameter nil 'undecorated nil)`, run directly via `M-x eval-expression`).
+
+Rather than leave this as a one-off chat explanation, built two real commands so the
+next person (or this same user, next time) doesn't have to re-derive any of this:
+
+1. **`C-c u`** (`my/toggle-frame-chrome`) --- hides/shows the menu bar, tool bar and
+   window decorations together, one keystroke either way, instead of three separate
+   `eval-expression` calls. A real design mistake on the first attempt, caught by its
+   own test rather than assumed correct: deciding which way to toggle by reading
+   `menu-bar-mode`'s own current state assumed all three start out matching each other.
+   They do not --- this config's own `early-init.el` starts the tool bar **off** (an
+   unrelated startup-speed optimization, `(tool-bar-lines . 0)` pushed onto
+   `default-frame-alist`) while the menu bar starts **on**. A per-component flip driven
+   by menu-bar's state alone could silently turn the tool bar *on* after two presses,
+   never asked for. Fixed with its own dedicated tracking variable
+   (`my/frame-chrome-hidden`) instead of inferring from any one component's (possibly
+   mismatched) current state.
+2. **`C-c U`** (`my/reset-to-defaults`) --- the actual fix for the reported problem,
+   not just a toggle: puts the menu bar, tool bar, decorations *and* the color theme
+   (user, separately: "also theme to default right?" --- yes) back to this config's own
+   real startup defaults, **and** immediately force-saves that corrected state in the
+   same command, so there is no separate "now remember to save it" step left to forget
+   --- which is exactly the step that got skipped three times in a row before this
+   existed. Reuses established logic rather than re-stating what "default" means a
+   second time: `(my/load-theme-by-number ?0)` is exactly what `C-c c 0` already does;
+   `(my/session-save)` is exactly `C-c w s`.
+
+One real thing caught while testing `C-c U`, not assumed: calling `desktop-save`
+directly in a fresh `--batch` test process (which never runs a real `desktop-read` ---
+`noninteractive` makes it an unconditional no-op, the same documented limit
+`tests/ert/emacs-session.el` already works around) hits an interactive "Overwrite this
+desktop file?" confirmation instead of just saving, since desktop.el does not yet
+consider itself to own that directory. Not a real bug --- confirmed by re-running with
+a real `(let ((noninteractive nil)) (desktop-read dir))` first, matching what a genuine
+interactive launch always does before a user could ever press `C-c U`: the prompt never
+appears, and the whole command runs cleanly end to end. The new test
+(`config/reset-to-defaults-restores-frame-and-theme-and-saves-cleanly`) does the same
+real `desktop-read`-first setup to test the real condition, not the artificial batch-only
+one.
+
+25/25 in `tests/ert/config.el` (2 new), 19/19 `keybindings.el`, 16/16 `shortcuts.el`;
+676 tests, 653 pass, 0 regressions across the full offline suite --- 1 pre-existing,
+unrelated `dictate/live-server-really-starts-and-answers` flake (the same one, same
+root cause, seen in multiple earlier entries) and the usual stale-dist-bundle diffs.
+
 ## Where things stand as of the last entry
 
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
@@ -1254,12 +1320,10 @@ picked up by `C-c d`'s own `docs/*.md` glob, no registration needed anywhere.
   the Windows zip was rebuilt locally and copied to Downloads, and a fresh Linux bundle
   was built from scratch and published via a manual `workflow_dispatch` run of
   `.github/workflows/release.yml` (tagged `manual-run-2`) --- see the two entries above.
-- **New this session, NOT YET COMMITTED (per the standing "commit only when told"
-  preference):** `Dockerfile`, `.dockerignore`, `docs/DOCKER.md`, and the matching
-  README.md documentation-table row. Built and verified for real (terminal mode, GUI
-  mode via WSLg X11 forwarding, three real build-time bugs found and fixed) --- see the
-  entry above for the full account. `git status` will show these as untracked/modified
-  until explicitly asked to commit.
+- `Dockerfile`, `.dockerignore`, `docs/DOCKER.md` and the `v1.0` tag/release are all
+  committed and pushed now (the user explicitly asked for each, per the standing
+  "commit only when told" preference). `C-c u`/`C-c U` (frame-chrome toggle/reset,
+  see the entry just above) are committed in the same batch as this entry.
 - Whether to strip the `.git` dirs out of the three VC-installed theme packages
   (`seti-theme`, `xcode-theme`, `ember-theme`, ~6 MB combined) before that rebuild is
   an open question raised but not yet answered.

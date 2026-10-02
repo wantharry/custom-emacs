@@ -302,6 +302,8 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x 3` | `split-window-right` | split left and right |
 | `C-x o` | `other-window` | move to the next window |
 | `M-o` | `ace-window` | **this config:** jump to a window by the letter shown in it (with only 2 windows open, behaves just like `other-window` did) |
+| `C-c u` | `my/toggle-frame-chrome` | **this config:** hide/show the menu bar, tool bar and this frame's window decorations together, in one keystroke --- note the current on/off state is itself part of what this config's session-restore system (`C-c w s`/`C-c w r`) remembers across restarts |
+| `C-c U` | `my/reset-to-defaults` | **this config:** put the menu bar, tool bar, window decorations and color theme back to this config's own startup defaults, and immediately save that so it's what gets restored next time too (the one-step fix for "I toggled something off and it keeps coming back off") |
 | `C-x ^` | `enlarge-window` | taller |
 | `C-x }` | `enlarge-window-horizontally` | wider |
 | `C-x {` | `shrink-window-horizontally` | narrower |

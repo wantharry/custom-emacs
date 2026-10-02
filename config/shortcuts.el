@@ -185,6 +185,9 @@ by hand.")
      ("C-c ." my/cycle-theme "switch to the next theme, whatever slot it's in")
      ("C-c ," my/cycle-theme-previous "switch to the previous theme, whatever slot it's in")
      ("C-c C" consult-theme "fuzzy-search any installed theme by name, with live preview"))
+    ("Frame"
+     ("C-c u" my/toggle-frame-chrome "hide/show the menu bar, tool bar and window decorations together")
+     ("C-c U" my/reset-to-defaults "put frame and theme back to this config's own defaults, and save it"))
     ("Help"
      ("C-h f" helpful-callable "describe a command or function, richly")
      ("C-h v" helpful-variable "describe a setting, richly")
