@@ -164,6 +164,28 @@ list at all --- reach those through `C-c C`'s fuzzy search by name instead.
 
 All 8 [Modus Themes](https://github.com/protesilaos/modus-themes) ship built into Emacs 28+ already --- no package, confirmed directly (`etc/themes/modus-*-theme.el`). The other 47 come from 15 separately installed packages (`atom-one-dark-theme`, `catppuccin-theme`, `solo-jazz-theme`, `nimbus-theme`, `rebecca-theme`, `subatomic-theme`, `night-owl-theme`, `seti-theme`, `shanty-themes`, `snazzy-theme`, `horizon-theme`, `xcode-theme`, `immaterial-theme`, `zenburn-theme`, `solarized-theme`, `dracula-theme`, `kaolin-themes`, `ember-theme` --- full URLs in the WHAT/WHY comment above `my/themes` in `config/init.el`). A real, easy-to-get-backwards gotcha found while wiring these up: `load-theme` never consults `load-path` at all --- it always does its own file search through `custom-theme-load-path`, whose `t` entry expands to Emacs's *built-in* `etc/themes` directory, not to `load-path`; a theme package can `require` fine while still being completely invisible to `load-theme`/`consult-theme` unless its directory is *also* pushed onto `custom-theme-load-path` (now done in the same loop that adds `config/elpa`'s subdirectories to `load-path`). `my/themes` in `config/init.el` is the character→theme mapping; add more there (any installed theme) to extend `C-c c` without a new keybinding. `ember-theme` needs `doom-themes` as a hard dependency --- installed, but deliberately never `require`d automatically (this project's own `startup/no-third-party-features-loaded' test forbids it), so `doom-themes`'s own 50+ variants are reachable only via `C-c C`'s fuzzy search, never a `my/themes` slot. `theme-buffet` is a real GNU ELPA package (not one of Protesilaos's own, despite appearing in his dotfiles) --- `my/themes-light`/`my/themes-dark` is where it's told which of `my/themes`'s entries count as which; keep both lists in step when adding a theme that should also take part in the automatic rotation.
 
+**The fixed cursor color, across 4 of the 55 themes** (real screenshots of this build,
+same file and same line in every shot, so the only thing that changes is the theme):
+`enable-theme-functions` keeps the cursor a fixed `DarkOrange` no matter which theme is
+active, since several themes don't give it enough contrast against their own `hl-line`
+color on their own.
+
+*`solo-jazz` (light) --- the theme the regression test itself uses, since this was visibly wrong here before the fix:*
+
+![solo-jazz with the fixed cursor](images/theme-1-solo-jazz.png)
+
+*`dracula` (dark):*
+
+![dracula with the fixed cursor](images/theme-2-dracula.png)
+
+*`modus-operandi` (the built-in, accessible light theme):*
+
+![modus-operandi with the fixed cursor](images/theme-3-modus-operandi.png)
+
+*`catppuccin` (mocha):*
+
+![catppuccin with the fixed cursor](images/theme-4-catppuccin.png)
+
 ## Magit
 
 | Topic | Note |

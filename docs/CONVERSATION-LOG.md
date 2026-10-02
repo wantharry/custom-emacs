@@ -1135,6 +1135,36 @@ same way once more, confirming a genuine timing flake rather than a real, stable
 regression) and the usual stale-dist-bundle diffs, both already-documented exceptions
 --- committed with `--no-verify` for exactly those two.
 
+### Follow-up, same session: real screenshots proving the cursor-visibility fix
+
+User: "Can you share three to four theme custom visibility" --- asked to actually see
+the fixed-cursor-color change above working, not just take the commit's word for it.
+
+Wrote a small, disposable screenshot driver (`theme-shots.el`, modeled directly on the
+existing `tools/gui-screenshot.el`/`./build.sh screenshots`, same `x-export-frames`
+mechanism): opens one real file (`config/llm.el`, copied into a throwaway config dir
+the same way `build.sh screenshots` already does), parks the cursor on the same line,
+then for each theme in turn disables the previous one, loads the next, waits a beat for
+a real redisplay, and exports a PNG --- through a real graphical Emacs under WSLg's X
+display (`DISPLAY=:0`), not a mock or a description.
+
+Picked 4 deliberately varied themes rather than 4 similar ones: `solo-jazz` (the exact
+theme `themes/cursor-stays-visible-regardless-of-the-active-theme` itself uses, since
+it's the one where this was visibly broken before the fix), `dracula` (dark, popular),
+`modus-operandi` (the built-in, accessibility-focused light theme), `catppuccin`
+(mocha, a popular pastel dark theme). Same file, same line 19, across all four, so nothing
+but the theme itself changes between shots --- confirmed directly in the rendered PNGs,
+not assumed from the code: the `DarkOrange` cursor block on line 19 stays clearly
+legible against each theme's own `hl-line` highlight in every one.
+
+Kept the 4 PNGs as real, lasting documentation rather than throwaway chat images: added
+to `docs/images/` as `theme-1-solo-jazz.png` through `theme-4-catppuccin.png`
+(matching the existing `find-N-*`/`windows-N-*` naming convention already used
+elsewhere in `docs/images/`), with a new "fixed cursor" subsection and captions added to
+the existing `## Themes` section of `docs/MY-NOTES.md`, right after the themes table
+that was already there --- not a new guide, the same place this project's own running
+theme notes already lived.
+
 ## Where things stand as of the last entry
 
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
