@@ -153,6 +153,8 @@ yourself, or use the Linux build this bundle came from directly. Rust's rust-ana
 also not included, same as Java's JDK. This is planned; see docs/DISTRIBUTION.md.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg
 (and your system's fd, if installed, for C-c s f/C-c f p).
+Magit diffs are rendered with delta via magit-delta-mode if your system has delta
+installed (not bundled, same as fd); without it, Magit's own plain diff faces are used.
 Press C-c d for every guide in one buffer (README.md and docs/*.md), built the moment Emacs starts.
 Emacs is licensed under the GNU GPL v3+; its source is at https://git.savannah.gnu.org/emacs.git
 (commit $(git -C "$ROOT/emacs-src" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)).

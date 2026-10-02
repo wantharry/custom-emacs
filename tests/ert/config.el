@@ -6,8 +6,20 @@
     (should (file-exists-p init))
     (should (load init nil t))))
 
-(ert-deftest config/no-theme-enabled ()
-  (should (null custom-enabled-themes)))
+(ert-deftest config/a-real-known-theme-is-enabled-by-default ()
+  ;; Was `config/no-theme-enabled' (asserted `null custom-enabled-themes') until
+  ;; `theme-buffet' was added: a theme is now deliberately enabled automatically at
+  ;; startup (light in the morning/afternoon, dark in the evening/night --- see
+  ;; config/init.el's own "Themes" section; tests/ert/themes.el covers that switching
+  ;; logic itself in depth). This just confirms the one enabled at startup is real and
+  ;; known (one of `my/themes''s own values), not stray or undefined --- skipped
+  ;; entirely if theme-buffet isn't installed, in which case nothing is enabled, same
+  ;; as before.
+  (if (locate-library "theme-buffet")
+      (progn
+        (should (= (length custom-enabled-themes) 1))
+        (should (memq (car custom-enabled-themes) (mapcar #'cdr my/themes))))
+    (should (null custom-enabled-themes))))
 
 (ert-deftest config/line-column-and-hl-line ()
   (should global-display-line-numbers-mode)

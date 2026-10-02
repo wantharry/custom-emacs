@@ -130,4 +130,42 @@
   ;; Same threshold as startup/under-half-a-second; Magit must add nothing at startup.
   (should (< (sp--startup-seconds) 0.5)))
 
+;;; Delta (nicer diffs via magit-delta-mode)
+
+(ert-deftest magit-delta/is-in-the-package-list ()
+  (with-temp-buffer
+    (insert-file-contents (expand-file-name "tools/install-packages.el" test-root))
+    (should (re-search-forward "(defconst my/packages '([^)]*\\bmagit-delta\\b" nil t))))
+
+(ert-deftest magit-delta/wired-up-when-package-and-binary-are-both-present ()
+  ;; Real, fresh subprocess (not this process, which may already have loaded things) ---
+  ;; same reasoning as magit/is-not-loaded-until-used above.
+  (unless (and (locate-library "magit-delta") (executable-find "delta"))
+    (ert-skip "magit-delta or the delta binary is not installed"))
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(princ (list (fboundp 'magit-delta-mode) (and (memq 'magit-delta-mode magit-mode-hook) t)))")))))
+    (should (string-match-p "(t t)" out))))
+
+(ert-deftest magit-delta/not-wired-up-without-the-delta-binary ()
+  ;; Confirms the guard itself, not just the happy path: with `executable-find' faked to
+  ;; report delta missing, the hook must not be added, and `magit-delta-mode' must not
+  ;; even be autoloaded --- so a machine without delta behaves exactly like one without
+  ;; magit-delta installed at all, no error either way.
+  (unless (locate-library "magit-delta") (ert-skip "magit-delta is not installed"))
+  (let ((out (with-output-to-string
+               (with-current-buffer standard-output
+                 (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                               "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(advice-add 'executable-find :around (lambda (orig cmd &rest r) (unless (equal cmd \"delta\") (apply orig cmd r))))"
+                               "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                               "--eval" "(princ (list (fboundp 'magit-delta-mode) (and (boundp 'magit-mode-hook) (memq 'magit-delta-mode magit-mode-hook) t)))")))))
+    (should (string-match-p "(nil nil)" out))))
+
+(ert-deftest magit-delta/does-not-slow-startup ()
+  (should (< (sp--startup-seconds) 0.5)))
+
 ;;; magit.el ends here

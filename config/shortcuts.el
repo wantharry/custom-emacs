@@ -180,6 +180,8 @@ by hand.")
      ("C-c a c" my/llm-council "ask 3 local models at once, summarized by a bigger one"))
     ("Windows"
      ("M-o" ace-window "jump to a window by the letter shown in it"))
+    ("Themes"
+     ("C-c c" my/load-theme-by-number "pick a color theme by number (press C-c c, then a digit; 0 is the default, no theme)"))
     ("Help"
      ("C-h f" helpful-callable "describe a command or function, richly")
      ("C-h v" helpful-variable "describe a setting, richly")

@@ -379,6 +379,7 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c n` | `newsticker-treeview` | **this config:** real news headlines across 10 popular categories (Top Stories, World, USA, Business, Technology, Politics, Science, Health, Entertainment, Sports), fetched with Emacs's own networking, no external `wget` needed |
 | `C-c m` | `my/dictate` | **this config:** toggle dictation: start recording from the microphone, press again to stop, transcribe (local Whisper) and insert at point |
 | `C-c M` | `my/dictate-live` | **this config:** toggle *live* dictation: text appears every few seconds while you are still speaking, instead of only once you stop ([DICTATE.md](DICTATE.md)) |
+| `C-c c` *digit* | `my/load-theme-by-number` | **this config:** pick a color theme by number --- `C-c c 1` through `C-c c 8` for the eight built-in [Modus Themes](https://github.com/protesilaos/modus-themes) (light/dark, tinted, and colorblind-friendly variants), `C-c c 0` for the default (Emacs's own plain look, no theme applied). Switching never stacks themes --- the previous one is disabled first. `theme-buffet` (GNU ELPA) also picks light/dark automatically by time of day, re-checked hourly; `C-c c` always overrides it |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
 | `C-x p b` | `project-switch-to-buffer` | a buffer of this project |

@@ -822,6 +822,22 @@ installed, offer to install it from NonGNU ELPA."
 (global-set-key (kbd "C-x g") (if (locate-library "magit") #'magit-status #'my/magit-missing))
 (global-set-key (kbd "C-c g") (if (locate-library "magit") #'magit-file-dispatch #'my/magit-missing))
 
+;; WHAT: render Magit's diffs through `delta' (https://github.com/dandavison/delta) for
+;; syntax-highlighted, more readable hunks, instead of Magit's own plain diff faces.
+;; WHY: a real, visible improvement to the single most-looked-at view in Magit, for the
+;; cost of one more small Rust binary --- same "verified, portable, no installer" pattern
+;; already used for `rg'/`fd' (see docs/SEARCH-OPTIONS.md).  HOW: only turns itself on
+;; when BOTH the `magit-delta' package is installed (`locate-library') AND the `delta'
+;; program is actually found on `PATH' (`executable-find') --- `magit-delta-mode' itself
+;; has no such check and would error on `call-process-region' if `delta' were missing, so
+;; this config checks first rather than letting that happen; on a machine with neither,
+;; Magit just behaves exactly as it did before this was added, no error, nothing to fix.
+;; `magit-mode-hook' turns the (buffer-local, non-global) minor mode on in every Magit
+;; buffer automatically, matching `magit-delta''s own documented usage.
+(when (and (locate-library "magit") (locate-library "magit-delta") (executable-find "delta"))
+  (autoload 'magit-delta-mode "magit-delta" "Use Delta when displaying diffs in Magit." t)
+  (add-hook 'magit-mode-hook #'magit-delta-mode))
+
 ;;; Finding git repositories --------------------------------------------------------
 
 ;; `C-c f p' lists every git repository on the Linux side; `C-u C-c f p' also scans every
@@ -876,6 +892,91 @@ installed, offer to install it from NonGNU ELPA."
 ;; itself calls `(require 'gptel)' and would error confusingly if gptel were missing, so
 ;; this check happens here, once, before the key is even bound.
 (global-set-key (kbd "C-c a c") (if (locate-library "gptel") #'my/llm-council #'my/llm-missing))
+
+;;; Themes ------------------------------------------------------------------------
+
+;; `C-c c' then a digit picks a color theme by number --- `C-c c 1' for the first,
+;; `C-c c 2' for the second, and so on; `C-c c 0' is the **default** theme, i.e. turns
+;; every theme off and goes back to Emacs's own plain, un-themed look (what this config
+;; starts in --- see docs/MAGIT.md's own note that Magit "looks plain" for exactly that
+;; reason), included here as its own numbered choice rather than a special case you have
+;; to remember separately. All eight Modus Themes
+;; (https://github.com/protesilaos/modus-themes, by Protesilaos Stavrou) are built
+;; straight into this Emacs already --- no package, no download, confirmed directly:
+;; `etc/themes/modus-*-theme.el' ships with every Emacs 28+ release.  `my/themes' is the
+;; one place the number->theme mapping lives, so adding another theme later (a package,
+;; or anything already on `custom-theme-load-path') is just one more alist entry, no new
+;; keybinding needed.
+(defvar my/themes
+  '((?1 . modus-operandi)              ; light
+    (?2 . modus-operandi-tinted)       ; light, warmer background
+    (?3 . modus-operandi-deuteranopia) ; light, red/green colorblind-friendly
+    (?4 . modus-operandi-tritanopia)   ; light, blue/yellow colorblind-friendly
+    (?5 . modus-vivendi)               ; dark
+    (?6 . modus-vivendi-tinted)        ; dark, warmer background
+    (?7 . modus-vivendi-deuteranopia)  ; dark, red/green colorblind-friendly
+    (?8 . modus-vivendi-tritanopia))   ; dark, blue/yellow colorblind-friendly
+  "Number key (as a character, e.g. ?1) -> theme symbol, for `my/load-theme-by-number'.
+Add more entries here (any theme on `custom-theme-load-path') to pick them with `C-c c'
+the same way; `0' is reserved for the default (no theme applied).")
+
+;; WHAT: `C-c c' + a digit --- switch to that numbered theme, or `0' for the default
+;; (Emacs's own plain look, no theme applied). WHY/HOW: `(interactive "c")' reads
+;; exactly one more character right after the prefix key is pressed, so `C-c c 1' is a
+;; single 3-key sequence, not a separate prompt; every already-enabled theme is disabled
+;; first (`custom-enabled-themes', built in) so themes never stack --- switching from 5
+;; to 2 without this would layer modus-operandi-tinted's faces on top of modus-vivendi's
+;; instead of replacing them, a real visual mess, and the same disabling step is what
+;; makes `0' genuinely restore the default look rather than just doing nothing.  A
+;; number with nothing bound to it (anything past what `my/themes' currently has) says so
+;; clearly in the echo area rather than silently doing nothing.
+(defun my/load-theme-by-number (n)
+  "Load the theme bound to N (a character, e.g. ?1) in `my/themes'; 0 is the default (no theme)."
+  (interactive "c")
+  (mapc #'disable-theme custom-enabled-themes)
+  (if (eq n ?0)
+      (message "Theme: default")
+    (let ((theme (alist-get n my/themes)))
+      (if theme
+          (progn (load-theme theme t) (message "Theme: %s" theme))
+        (message "No theme bound to %c (see my/themes)" n)))))
+(global-set-key (kbd "C-c c") #'my/load-theme-by-number)
+
+;; WHAT: `theme-buffet' (GNU ELPA --- not one of Protesilaos's own packages despite
+;; appearing in his dotfiles; maintained separately, see
+;; https://elpa.gnu.org/packages/theme-buffet.html) automatically switches between
+;; light and dark Modus Themes through the day: light in the morning/afternoon, dark in
+;; the evening/night, re-checked hourly. WHY: a sensible default that changes with
+;; actual daylight, while `C-c c' above remains available any time as a manual override
+;; --- the two are not in conflict, since the hourly check only fires again once the
+;; time period actually changes, not continuously. HOW: `my/themes-light'/`-dark' list
+;; which of `my/themes''s entries go in each of `theme-buffet''s two "light hours"
+;; periods (morning, afternoon) and two "dark hours" periods (evening, night) --- kept
+;; as its own explicit list rather than derived from `my/themes' by name-matching
+;; ("operandi"/"vivendi"), since a future non-Modus theme (the user said "I will get
+;; more") might not follow that naming convention at all; add a new theme to both
+;; `my/themes' (for `C-c c') and whichever of these two lists it belongs in. Installed
+;; into config/elpa by `./build.sh packages'. `theme-buffet-a-la-carte', called
+;; non-interactively (confirmed in its own source: `called-interactively-p' gates the
+;; prompt, so a Lisp call always takes the "pick at random from the current period"
+;; branch), applies a theme for right now at startup, instead of waiting up to an hour
+;; for the first timer tick.
+(defvar my/themes-light '(modus-operandi modus-operandi-tinted
+                          modus-operandi-deuteranopia modus-operandi-tritanopia)
+  "Themes `theme-buffet' may pick from during the day (morning/afternoon).")
+(defvar my/themes-dark '(modus-vivendi modus-vivendi-tinted
+                         modus-vivendi-deuteranopia modus-vivendi-tritanopia)
+  "Themes `theme-buffet' may pick from in the evening/night.")
+(when (locate-library "theme-buffet")
+  (require 'theme-buffet)
+  (setq theme-buffet-menu 'end-user
+        theme-buffet-end-user
+        `(:morning   ,my/themes-light
+          :afternoon ,my/themes-light
+          :evening   ,my/themes-dark
+          :night     ,my/themes-dark))
+  (theme-buffet-a-la-carte)
+  (theme-buffet-timer-hours 1))
 
 ;;; Keys ---------------------------------------------------------------------
 

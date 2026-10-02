@@ -13,7 +13,7 @@
 
 (defconst my/packages '(evil magit treemacs consult gptel
                         vertico orderless marginalia embark embark-consult
-                        avy ace-window wgrep helpful symbol-overlay)
+                        avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so

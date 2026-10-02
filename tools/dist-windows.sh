@@ -6,7 +6,7 @@
 #
 # What goes in the zip: Emacs.exe (a launcher), the official GNU Emacs 31 for Windows (with all its
 # libraries), your settings (config/), Evil and Magit compiled for that Emacs, tree-sitter grammars
-# for Java and Rust, ripgrep, and a portable Git (MinGit).  See docs/DISTRIBUTION.md.
+# for Java and Rust, ripgrep, fd, delta, and a portable Git (MinGit).  See docs/DISTRIBUTION.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"; CACHE="$DIST/cache"
@@ -16,6 +16,7 @@ EMACS_ZIP=emacs-31.1_1.zip
 EMACS_URL=https://ftp.gnu.org/gnu/emacs/windows/emacs-31
 RG_VERSION="${RG_VERSION:-14.1.1}"
 FD_VERSION="${FD_VERSION:-10.5.0}"
+DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
                                                 # (needs a JDK 21+ on PATH or JAVA_HOME; none is bundled)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
@@ -53,6 +54,21 @@ if [ -n "$FD_SHA" ]; then
   echo "   fd-win.zip matches the checksum published by GitHub"
 else
   echo "   (could not fetch a published checksum for fd-win.zip; proceeding without one)"
+fi
+DELTA_ASSET="delta-$DELTA_VERSION-x86_64-pc-windows-msvc.zip"
+fetch "https://github.com/dandavison/delta/releases/download/$DELTA_VERSION/$DELTA_ASSET" delta-win.zip
+DELTA_SHA="$(curl -fsSL "https://api.github.com/repos/dandavison/delta/releases/tags/$DELTA_VERSION" | python3 -c "
+import json, sys
+name = sys.argv[1]
+for a in json.load(sys.stdin)['assets']:
+    if a['name'] == name:
+        print(a['digest'].split(':')[1]); break
+" "$DELTA_ASSET")"
+if [ -n "$DELTA_SHA" ]; then
+  [ "$(sha256sum "$CACHE/delta-win.zip" | cut -d' ' -f1)" = "$DELTA_SHA" ] || { echo "CHECKSUM MISMATCH for delta-win.zip" >&2; exit 1; }
+  echo "   delta-win.zip matches the checksum published by GitHub"
+else
+  echo "   (could not fetch a published checksum for delta-win.zip; proceeding without one)"
 fi
 
 echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
@@ -93,11 +109,12 @@ echo "== launcher (Emacs.exe)"
   "$ROOT/tools/windows-launcher.c" -o "$CACHE/Emacs.exe"
 
 echo "== assemble"
-rm -rf "$STAGE"; mkdir -p "$STAGE"/{config,tools/rg,tools/fd}
+rm -rf "$STAGE"; mkdir -p "$STAGE"/{config,tools/rg,tools/fd,tools/delta}
 unzip -q "$CACHE/$EMACS_ZIP" -d "$STAGE/emacs"
 unzip -q "$CACHE/MinGit-64.zip" -d "$STAGE/tools/git"
 unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
 unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
+unzip -q -j "$CACHE/delta-win.zip" "*/delta.exe" -d "$STAGE/tools/delta"
 # the language server: only the Windows part (it is started with whatever `java' the user has on
 # PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
@@ -134,8 +151,9 @@ Custom Emacs, portable, for Windows 10/11 (64-bit).
 Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
   config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
-  tools\\   ripgrep and fd (fast search and file finding), a portable Git (for Magit), and the Java
-            language server (needs your own JDK 17+ on PATH or JAVA_HOME; not bundled)
+  tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
+            Git (for Magit), and the Java language server (needs your own JDK 17+ on PATH or
+            JAVA_HOME; not bundled)
   docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
@@ -146,9 +164,10 @@ Java: the language server (jdtls) is included, but not a JDK --- install one you
 "java" is on PATH or JAVA_HOME, then M-x eglot in a Java project (definitions, references, etc.).
 Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
+Magit diffs are rendered with delta (bundled) via magit-delta-mode, on by default.
 Press C-c d for every guide in one buffer (README.md and docs\\*.md), built the moment Emacs starts.
 GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2
-(tools\\git\\LICENSE.txt) and ripgrep under MIT/Unlicense. Full guide: DISTRIBUTION.md.
+(tools\\git\\LICENSE.txt), ripgrep under MIT/Unlicense, and delta under MIT. Full guide: DISTRIBUTION.md.
 EOF
 cp "$ROOT/docs/DISTRIBUTION.md" "$STAGE/DISTRIBUTION.md" 2>/dev/null || true
 
