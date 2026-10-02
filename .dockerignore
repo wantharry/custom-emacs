@@ -1,0 +1,13 @@
+# Mirrors .gitignore: don't send reproducible build output or local caches into the
+# `docker build' context --- the Dockerfile clones emacs-src and runs ./build.sh itself.
+.git/
+/emacs-src/
+/build/
+/install/
+/dist/
+/config/elpa/
+/config/tree-sitter/
+__pycache__/
+*.pyc
+*.log
+/.claude/

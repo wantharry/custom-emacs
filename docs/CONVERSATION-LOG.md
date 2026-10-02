@@ -1165,16 +1165,101 @@ the existing `## Themes` section of `docs/MY-NOTES.md`, right after the themes t
 that was already there --- not a new guide, the same place this project's own running
 theme notes already lived.
 
+### A GitHub Actions release trigger, then a real Dockerfile, both tested for real
+
+User: "Can you push to GitHub actions" --- a public, outward-facing action
+(`.github/workflows/release.yml` builds Linux from scratch and publishes a GitHub
+Release), so asked first which trigger: a manual `workflow_dispatch` run (tagged
+`manual-run-N`, no version decision needed) or a real version tag. User picked manual.
+Triggered with `gh workflow run release.yml`; took ~24 minutes on GitHub's runner,
+completed successfully, published `manual-run-2`. Confirmed directly (`gh repo view`)
+that this repo is public, so none of this costs anything --- GitHub Actions on
+GitHub-hosted runners is free and unlimited for public repos regardless of account
+plan, and so is Release storage for files this size. Explained, when asked, exactly why
+Windows isn't built the same way: `tools/dist-windows.sh` drives a real Windows
+`Emacs.exe` through `cmd.exe` to compile packages, which only exists because this is
+WSL2 --- a plain Linux GitHub runner has no Windows underneath it to call into. User
+declined both offered follow-ups (attaching the local Windows zip to the same release;
+adding a real `windows-latest` runner job).
+
+User: "Can you dockerize it" --- asked first what the image should actually do, since
+terminal-only vs. GUI-forwarded are genuinely different amounts of work; answer was
+"I think I need both," so built one image supporting both: `emacs --init-directory
+--no-splash` for a real GUI window via X11, bare `-nw` (the default `CMD`) for a
+terminal that needs no host setup at all.
+
+**A real, first-attempt monitoring mistake, caught and fixed immediately:** backgrounded
+the first `docker build` with a trailing shell `&` inside a `Bash run_in_background`
+call instead of just letting `run_in_background` do that itself --- the harness reported
+"completed" the instant the trivial wrapper command (which only echoed a PID after
+detaching the real build) returned, long before the real, still-running `docker build`
+had done anything beyond installing apt packages. Caught by actually checking `ps`
+before trusting the notification, not by assuming a "completed" event meant what it
+said. Every build after that one was launched as a single plain foreground command under
+`run_in_background: true`, tracked correctly to real completion.
+
+Three real, found-by-actually-building-it problems, each one only surfacing because this
+ran inside a genuinely bare `ubuntu:24.04` container rather than this already-set-up WSL
+machine or GitHub's tool-loaded `ubuntu-latest` runner:
+
+1. `ubuntu:24.04`'s own official image already ships a built-in `ubuntu` user at UID/GID
+   1000 --- the Dockerfile's own attempt to create a same-UID user for bind-mount
+   permission compatibility failed outright ("UID 1000 is not unique"). Fixed by reusing
+   the image's own user instead of fighting it with a second one.
+2. Savannah's `https://` git endpoint 500'd transiently on one build, unrelated to
+   anything in this project. Matched `docs/BUILD.md`/the GitHub Actions workflow's
+   existing `git://`-then-`https://` fallback (there for a different reason: some
+   networks block the unencrypted protocol) in the Dockerfile too, which also covers
+   this.
+3. A bare `ubuntu:24.04` image has no `autoconf`, unlike GitHub's `ubuntu-latest` runner
+   (which ships it preinstalled, so this requirement stayed invisible until now).
+   `emacs-src/autogen.sh` needs it to generate `configure` from a git checkout. Added to
+   the Dockerfile's package list.
+
+Each fix verified by actually rebuilding and watching the *next* real failure change,
+not assumed from reading the error once. Final build: ~8.5 minutes once the dependency
+list was right, 751 MB image.
+
+Then actually ran both modes, not just built the image: terminal mode confirmed via a
+real detached container with a real pty (`ps` inside it showed `emacs ... -nw` as PID 1,
+container stayed up); GUI mode confirmed by forwarding to this host's real WSLg X11
+socket (`DISPLAY=:0`, `/tmp/.X11-unix/X0`, both already live here) and finding the
+actual window in the **host's own** X window tree via `xwininfo` afterward --- not just
+"the container didn't crash." Caught one real bug in the GUI example this way: an
+earlier, untested version of the usage comment passed the literal word `emacs` as the
+container's trailing argument, meaning to drop `-nw` --- but `CMD`'s default is fully
+*replaced* by trailing `docker run` arguments, not appended to, so this silently tried
+to open a file named "emacs" instead of ever being seen without actually running it. Fixed
+to `--no-splash` (a real, verified Emacs flag) instead. Also found, while the GUI test
+was running: a separate "Warning" window listing obsolete-macro notices from
+`theme-buffet.el` (confirmed via `*Async-native-compile-log*` inside the running
+container to be that third-party package, not this project's own code) --- installed
+packages native-compile lazily on first load rather than ahead of time during `docker
+build`, so a *fresh* (`--rm`) container's first GUI run can trigger this each time, since
+nothing persists across runs without `--rm`. Harmless, documented plainly rather than
+engineered away, since fixing it would mean force-loading every optional package during
+the image build for a cosmetic one-time popup.
+
+New `Dockerfile` and `.dockerignore` at the repo root, and a new `docs/DOCKER.md`
+(added to README.md's documentation table, right after `docs/BUILD.md`) covering both
+run modes and all of the above as real, verified findings rather than a generic Docker
+boilerplate guide. `docsbuffer/*` tests (15/15) confirm the new guide is automatically
+picked up by `C-c d`'s own `docs/*.md` glob, no registration needed anywhere.
+
 ## Where things stand as of the last entry
 
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
-  suppression/gptel-model fixes above are both committed and pushed to `origin/main`,
-  but **neither dist zip has been rebuilt since** --- `config/init.el`/`config/llm.el`
-  changed again, so both bundles are now stale (the standing stale-bundle test exception
-  covers exactly this). Well past the project's own "batch after 3-4 features"
-  threshold now, across two sessions' worth of accumulated work; a rebuild is due ---
-  ask about Windows vs. Linux vs. both before doing it, since Linux has been explicitly
-  on-hold-until-asked for several sessions running now.
+  suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
+  bundles are now caught up too (since this same session, not an older stale state):
+  the Windows zip was rebuilt locally and copied to Downloads, and a fresh Linux bundle
+  was built from scratch and published via a manual `workflow_dispatch` run of
+  `.github/workflows/release.yml` (tagged `manual-run-2`) --- see the two entries above.
+- **New this session, NOT YET COMMITTED (per the standing "commit only when told"
+  preference):** `Dockerfile`, `.dockerignore`, `docs/DOCKER.md`, and the matching
+  README.md documentation-table row. Built and verified for real (terminal mode, GUI
+  mode via WSLg X11 forwarding, three real build-time bugs found and fixed) --- see the
+  entry above for the full account. `git status` will show these as untracked/modified
+  until explicitly asked to commit.
 - Whether to strip the `.git` dirs out of the three VC-installed theme packages
   (`seti-theme`, `xcode-theme`, `ember-theme`, ~6 MB combined) before that rebuild is
   an open question raised but not yet answered.

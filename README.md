@@ -83,6 +83,7 @@ research-emacs/
 | [docs/CONVERSATION-LOG.md](docs/CONVERSATION-LOG.md) | **Read this first if you are an AI assistant new to this conversation.** What was discussed, built, tried and reverted, in order, with the real reasoning --- so a new conversation (even a different LLM) can pick up where the last one left off |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | What Emacs is made of and where a given change belongs |
 | [docs/BUILD.md](docs/BUILD.md) | Dependencies, configure flags, building, updating from upstream |
+| [docs/DOCKER.md](docs/DOCKER.md) | Building and running this Emacs in a container: terminal mode, a real GUI window forwarded to the host display, real bugs the from-scratch build caught |
 | [docs/CUSTOMIZING.md](docs/CUSTOMIZING.md) | The config files, adding a theme/fonts, live editing, profiling, and the documentation buffer (`C-c d`) |
 | [docs/PRUNING.md](docs/PRUNING.md) | Removing unused packages: method, results, limits, how to test |
 | [docs/CROSS-PLATFORM.md](docs/CROSS-PLATFORM.md) | Plan for Windows and macOS and CI (untested) |
