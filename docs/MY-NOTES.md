@@ -129,6 +129,39 @@ commands and one-line notes, added to as they come up.
 | `M`-`T` | Modus Themes, light then dark: operandi / tinted / deuteranopia / tritanopia / vivendi / tinted / deuteranopia / tritanopia |
 | (automatic) | `theme-buffet` still only rotates the 8 Modus Themes light/dark by time of day, re-checked hourly --- `C-c c`/`C-c .`/`C-c C` always override it; none of the other 47 themes were added to its rotation |
 
+The full `C-c c` character -> theme mapping, grouped by package (also in `my/themes` in
+`config/init.el`, the single source of truth --- this table is just a friendlier view
+of the same thing):
+
+| Key | Theme | | Key | Theme |
+|---|---|---|---|---|
+| `1` | atom-one-dark | | `2` | catppuccin (mocha) |
+| `3` | solo-jazz | | `4` | nimbus |
+| `5` | rebecca | | `6` | subatomic |
+| `7` | night-owl | | `8` | seti |
+| `b` | snazzy | | `c` | horizon |
+| `h` | zenburn | | `u` | dracula |
+
+**shanty-themes:** `9` dark, `a` light
+**xcode-theme:** `d` dark, `e` light
+**immaterial-theme:** `f` dark, `g` light
+**ember-theme** (manual-only, needs `doom-themes`): `K` light, `L` soft
+
+**solarized-theme** (12): `i` dark, `j` light, `k` dark-high-contrast, `l`
+light-high-contrast, `m` gruvbox-dark, `n` gruvbox-light, `o` selenized-black, `p`
+selenized-dark, `q` selenized-light, `r` selenized-white, `s` wombat-dark, `t` zenburn
+
+**kaolin-themes** (15): `v` dark, `w` light, `x` aurora, `y` blossom, `z` breeze, `A`
+bubblegum, `B` eclipse, `C` galaxy, `D` mono-dark, `E` mono-light, `F` ocean, `G` shiva,
+`H` temple, `I` valley-dark, `J` valley-light
+
+**Modus Themes** (8, built-in): `M` operandi, `N` operandi-tinted, `O`
+operandi-deuteranopia, `P` operandi-tritanopia, `Q` vivendi, `R` vivendi-tinted, `S`
+vivendi-deuteranopia, `T` vivendi-tritanopia
+
+Plus `0` for the default (no theme). `doom-themes`'s own 50+ variants aren't on this
+list at all --- reach those through `C-c C`'s fuzzy search by name instead.
+
 All 8 [Modus Themes](https://github.com/protesilaos/modus-themes) ship built into Emacs 28+ already --- no package, confirmed directly (`etc/themes/modus-*-theme.el`). The other 47 come from 15 separately installed packages (`atom-one-dark-theme`, `catppuccin-theme`, `solo-jazz-theme`, `nimbus-theme`, `rebecca-theme`, `subatomic-theme`, `night-owl-theme`, `seti-theme`, `shanty-themes`, `snazzy-theme`, `horizon-theme`, `xcode-theme`, `immaterial-theme`, `zenburn-theme`, `solarized-theme`, `dracula-theme`, `kaolin-themes`, `ember-theme` --- full URLs in the WHAT/WHY comment above `my/themes` in `config/init.el`). A real, easy-to-get-backwards gotcha found while wiring these up: `load-theme` never consults `load-path` at all --- it always does its own file search through `custom-theme-load-path`, whose `t` entry expands to Emacs's *built-in* `etc/themes` directory, not to `load-path`; a theme package can `require` fine while still being completely invisible to `load-theme`/`consult-theme` unless its directory is *also* pushed onto `custom-theme-load-path` (now done in the same loop that adds `config/elpa`'s subdirectories to `load-path`). `my/themes` in `config/init.el` is the character→theme mapping; add more there (any installed theme) to extend `C-c c` without a new keybinding. `ember-theme` needs `doom-themes` as a hard dependency --- installed, but deliberately never `require`d automatically (this project's own `startup/no-third-party-features-loaded' test forbids it), so `doom-themes`'s own 50+ variants are reachable only via `C-c C`'s fuzzy search, never a `my/themes` slot. `theme-buffet` is a real GNU ELPA package (not one of Protesilaos's own, despite appearing in his dotfiles) --- `my/themes-light`/`my/themes-dark` is where it's told which of `my/themes`'s entries count as which; keep both lists in step when adding a theme that should also take part in the automatic rotation.
 
 ## Magit
