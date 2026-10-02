@@ -55,12 +55,19 @@ always matches what is actually pulled."
   ;; the only other thing that would have pulled it in --- see init.el's "Packages"
   ;; section for why).
   (require 'gptel-ollama)
-  (let ((models (my/llm-ollama-models)))
+  (let* ((models (my/llm-ollama-models))
+         ;; a placeholder if `ollama list' could not be read, so gptel still has
+         ;; *something* to offer in its menu
+         (model-list (or models '(llama3.2:latest))))
     (setq gptel-backend
-          (gptel-make-ollama "Ollama" :host my/llm-ollama-host :stream t
-                             ;; a placeholder if `ollama list' could not be read, so
-                             ;; gptel still has *something* to offer in its menu
-                             :models (or models '(llama3.2:latest))))
+          (gptel-make-ollama "Ollama" :host my/llm-ollama-host :stream t :models model-list)
+          ;; WHY: `gptel-model' otherwise stays at whatever it was before (nil, the
+          ;; first time gptel is ever touched) --- gptel itself then warns loudly
+          ;; ("Preferred `gptel-model' ... not supported in \"Ollama\"") and silently
+          ;; falls back to one of `model-list' anyway every single time this backend is
+          ;; (re)built; setting it explicitly here gets the same real result without
+          ;; the warning.
+          gptel-model (car model-list))
     (if models
         (message "Ollama backend ready: %d model%s (%s)" (length models)
                  (if (= (length models) 1) "" "s") my/llm-ollama-host)

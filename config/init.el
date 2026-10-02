@@ -950,6 +950,20 @@ installed, offer to install it from NonGNU ELPA."
 ;; (https://github.com/protesilaos/modus-themes, by Protesilaos Stavrou) are built
 ;; straight into this Emacs already --- no package, no download, confirmed directly:
 ;; `etc/themes/modus-*-theme.el' ships with every Emacs 28+ release.
+;;
+;; WHAT/WHY: a few of the 15 packages above (`rebecca-theme', `night-owl-theme', also
+;; `seti-theme') are old enough that their main file never declares `;; -*-
+;; lexical-binding: t; -*-' on its first line --- harmless (they still load and work
+;; exactly as intended; `lexical-binding' only affects how *that file's own* code
+;; captures variables, not anything this config does with the theme once loaded), but
+;; Emacs warns about it loudly every single time one of those files is loaded, which
+;; is every time its theme is actually switched to, not just once at startup. Silenced
+;; by its own specific warning type (`files missing-lexbind-cookie', confirmed directly
+;; in `files.el''s own source) rather than disabling file warnings generally, so a
+;; genuinely different problem in some other file still surfaces normally.
+(require 'warnings)   ; `warning-suppress-log-types' is void until this loads
+(setq warning-suppress-log-types
+      (cons '(files missing-lexbind-cookie) warning-suppress-log-types))
 (defvar my/themes
   '((?1 . atom-one-dark)
     (?2 . catppuccin)                  ; mocha flavor
@@ -1027,7 +1041,7 @@ theme by name instead of by character.")
   (interactive "c")
   (mapc #'disable-theme custom-enabled-themes)
   (if (eq n ?0)
-      (message "Theme: default")
+      (progn (my/ensure-visible-cursor) (message "Theme: default"))
     (let ((theme (alist-get n my/themes)))
       (if theme
           (progn (load-theme theme t) (message "Theme: %s" theme))
@@ -1070,6 +1084,24 @@ relative to whichever theme is currently active; wraps around at either end."
 ;; dependency here, see the Search section); same `-missing' fallback pattern as every
 ;; other optional-package key in this file.
 (global-set-key (kbd "C-c C") (if (locate-library "consult") #'consult-theme #'my/consult-missing))
+
+;; WHAT/WHY/HOW: make the actual cursor (not the current-line highlight from
+;; `global-hl-line-mode', already on above) stay visible no matter which of the 55+
+;; themes above is active --- several of them don't give enough contrast between their
+;; own `cursor' face and their own `hl-line' face, so the real insertion point can
+;; disappear into the highlighted line, confirmed directly by switching through a
+;; sample of the new themes. `enable-theme-functions' (built into Emacs 29+) runs after
+;; *any* theme is enabled, through every entry point here (`C-c c', `C-c .'/`C-c ,',
+;; `C-c C' via `consult-theme', `theme-buffet''s automatic switching, or Emacs's own
+;; startup) --- one hook here is simpler and more robust than overriding the `cursor'
+;; face separately in each of those commands; `my/load-theme-by-number' calls it
+;; directly too for `C-c c 0' (the plain default), since *disabling* every theme does
+;; not run `enable-theme-functions' the way enabling one does.
+(defun my/ensure-visible-cursor (&rest _)
+  "Keep the cursor a fixed, highly visible color regardless of the active theme."
+  (set-face-attribute 'cursor nil :background "DarkOrange"))
+(add-hook 'enable-theme-functions #'my/ensure-visible-cursor)
+(my/ensure-visible-cursor)
 
 ;; WHAT: `theme-buffet' (GNU ELPA --- not one of Protesilaos's own packages despite
 ;; appearing in his dotfiles; maintained separately, see

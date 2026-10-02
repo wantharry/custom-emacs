@@ -76,21 +76,27 @@ a blank line, then BODY, exactly the part `my/llm-ollama-models' looks for."
 (ert-deftest llm/setup-ollama-uses-the-real-models-when-available ()
   (llm-need-gptel)
   (require 'gptel-ollama)
-  (let (gptel-backend)
+  (let (gptel-backend gptel-model)
     (cl-letf (((symbol-function 'my/llm-ollama-models) (lambda () '(alpha:1b beta:2b))))
       (my/llm-setup-ollama)
       (should (gptel-ollama-p gptel-backend))
       (should (equal (gptel-backend-host gptel-backend) my/llm-ollama-host))
-      (should (equal (gptel-backend-models gptel-backend) '(alpha:1b beta:2b))))))
+      (should (equal (gptel-backend-models gptel-backend) '(alpha:1b beta:2b)))
+      ;; WHY: left at nil (its value the very first time gptel is ever touched), gptel
+      ;; itself warns loudly ("Preferred `gptel-model' ... not supported") and silently
+      ;; substitutes one of the backend's own models anyway --- setting it explicitly
+      ;; here gets the same real result without the warning.
+      (should (eq gptel-model 'alpha:1b)))))
 
 (ert-deftest llm/setup-ollama-falls-back-to-a-placeholder-model-when-the-list-fails ()
   (llm-need-gptel)
   (require 'gptel-ollama)
-  (let (gptel-backend)
+  (let (gptel-backend gptel-model)
     (cl-letf (((symbol-function 'my/llm-ollama-models) (lambda () nil))
               ((symbol-function 'message) (lambda (&rest _) nil)))
       (my/llm-setup-ollama)
-      (should (gptel-backend-models gptel-backend)))))
+      (should (gptel-backend-models gptel-backend))
+      (should (eq gptel-model (car (gptel-backend-models gptel-backend)))))))
 
 ;; WHAT: no matter how `gptel' first gets loaded, Ollama ends up as the active backend,
 ;; not `gptel''s own factory-default ChatGPT (a real OpenAI endpoint this config never

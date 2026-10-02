@@ -110,6 +110,32 @@
       (should (eq (key-binding (kbd "C-c C")) 'consult-theme))
     (should (eq (key-binding (kbd "C-c C")) 'my/consult-missing))))
 
+(ert-deftest themes/cursor-stays-visible-regardless-of-the-active-theme ()
+  ;; A real, found-by-using-it problem: several of the 55 themes in `my/themes' don't
+  ;; give enough contrast between their own `cursor' face and their own `hl-line' face
+  ;; (`global-hl-line-mode' is on), so the actual insertion point can disappear into
+  ;; the highlighted current line. `enable-theme-functions' (built into Emacs 29+) is
+  ;; the one hook point that runs after any theme is enabled, through every entry point
+  ;; here (`C-c c', `C-c .'/`C-c ,', `C-c C', `theme-buffet', or Emacs's own startup).
+  (unwind-protect
+      (progn
+        (my/load-theme-by-number ?3)   ; solo-jazz: a theme where this was visibly wrong
+        (should (equal (face-attribute 'cursor :background) "DarkOrange"))
+        ;; `C-c c 0' disables every theme rather than enabling one, so it does not run
+        ;; `enable-theme-functions' on its own --- `my/load-theme-by-number' must call
+        ;; `my/ensure-visible-cursor' directly for this case.
+        (my/load-theme-by-number ?0)
+        (should (equal (face-attribute 'cursor :background) "DarkOrange")))
+    (mapc #'disable-theme custom-enabled-themes)))
+
+(ert-deftest themes/missing-lexical-binding-cookie-warning-is-suppressed ()
+  ;; Several of the 15 theme packages (`rebecca-theme', `night-owl-theme', `seti-theme')
+  ;; are old enough to never declare `lexical-binding: t' on their first line --- the
+  ;; theme still loads and works correctly either way (`lexical-binding' only affects
+  ;; how that file's own code captures variables), but Emacs otherwise warns loudly
+  ;; about it every single time the theme is actually switched to, not just once.
+  (should (member '(files missing-lexbind-cookie) warning-suppress-log-types)))
+
 (ert-deftest themes/does-not-slow-startup ()
   (let ((best most-positive-fixnum))
     (dotimes (_ 3)
