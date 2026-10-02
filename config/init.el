@@ -246,10 +246,20 @@ key sequence can never make a file editable."
 (defvar my/elpa-dir (expand-file-name "elpa" user-emacs-directory)
   "Where packages installed by this configuration live.")
 
+;; WHY both `load-path' AND `custom-theme-load-path': `require'/`locate-library' only
+;; ever consult `load-path', but `load-theme' (see the Themes section) never does ---
+;; confirmed directly in `custom.el''s own source: it always does its own
+;; `(locate-file (concat theme "-theme.el") (custom-theme--load-path) ...)', and the
+;; `t' element `custom-theme-load-path' starts with expands to Emacs's *built-in*
+;; `etc/themes' directory, never to `load-path' (a genuinely easy assumption to get
+;; backwards --- the one most other packages don't need, since `require' is all they
+;; use). Without this, every theme package installed below into `config/elpa' loads
+;; fine as a *library* but `C-c c'/`consult-theme' still can't find its *theme file*.
 (dolist (dir (file-expand-wildcards (expand-file-name "*" my/elpa-dir)))
   (when (and (file-directory-p dir)
              (not (member (file-name-nondirectory dir) '("archives" "gnupg"))))
-    (add-to-list 'load-path dir)))
+    (add-to-list 'load-path dir)
+    (add-to-list 'custom-theme-load-path dir)))
 
 ;;; Completion ------------------------------------------------------------------
 
@@ -564,7 +574,8 @@ installed, offer to install it from NonGNU ELPA."
   (autoload 'consult-line "consult" "Search this buffer, with a live preview." t)
   (autoload 'consult-ripgrep "consult" "Search project text with ripgrep, with a live preview." t)
   (autoload 'consult-fd "consult" "Find a project file by name with fd (no live preview, unlike the others)." t)
-  (autoload 'consult-buffer "consult" "Switch to a buffer, recent file or bookmark." t))
+  (autoload 'consult-buffer "consult" "Switch to a buffer, recent file or bookmark." t)
+  (autoload 'consult-theme "consult" "Fuzzy-search any installed theme by name, with a live preview." t))
 (defun my/consult-missing ()
   (interactive)
   (message "Consult is not installed.  Run ./build.sh packages"))
@@ -895,30 +906,111 @@ installed, offer to install it from NonGNU ELPA."
 
 ;;; Themes ------------------------------------------------------------------------
 
-;; `C-c c' then a digit picks a color theme by number --- `C-c c 1' for the first,
-;; `C-c c 2' for the second, and so on; `C-c c 0' is the **default** theme, i.e. turns
-;; every theme off and goes back to Emacs's own plain, un-themed look (what this config
-;; starts in --- see docs/MAGIT.md's own note that Magit "looks plain" for exactly that
-;; reason), included here as its own numbered choice rather than a special case you have
-;; to remember separately. All eight Modus Themes
+;; `C-c c' then a character picks a color theme --- `C-c c 1' for the first, `C-c c 2'
+;; for the second, and so on through `z' then uppercase `A'-`T'; `C-c c 0' is the
+;; **default** theme, i.e. turns every theme off and goes back to Emacs's own plain,
+;; un-themed look (what this config starts in --- see docs/MAGIT.md's own note that
+;; Magit "looks plain" for exactly that reason), included here as its own numbered
+;; choice rather than a special case you have to remember separately.
+;;
+;; WHAT/WHY: 55 real themes now (8 built-in Modus Themes + 47 from 15 separately
+;; installed packages). `(interactive "c")' reads exactly one raw character, so once
+;; digits 1-9 and lowercase a-z ran out (35 slots) the scheme continued into uppercase
+;; A-Z rather than switching to a whole different, multi-keystroke mechanism --- but at
+;; this scale, memorizing a specific character for most of these 55 stops being the
+;; point. Two other ways in, for when the slot number doesn't matter: `C-c .'/`C-c ,'
+;; (`my/cycle-theme'/`my/cycle-theme-previous', below) step forward/backward through
+;; this same list one theme at a time, always starting from whatever theme is actually
+;; active; `C-c C' (`consult-theme', below) fuzzy-searches any installed theme *by
+;; name* with a live preview --- the practical way to reach `doom-themes''s own 50+
+;; variants, pulled in only as `ember''s hard dependency and deliberately given no
+;; `my/themes' slot of its own (nobody asked for doom-themes itself, just the two ember
+;; variants built on it).
+;;
+;; Packages (MELPA unless noted): `atom-one-dark-theme' (https://github.com/
+;; jonathanchu/atom-one-dark-theme); `catppuccin-theme' (https://github.com/catppuccin/
+;; emacs --- one theme symbol, 4 palettes via `catppuccin-flavor', `mocha' is the
+;; default used here); `solo-jazz-theme' (https://github.com/cstby/solo-jazz-emacs-
+;; theme); `nimbus-theme' (https://github.com/mrcnski/nimbus-theme); `rebecca-theme'
+;; (https://github.com/vic/rebecca-theme); `subatomic-theme' (https://github.com/cryon/
+;; subatomic-theme); `night-owl-theme' (https://github.com/aaronjensen/night-owl-
+;; emacs); `seti-theme' (https://github.com/caisah/seti-theme --- VC-installed, see
+;; `my/vc-packages' in tools/install-packages.el, not on any archive); `shanty-themes'
+;; (https://github.com/qhga/shanty-themes, 2 variants); `snazzy-theme' (https://
+;; github.com/weijiangan/emacs-snazzy); `horizon-theme' (https://github.com/aodhneine/
+;; horizon-theme.el); `xcode-theme' (https://github.com/juniorxxue/xcode-theme --- VC-
+;; installed, 2 variants); `immaterial-theme' (https://github.com/petergardfjall/emacs-
+;; immaterial-theme, 2 variants); `zenburn-theme' (https://github.com/bbatsov/zenburn-
+;; emacs); `solarized-theme' (https://github.com/bbatsov/solarized-emacs, 12 variants);
+;; `dracula-theme' (https://github.com/dracula/emacs); `kaolin-themes' (https://
+;; github.com/ogdenwebb/emacs-kaolin-themes, 15 variants, every symbol prefixed
+;; `kaolin-'); `ember-theme' (https://github.com/ember-theme/emacs --- VC-installed, 2
+;; variants, requires `doom-themes' as a hard dependency, see the WHY note next to
+;; `my/vc-packages' in tools/install-packages.el). All eight Modus Themes
 ;; (https://github.com/protesilaos/modus-themes, by Protesilaos Stavrou) are built
 ;; straight into this Emacs already --- no package, no download, confirmed directly:
-;; `etc/themes/modus-*-theme.el' ships with every Emacs 28+ release.  `my/themes' is the
-;; one place the number->theme mapping lives, so adding another theme later (a package,
-;; or anything already on `custom-theme-load-path') is just one more alist entry, no new
-;; keybinding needed.
+;; `etc/themes/modus-*-theme.el' ships with every Emacs 28+ release.
 (defvar my/themes
-  '((?1 . modus-operandi)              ; light
-    (?2 . modus-operandi-tinted)       ; light, warmer background
-    (?3 . modus-operandi-deuteranopia) ; light, red/green colorblind-friendly
-    (?4 . modus-operandi-tritanopia)   ; light, blue/yellow colorblind-friendly
-    (?5 . modus-vivendi)               ; dark
-    (?6 . modus-vivendi-tinted)        ; dark, warmer background
-    (?7 . modus-vivendi-deuteranopia)  ; dark, red/green colorblind-friendly
-    (?8 . modus-vivendi-tritanopia))   ; dark, blue/yellow colorblind-friendly
-  "Number key (as a character, e.g. ?1) -> theme symbol, for `my/load-theme-by-number'.
+  '((?1 . atom-one-dark)
+    (?2 . catppuccin)                  ; mocha flavor
+    (?3 . solo-jazz)
+    (?4 . nimbus)
+    (?5 . rebecca)
+    (?6 . subatomic)
+    (?7 . night-owl)
+    (?8 . seti)
+    (?9 . shanty-themes-dark)
+    (?a . shanty-themes-light)
+    (?b . snazzy)
+    (?c . horizon)
+    (?d . xcode-dark)
+    (?e . xcode-light)
+    (?f . immaterial-dark)
+    (?g . immaterial-light)
+    (?h . zenburn)
+    (?i . solarized-dark)
+    (?j . solarized-light)
+    (?k . solarized-dark-high-contrast)
+    (?l . solarized-light-high-contrast)
+    (?m . solarized-gruvbox-dark)
+    (?n . solarized-gruvbox-light)
+    (?o . solarized-selenized-black)
+    (?p . solarized-selenized-dark)
+    (?q . solarized-selenized-light)
+    (?r . solarized-selenized-white)
+    (?s . solarized-wombat-dark)
+    (?t . solarized-zenburn)
+    (?u . dracula)
+    (?v . kaolin-dark)
+    (?w . kaolin-light)
+    (?x . kaolin-aurora)
+    (?y . kaolin-blossom)
+    (?z . kaolin-breeze)
+    (?A . kaolin-bubblegum)
+    (?B . kaolin-eclipse)
+    (?C . kaolin-galaxy)
+    (?D . kaolin-mono-dark)
+    (?E . kaolin-mono-light)
+    (?F . kaolin-ocean)
+    (?G . kaolin-shiva)
+    (?H . kaolin-temple)
+    (?I . kaolin-valley-dark)
+    (?J . kaolin-valley-light)
+    (?K . ember-light)                 ; needs `doom-themes'; manual pick only, see WHY above
+    (?L . ember-soft)                  ; needs `doom-themes'; manual pick only, see WHY above
+    (?M . modus-operandi)              ; light
+    (?N . modus-operandi-tinted)       ; light, warmer background
+    (?O . modus-operandi-deuteranopia) ; light, red/green colorblind-friendly
+    (?P . modus-operandi-tritanopia)   ; light, blue/yellow colorblind-friendly
+    (?Q . modus-vivendi)               ; dark
+    (?R . modus-vivendi-tinted)        ; dark, warmer background
+    (?S . modus-vivendi-deuteranopia)  ; dark, red/green colorblind-friendly
+    (?T . modus-vivendi-tritanopia))   ; dark, blue/yellow colorblind-friendly
+  "Character key (e.g. ?1, ?a or ?A) -> theme symbol, for `my/load-theme-by-number'.
 Add more entries here (any theme on `custom-theme-load-path') to pick them with `C-c c'
-the same way; `0' is reserved for the default (no theme applied).")
+the same way; `0' is reserved for the default (no theme applied). `C-c .'/`C-c ,' cycle
+through this same list by position; `C-c C' (`consult-theme') reaches any installed
+theme by name instead of by character.")
 
 ;; WHAT: `C-c c' + a digit --- switch to that numbered theme, or `0' for the default
 ;; (Emacs's own plain look, no theme applied). WHY/HOW: `(interactive "c")' reads
@@ -941,6 +1033,43 @@ the same way; `0' is reserved for the default (no theme applied).")
           (progn (load-theme theme t) (message "Theme: %s" theme))
         (message "No theme bound to %c (see my/themes)" n)))))
 (global-set-key (kbd "C-c c") #'my/load-theme-by-number)
+
+;; WHAT/WHY/HOW: `C-c .'/`C-c ,' step forward/backward through `my/themes' one theme at
+;; a time, for when which specific slot a theme is in doesn't matter --- always starting
+;; from whichever theme (if any) is actually active (`custom-enabled-themes', built in),
+;; not from a separately tracked position, so cycling stays in sync even after `C-c c'
+;; or `C-c C' picked something by hand in between; the current theme not being in
+;; `my/themes' at all (the default, i.e. no theme, or anything loaded some other way)
+;; is treated the same as not having started cycling yet --- `C-c .' from there goes to
+;; the first theme in the list, `C-c ,' to the last, both well-defined rather than an
+;; error. Wraps around at either end (`mod') rather than stopping, so holding the key
+;; down cycles through every theme in a loop.
+(defun my/cycle-theme (&optional reverse)
+  "Switch to the next theme in `my/themes' (the previous, if REVERSE is non-nil),
+relative to whichever theme is currently active; wraps around at either end."
+  (interactive "P")
+  (let* ((themes (mapcar #'cdr my/themes))
+         (pos (or (seq-position themes (car custom-enabled-themes)) -1))
+         (next (nth (mod (+ pos (if reverse -1 1)) (length themes)) themes)))
+    (mapc #'disable-theme custom-enabled-themes)
+    (load-theme next t)
+    (message "Theme: %s" next)))
+(defun my/cycle-theme-previous ()
+  "Switch to the previous theme in `my/themes'; see `my/cycle-theme'."
+  (interactive)
+  (my/cycle-theme t))
+(global-set-key (kbd "C-c .") #'my/cycle-theme)
+(global-set-key (kbd "C-c ,") #'my/cycle-theme-previous)
+
+;; WHAT/WHY: `C-c C' --- fuzzy-search any installed theme *by name*, with a live
+;; preview as different candidates are highlighted (reverted again on cancel) ---
+;; the practical way to reach the long tail of themes above without memorizing a
+;; character for each one, and the only numberless way to reach `doom-themes''s own
+;; 50+ variants (pulled in only as `ember''s dependency, see `my/themes' above; never
+;; given a slot of its own there). `consult-theme' ships with `consult' (already a
+;; dependency here, see the Search section); same `-missing' fallback pattern as every
+;; other optional-package key in this file.
+(global-set-key (kbd "C-c C") (if (locate-library "consult") #'consult-theme #'my/consult-missing))
 
 ;; WHAT: `theme-buffet' (GNU ELPA --- not one of Protesilaos's own packages despite
 ;; appearing in his dotfiles; maintained separately, see

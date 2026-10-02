@@ -13,7 +13,7 @@
   ;; gptel, Treemacs) are skipped rather than failed, matching how the rest of this
   ;; config treats those packages as optional.
   (let ((optional '(magit-status magit-file-dispatch consult-line consult-ripgrep
-                    consult-fd consult-buffer gptel-menu my/llm-chat my/llm-council
+                    consult-fd consult-buffer consult-theme gptel-menu my/llm-chat my/llm-council
                     my/treemacs my/treemacs-reveal
                     embark-act embark-dwim embark-bindings
                     avy-goto-char-timer symbol-overlay-put ace-window

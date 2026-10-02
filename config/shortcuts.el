@@ -181,7 +181,10 @@ by hand.")
     ("Windows"
      ("M-o" ace-window "jump to a window by the letter shown in it"))
     ("Themes"
-     ("C-c c" my/load-theme-by-number "pick a color theme by number (press C-c c, then a digit; 0 is the default, no theme)"))
+     ("C-c c" my/load-theme-by-number "pick a color theme by character (press C-c c, then 1-9/a-z/A-T; 0 is the default, no theme)")
+     ("C-c ." my/cycle-theme "switch to the next theme, whatever slot it's in")
+     ("C-c ," my/cycle-theme-previous "switch to the previous theme, whatever slot it's in")
+     ("C-c C" consult-theme "fuzzy-search any installed theme by name, with live preview"))
     ("Help"
      ("C-h f" helpful-callable "describe a command or function, richly")
      ("C-h v" helpful-variable "describe a setting, richly")

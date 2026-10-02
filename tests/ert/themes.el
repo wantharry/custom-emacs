@@ -38,16 +38,77 @@
 (ert-deftest themes/an-unbound-number-changes-nothing-and-says-so ()
   ;; `current-message' is not reliable to read back in a batch ERT run, so the message
   ;; itself is captured directly by temporarily replacing `message', not by polling the
-  ;; echo area.
+  ;; echo area. `U' (not `9') is the genuinely unbound character now that `my/themes'
+  ;; uses digits 1-9, lowercase a-z and uppercase A-T (55 entries) --- see the WHAT/WHY
+  ;; comment above `my/themes' in config/init.el.
+  (should-not (alist-get ?U my/themes))
   (unwind-protect
       (let (captured)
         (my/load-theme-by-number ?1)
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args) (setq captured (apply #'format fmt args)))))
-          (my/load-theme-by-number ?9))   ; nothing mapped to 9
+          (my/load-theme-by-number ?U))   ; nothing mapped to U
         (should-not custom-enabled-themes)   ; disabled (all themes cleared first), not left stale
-        (should (string-match-p "No theme bound to 9" captured)))
+        (should (string-match-p "No theme bound to U" captured)))
     (mapc #'disable-theme custom-enabled-themes)))
+
+(ert-deftest themes/custom-theme-load-path-includes-every-elpa-package-dir ()
+  ;; Pins down a real bug found while wiring up the 47 non-Modus themes: `load-theme'
+  ;; never consults `load-path' --- it always does its own `locate-file' search through
+  ;; `custom-theme-load-path', whose `t' entry expands to Emacs's *built-in* themes
+  ;; directory, never to `load-path'. A theme package can `require' fine while still
+  ;; being entirely invisible to `load-theme'/`consult-theme' unless its directory is
+  ;; *also* on `custom-theme-load-path' --- confirmed directly: every one of the 47
+  ;; non-Modus entries in `my/themes' failed with "Unable to find theme file" before
+  ;; this fix, despite `locate-library' finding each one without any trouble.
+  (dolist (dir (file-expand-wildcards (expand-file-name "*" my/elpa-dir)))
+    (when (and (file-directory-p dir)
+               (not (member (file-name-nondirectory dir) '("archives" "gnupg"))))
+      (ert-info ((format "dir %s" dir))
+        (should (member dir custom-theme-load-path))))))
+
+(ert-deftest themes/cycle-theme-steps-forward-and-wraps-around ()
+  (unwind-protect
+      (progn
+        (mapc #'disable-theme custom-enabled-themes)
+        (my/load-theme-by-number ?1)
+        (my/cycle-theme)
+        (should (equal custom-enabled-themes (list (alist-get ?2 my/themes))))
+        ;; From the very last theme, the next one wraps back to the first.
+        (mapc #'disable-theme custom-enabled-themes)
+        (load-theme (cdr (car (last my/themes))) t)
+        (my/cycle-theme)
+        (should (equal custom-enabled-themes (list (cdr (car my/themes))))))
+    (mapc #'disable-theme custom-enabled-themes)))
+
+(ert-deftest themes/cycle-theme-previous-steps-backward-and-wraps-around ()
+  (unwind-protect
+      (progn
+        (mapc #'disable-theme custom-enabled-themes)
+        (my/load-theme-by-number ?2)
+        (my/cycle-theme-previous)
+        (should (equal custom-enabled-themes (list (alist-get ?1 my/themes))))
+        ;; From the very first theme, the previous one wraps around to the last.
+        (my/cycle-theme-previous)
+        (should (equal custom-enabled-themes (list (cdr (car (last my/themes)))))))
+    (mapc #'disable-theme custom-enabled-themes)))
+
+(ert-deftest themes/cycle-theme-from-no-active-theme-starts-at-the-first-one ()
+  (unwind-protect
+      (progn
+        (mapc #'disable-theme custom-enabled-themes)
+        (my/cycle-theme)
+        (should (equal custom-enabled-themes (list (cdr (car my/themes))))))
+    (mapc #'disable-theme custom-enabled-themes)))
+
+(ert-deftest themes/cycle-keys-are-bound ()
+  (should (eq (key-binding (kbd "C-c .")) 'my/cycle-theme))
+  (should (eq (key-binding (kbd "C-c ,")) 'my/cycle-theme-previous)))
+
+(ert-deftest themes/consult-theme-key-is-bound-when-consult-is-installed ()
+  (if (locate-library "consult")
+      (should (eq (key-binding (kbd "C-c C")) 'consult-theme))
+    (should (eq (key-binding (kbd "C-c C")) 'my/consult-missing))))
 
 (ert-deftest themes/does-not-slow-startup ()
   (let ((best most-positive-fixnum))
