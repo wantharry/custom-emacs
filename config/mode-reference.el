@@ -12,122 +12,114 @@
 ;; never closes on its own mid-task. The two intentionally coexist; this does not
 ;; replace `C-o'.
 ;;
-;; HOW: the content below is a plain, hand-written transcript of Casual's own real menu
-;; layout (`casual-dired-tmenu'/`casual-org-tmenu'), captured directly from a real
-;; running session, not invented --- kept in sync by hand if Casual's own menu changes,
-;; the same tradeoff this project already accepts for `docs/KEYBOARD.md' and `C-c k'.
+;; HOW: a real, found-by-the-user mistake in an earlier version of this content, not
+;; something to repeat --- the first version was transcribed from Casual's own `C-o'
+;; menu text (captured from a real running session), which LOOKED like a transcript of
+;; real standalone keys but mostly was not: a transient menu's own suffix labels
+;; (`F' for a new file, `l' for \"Link\", `C-s' for \"Schedule\", etc.) are only
+;; meaningful INSIDE that menu, while it has focus --- most of them do nothing, or
+;; something completely different, as a bare keypress in the real buffer (confirmed
+;; directly: `F' said \"F is undefined\"; `l'/`c'/`h'/`O'/`#' turned out to be real
+;; Dired keys bound to entirely different commands; most of the hand-written Org
+;; entries were missing their real `C-c' prefix outright). Every single entry below
+;; was re-verified directly against the real `dired-mode-map'/`org-mode-map'
+;; (`lookup-key', not assumed, not re-copied from Casual's menu) before being written
+;; here --- nothing in this file is Casual-menu-only shorthand any more.
 ;; Shown via `display-buffer-in-side-window' in a dedicated, `no-other-window' window
 ;; (so `C-x o'/`other-window' skips straight over it, matching how `C-o''s own popup
 ;; and which-key's popup already behave) --- never selected, never the buffer you end
 ;; up typing into by accident.
 
-;; One column, not Casual's own wide multi-column grouping --- this panel is meant to
-;; be a narrow sidebar, not a wide popup, so the content is reflowed to fit that,
-;; category headers kept (matching Casual's own real groupings) but each entry on its
-;; own line.
 (defconst my/mode-reference-dired-text
   "Dired
 
--- File --
-o    Open other window
-v    View (read-only)
-C    Copy to...
-R    Rename...
-D    Delete...
-l    Link...
-c    Change...
-y    Type
-w    Copy name
+-- File ops --
+C      Copy to...
+R      Rename to...
+D      Delete marked
+d      Flag for deletion
+x      Delete flagged
+S      Symlink to...
+H      Hardlink to...
+o      Open other window
+v      View (read-only)
+E      Open (external app)
+a      Open, replace buffer
 
 -- Directory --
-s    Sort by...
-h    Hide details
-O    Omit mode
-$    Hide/unhide subdir
-g    Revert
++      Create directory
+$      Hide/show subdir
+i      Insert subdir here
+g      Revert (refresh)
+s      Change sort order
 
--- Bulk --
-m    Mark
-t    Toggle marks
-r    Regexp...
-/    Search & replace...
-#    Utils...
+-- Marking --
+m      Mark
+u      Unmark
+U      Unmark all
+t      Toggle marks
+*      Mark submenu (by type)
+%      Regexp submenu
 
 -- Navigation --
-^    .. parent dir
-p/n  Up/down file
-M-p  Up/down dir
-M-n  (M-n = down)
-[/]  Up/down subdir
-j    Goto file...
-M-j  Goto subdir...
-
--- Quick --
-J    Jump to bookmark...
-B    Add bookmark...
-b    List buffers
+^      Up to parent dir
+p/n    Previous/next line
+j      Goto file by name...
 
 -- Search --
-C-s  Filename I-search...
-M-s  ...regexp
-M-f  Find in files...
+A      Find regexp in marked
+Q      Find & replace regexp
 
--- New --
-+    New directory
-F    New file
-
--- Shell --
-!    Shell command...
-&    ...async
-W    Browse
+-- Other --
+!      Shell command
+&      ...async
+W      Browse in web browser
+T      Change timestamp
+Z      Compress
+k      Remove line (not file)
+w      Copy filename
+y      Show file type
+q      Quit
 ")
 
 (defconst my/mode-reference-org-text
   "Org
 
--- Headline --
-t    TODO state...
-T    Cycle TODO
-s    Sort...
-c    Clone...
+-- TODO / priority --
+C-c C-t     Cycle TODO state
+C-c ,       Set priority
+C-c C-q     Set tags
+S-up/down   Raise/lower priority
 
--- Add --
-a    Headline
-p    Property...
-:    Tags...
+-- Dates --
+C-c C-s     Schedule...
+C-c C-d     Deadline...
+C-c .       Insert timestamp
+C-c C-y     Evaluate time range
 
--- Date --
-C-s  Schedule...
-C-d  Deadline...
-.    Add timestamp...
-i    Inactive timestamp
+-- Structure --
+TAB         Cycle visibility
+RET         Follow link/new item
+C-c C-c     Context action
+C-c C-w     Refile to heading...
+C-c C-^     Up to parent heading
+C-c C-f/b   Next/prev heading
+C-c C-j     Jump to heading...
+C-c $       Archive subtree
 
--- Priority --
-S-up/S-down  Raise/lower
+-- Links --
+C-c C-l     Insert link
+C-c C-o     Open at point
 
--- Link --
-l    Insert link...
-L    Last link
-r    Insert citation...
+-- Clocking --
+C-c C-x C-i Clock in
+C-c C-x C-o Clock out
 
--- Clock --
-M-c  Clock in
+-- Search --
+C-c /       Sparse tree (search)
 
--- Display --
-M    Show markup
-P    Prettify
-V    Line wrap
-N    Heading numbers
-
--- Mark --
-m-s  Mark subtree
-m-e  Mark element
-v    Copy visible
-
--- Misc --
-n    Add note...
-w    Refile...
-e    Export...
+-- Export --
+C-c C-e     Export dispatcher
 ")
 
 (defconst my/mode-reference-buffer-name "*Mode Reference*")

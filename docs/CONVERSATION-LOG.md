@@ -1635,26 +1635,94 @@ earlier this session, not a real failure). `docs/MY-NOTES.md`'s Casual section
 rewritten to cover both `C-o` and the new panel together, including the real
 window-slot conflict and how it was actually fixed, not just that it works now.
 
+### Follow-up, same session: a real, user-caught content bug in the reference panel, and a systematic fix
+
+User: "This change will be temporary till I get comfortable with dired" --- recorded
+plainly in the entry above's "Where things stand" (not forgotten): nothing here should
+be assumed permanent, and removing it later is a real, expected future request, not a
+hypothetical.
+
+Then, genuinely using it: "How to create a new file in dired it say F but when I type
+F , is says F is undefined." A real bug, found the way bugs are supposed to be found
+--- by someone actually using the thing. Root cause, confirmed directly rather than
+guessed: the reference panel's text had been transcribed from Casual's own `C-o' menu
+labels (captured from a real running session, which felt like "verified" at the time
+but was not the same claim) --- a transient menu's own suffix labels only mean
+anything *while that specific menu has focus*; most of them do nothing, or run a
+completely different command, as a bare keypress in the real buffer. `F' specifically
+turned out to be `dired-create-empty-file', confirmed directly in Casual's own source
+(`casual-dired.el`) to be bound ONLY as a suffix inside `casual-dired-tmenu', with no
+binding anywhere in stock `dired-mode-map' at all (confirmed the only way to reach it
+without Casual is the menu bar).
+
+Given one confirmed wrong entry, did not assume it was the only one --- checked every
+single entry in both the Dired and Org panels directly against the real keymaps
+(`lookup-key', not re-reading Casual's menu a second time) before deciding how bad it
+was. It was systematic, not a one-off: in Dired, several entries were bound to
+entirely different real commands than claimed (`l' claimed "Link...", really
+`dired-do-redisplay'; `c' claimed "Change...", really `dired-do-compress-to'; `h'
+claimed "Hide details", really `describe-mode'; `O' claimed "Omit mode", really
+`dired-do-chown'; `#' claimed "Utils...", really `dired-flag-auto-save-files'), several
+were simply unbound in stock Dired (`r', `/', in addition to `F'), and `M-p'/`M-n'/`['/
+`]'/`M-j' turned out to be real but only *conditionally* --- genuine stock Emacs
+commands (`dired-prev-dirline' etc. do exist), but the keybindings themselves are
+installed by Casual's own `casual-dired-setup' (confirmed directly in its source,
+hooked onto `dired-mode-hook', gated behind a `casual-dired-add-extra-keybindings'
+toggle), not present until Casual has actually been used at least once *and* a new
+Dired buffer has been entered since --- a session-dependent, easy-to-get-backwards
+state, not something worth representing as a plain, unconditional key in a static
+reference. The Org panel was far worse, for a simple reason: Dired has a lot of real
+single-letter stock bindings, so some of the mistranscribed entries happened to
+coincidentally still be real Dired commands (just the wrong ones); Org's real commands
+are almost all `C-c C-x'-style chords, so dropping Casual's bare-letter suffix notation
+for them was wrong almost across the board, not occasionally.
+
+Rebuilt both panels from scratch rather than patch individual entries: every single
+key in both now confirmed directly against the real `dired-mode-map'/`org-mode-map'
+before being written, nothing copied from Casual's own menu text a second time. New
+`tests/ert/mode-reference.el` (2 tests) parses every KEY column out of the real panel
+text content and verifies each one is genuinely bound, the same category of check
+`tests/ert/keybindings.el' already does for the doc guides --- built specifically so
+this exact class of mistake cannot silently return, not just to confirm today's fix.
+One real, expected side effect found while re-testing afterward: with the panel now
+always on, Casual's own menu has less effective width to share the frame with in the
+110-column test terminal, which truncated the "Priority" column in
+`test_casual_org_menu_shows_headline_commands' --- not a real regression, confirmed by
+capturing the actual screen; swapped that one assertion for a column that stays
+intact regardless (`Sort').
+
+2 new tests in `tests/ert/mode-reference.el`, 1 test_tui.py assertion fixed for the
+real width-sharing effect above; 680 tests, 657 pass, 0 regressions across the full
+offline suite, 26/26 `tests/test_tui.py` --- same 1 pre-existing `dictate` flake, same
+stale-dist diffs.
+
 ## Where things stand as of the last entry
 
-- Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, and the
-  which-key-scoped-to-Dired/Org version are all committed and pushed to `origin/main`
-  (commit `74d3bf4`), with a matching Windows zip rebuilt and handed over at that
-  point.
-- **New this session, on top of that, NOT YET COMMITTED** (per the standing "commit
-  only when told" preference): which-key reverted again (now fully back to stock
-  bottom, no exceptions anywhere), `C-o`'s Casual menu moved to the right (scoped to
-  just Casual's two prefixes via `transient-prefix`'s own `display-action` slot, not
-  global), and the new always-visible reference panel (`my/mode-reference-mode`, new
-  `config/mode-reference.el`) --- see the entry just above for the full account,
-  including the real window-slot conflict between the panel and Casual's menu and how
-  it was actually fixed. `git status` will show `config/init.el`, the new
-  `config/mode-reference.el`, `docs/MY-NOTES.md`, and the 10 build/test-tooling files
-  registering the new config file, modified/untracked until explicitly asked to
-  commit. The Windows zip in Downloads is from the EARLIER, already-committed point
-  (`74d3bf4`) --- it does not yet include any of this follow-up work; rebuild before
-  handing over another one. The unresolved GUI-screenshot/X11 environment problem
-  noted above is also still open.
+- Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
+  which-key-scoped-to-Dired/Org version (since further reverted), the final
+  which-key-fully-back-to-bottom state, `C-o`'s menu moved right (scoped), and the new
+  always-visible reference panel (`my/mode-reference-mode`) are all committed and
+  pushed to `origin/main` (`74d3bf4` then `4fce844`), with a matching Windows zip
+  rebuilt, verified, and handed over after each.
+- **Important, user-stated intent, easy to miss later: this whole Casual/reference-
+  panel setup is explicitly TEMPORARY.** User, right after the `4fce844` commit: "This
+  change will be temporary till I get comfortable with dired" --- training wheels,
+  not a permanent preference. When asked to remove it later, that means: `C-o` back to
+  plain `dired-display-file`/stock `open-line` in Org (undo the two `oset .../keymap-
+  set` blocks in `config/init.el`), delete the `my/mode-reference-mode` wiring and
+  `config/mode-reference.el` itself (plus its 10 build/test-tooling registrations,
+  mirroring how it was added), and `casual`/`csv-mode` could come out of `tools/
+  install-packages.el` too if nothing else ends up using them. Org's `.org` auto-
+  activation itself is a SEPARATE decision, not part of this "training wheels" framing
+  --- don't assume it should also be reverted unless asked separately.
+- **New this session, on top of `4fce844`, NOT YET COMMITTED**: the reference-panel
+  content rebuild (the real `F`-is-undefined bug and everything it turned up) and the
+  new `tests/ert/mode-reference.el` --- see the entry just above for the full account.
+  `git status` will show `config/mode-reference.el`, `tests/test_tui.py`, the new
+  `tests/ert/mode-reference.el`, and this file modified/untracked until explicitly
+  asked to commit. The Windows zip in Downloads matches `4fce844`, NOT this follow-up
+  --- it still has the wrong panel content; rebuild before handing over another one.
+  The unresolved GUI-screenshot/X11 environment problem noted above is also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):

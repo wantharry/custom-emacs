@@ -170,7 +170,10 @@ class TerminalEmacs(unittest.TestCase):
         self.keys("C-o")
         scr = self.wait_for("Headline", timeout=10)  # first use autoloads+compiles casual
         self.assertIn("TODO", scr)
-        self.assertIn("Priority", scr)
+        self.assertIn("Sort", scr)  # not "Priority": that column can be truncated now the
+                                     # reference panel also competes for the same 110-col
+                                     # test terminal's width, confirmed by capturing the
+                                     # real screen rather than assumed
 
     # User request: an always-visible reference panel, a deliberately different thing
     # from C-o's own modal Casual menu above --- never grabs focus, never closes
@@ -190,7 +193,7 @@ class TerminalEmacs(unittest.TestCase):
         scr = self.wait_for("Mode Reference")
         self.assertIn("heading one", scr, "the org buffer should stay visible beside the panel")
         self.assertIn("TODO state", scr)
-        self.assertIn("Headline", scr)
+        self.assertIn("Archive subtree", scr)
 
     def test_mode_reference_panel_hidden_in_a_plain_buffer(self):
         f = self.make_file("plain.txt", "hello\n")
