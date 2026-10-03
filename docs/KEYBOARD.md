@@ -434,7 +434,7 @@ cursor if none are marked).
 | `e` | `dired-find-file` | same as `RET` |
 | `a` | `dired-find-alternate-file` | open, replacing this Dired buffer |
 | `o` | `dired-find-file-other-window` | open in another window |
-| `C-o` | `dired-display-file` | show in another window without moving there |
+| `C-o` | `casual-dired-tmenu` | **this config:** a Magit-style popup menu of Dired commands, grouped (File/Directory/Bulk/Navigation/Quick/Search/New) --- replaces the stock `dired-display-file` (show in another window without moving there); `o`/`v` below already cover closely related ground, and `M-x dired-display-file` still works directly if that exact behavior is wanted |
 | `v` | `dired-view-file` | view read-only (`q` to leave) |
 | `j` | `dired-goto-file` | jump to a file by name |
 | `g` | `revert-buffer` | refresh the listing |

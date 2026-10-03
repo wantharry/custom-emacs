@@ -13,11 +13,16 @@
 
 (defconst my/packages '(evil magit treemacs consult gptel
                         vertico orderless marginalia embark embark-consult
-                        avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes)
+                        avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes
+                        casual csv-mode)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
-they stay installed even if Treemacs ever stops needing them itself.")
+they stay installed even if Treemacs ever stops needing them itself.
+`transient' (what `casual' and Magit are both built on) is NOT listed here --- it is
+built into Emacs itself now, confirmed directly (`emacs-src/lisp/transient.el'), the
+same way `which-key' turned out to be. `csv-mode' is `casual''s own real dependency (its
+`casual-dired-sort-by.el' module uses it), not something this config needs on its own.")
 
 (let ((missing (seq-remove #'package-installed-p my/packages)))
   (if (null missing)

@@ -166,23 +166,14 @@ own startup defaults, then immediately save that as the session restored next ti
   "Show all 12 months of a year in a grid, 3 months per row." t)
 (global-set-key (kbd "C-c y") #'my/calendar-year)
 
-;;; Org mode: disabled for now -------------------------------------------------
-;; WHAT: `.org' files no longer auto-activate `org-mode' --- they open in plain
-;; `fundamental-mode' instead (confirmed directly: no other rule in `auto-mode-alist'
-;; claims `.org', so removing Org's own entry leaves the built-in default).  WHY: user
-;; request --- Org binds a huge number of commands under
-;; `C-c' (103, measured directly in a real org buffer, versus 19 on this config's own
-;; `C-c' outside one), and it was showing up unwanted for someone who doesn't use Org.
-;; This is a config-level toggle, easily reversed later (delete this form, or just
-;; `M-x org-mode' by hand any time --- the command itself still works fine, this only
-;; removes the automatic `.org' association).  Documentation for Org's own commands
-;; (docs/KEYBOARD.md) and the earlier org/session.el collision fix are left in place on
-;; purpose --- kept for whenever Org gets turned back on, per the user's own request.
-;; HOW: Org registers its own `("\\.org\\'" . org-mode)' (and similar) entries in
-;; `auto-mode-alist' unconditionally via its autoloads, before this file ever runs ---
-;; so removing them has to happen here, after the fact, rather than by simply never
-;; requiring Org in the first place.
-(setq auto-mode-alist (rassq-delete-all 'org-mode auto-mode-alist))
+;;; Org mode -------------------------------------------------------------------
+;; `.org' files auto-activate `org-mode' again (the stock default) --- this was
+;; disabled for one session, then turned back on by request. Org's own ~103 `C-c'
+;; bindings (confirmed directly, versus 19 on this config's own `C-c' outside one) are
+;; mode-local to `org-mode-map' --- they only ever show up inside a real `.org' buffer,
+;; confirmed directly (a plain `text-mode' buffer sees 25 `C-c' bindings, a real
+;; `org-mode' buffer sees 109), never anywhere else, so this does not affect any other
+;; file type at all.
 
 ;;; Editing ------------------------------------------------------------------
 
@@ -308,6 +299,8 @@ key sequence can never make a file editable."
 ;; smallest height that comfortably shows every current `C-c' binding without cutting any
 ;; off; re-verified via the GUI test suite (36/36) after raising it.
 (setq which-key-side-window-max-height 0.4)
+;; A right-side placement (`which-key-side-window-location') was tried for a session,
+;; specifically for Dired, but reverted on request --- back to the stock bottom strip.
 (which-key-mode 1)                      ; shows available keys after a prefix
 
 ;;; Coding: tree-sitter + LSP (Eglot) -----------------------------------------
@@ -935,6 +928,67 @@ installed, offer to install it from NonGNU ELPA."
 (when (and (locate-library "magit") (locate-library "magit-delta") (executable-find "delta"))
   (autoload 'magit-delta-mode "magit-delta" "Use Delta when displaying diffs in Magit." t)
   (add-hook 'magit-mode-hook #'magit-delta-mode))
+
+;;; Casual Dired: a Magit-style transient menu, in Dired --------------------------------
+
+;; WHAT: `C-o', pressed inside a Dired buffer, opens a Magit-style popup menu of Dired
+;; commands (`casual-dired-tmenu') --- grouped, discoverable, built on `transient', the
+;; same library Magit's own popups use.
+;; WHY: user request, after asking whether anything like Magit's transient menus exists
+;; for Dired --- `casual' (https://github.com/kickingvegas/casual, by Charles Choi) is
+;; real and actively maintained, verified directly against MELPA's own archive (not
+;; assumed from memory): confirmed present, confirmed `casual-dired.el' and
+;; `casual-dired-tmenu' genuinely exist in its source, confirmed its own documentation's
+;; recommended binding (`C-o', used consistently across every mode `casual' covers, "to
+;; lower cognitive load" in its own words) before using it here.
+;; A real, found-before-it-shipped collision, not discovered the hard way like `M-o'
+;; earlier this session: `C-o' was already bound to `dired-display-file' (open the file
+;; at point in another window, without switching to it). Kept `casual-dired-tmenu' on
+;; `C-o' anyway, matching `casual''s own cross-mode convention (useful if any of its
+;; other transient menus --- it covers many built-in modes, not just Dired --- ever get
+;; added here too), rather than picking a different key for this one and breaking that
+;; consistency. `dired-display-file' itself is not gone, just not on a dedicated key any
+;; more: `o' (`dired-find-file-other-window') and `v' (`dired-view-file') already cover
+;; closely related ground, and `M-x dired-display-file' still works directly if the
+;; exact "other window, don't switch" behavior is ever specifically wanted.
+;; HOW: `casual-dired-tmenu' carries its own `;;;###autoload' cookie (confirmed directly
+;; in its source), so a plain `autoload' is enough --- nothing about Dired or `casual'
+;; loads until `C-o' is actually pressed in a real Dired buffer. `transient' itself,
+;; what this and Magit both depend on, is built into Emacs now (confirmed directly,
+;; `emacs-src/lisp/transient.el'), not a separate package.
+(when (locate-library "casual-dired")
+  (autoload 'casual-dired-tmenu "casual-dired" "A Magit-style menu of Dired commands." t)
+  (with-eval-after-load 'dired
+    (keymap-set dired-mode-map "C-o" #'casual-dired-tmenu)))
+
+;; Same idea, same key, in Org: `casual' bundles a menu for Org too
+;; (`casual-org-tmenu'), and `C-o' is free there --- confirmed directly, `org-mode-map'
+;; does not bind it to anything on its own (unlike Dired, where it collided with
+;; `dired-display-file'; see above), so nothing is lost by using it here.
+(when (locate-library "casual-org")
+  (autoload 'casual-org-tmenu "casual-org" "A Magit-style menu of Org commands." t)
+  (with-eval-after-load 'org
+    (keymap-set org-mode-map "C-o" #'casual-org-tmenu)))
+
+;; WHAT: in Dired and Org specifically, which-key's own popup (triggered by any prefix
+;; key, not just `C-o' above --- a separate feature, see the "UI" section's own
+;; which-key setup) shows as a column on the right instead of the stock bottom strip.
+;; Everywhere else stays exactly the stock default (bottom).
+;; WHY: user request --- a right-side popup was tried globally earlier this session and
+;; reverted, specifically because it showed up unexpectedly in an unrelated buffer
+;; (a PDF, after plain `C-x') with no obvious reason why. Scoped to just these two modes
+;; this time, both of which have a real, concrete reason for it: a bottom popup eats
+;; into the vertical space needed to see the file/outline it's describing, and both
+;; already have a `C-o' menu of their own (Casual, above) that benefits from the same
+;; "don't cover what you're looking at" reasoning.
+;; HOW: `which-key-side-window-location' made buffer-local (`setq-local') in just these
+;; two mode hooks, rather than set globally --- confirmed directly this actually works
+;; (which-key reads it fresh, from whichever buffer is current when a prefix key is
+;; pressed, not a cached global snapshot): a real terminal test showed Dired's popup on
+;; the right while a plain text buffer's, in the very same Emacs instance, stayed at the
+;; bottom.
+(dolist (hook '(dired-mode-hook org-mode-hook))
+  (add-hook hook (lambda () (setq-local which-key-side-window-location 'right))))
 
 ;;; Finding git repositories --------------------------------------------------------
 

@@ -106,6 +106,29 @@ commands and one-line notes, added to as they come up.
 | The color theme | did NOT persist on its own (`theme-buffet` always re-picked a fresh random one at every startup regardless) --- fixed with `my/session-theme`, saved/restored via `desktop-globals-to-save` + `desktop-save-hook`/`desktop-after-read-hook`, timed to run after `theme-buffet`'s own startup pick so it correctly wins |
 | `C-c w r` (`my/session-reset`) | only deletes the *saved* file --- it does **not** touch your currently running Emacs's frame/theme at all. If menu-bar/theme/etc. are wrong in the live session when you run this, they'll just get auto-saved wrong again on the very next exit. Fix the live state first (or use `C-c U`, which does both at once), then reset/save |
 
+## Which-key
+
+| Topic | Note |
+|---|---|
+| `*` in Dired | a real prefix key (the mark submenu) --- good way to see the popup: open Dired, press `*`, wait a second |
+| Popup side | right side in Dired and Org only (`which-key-side-window-location` made buffer-local via `dired-mode-hook`/`org-mode-hook`), stock bottom everywhere else --- tried globally once, reverted (it showed up unexpectedly in an unrelated PDF buffer with no obvious reason why), then re-added scoped to just these two, which both already have their own `C-o` menu (below) that benefits from the same "don't cover what you're looking at" reasoning |
+
+## Dired and Org: Casual
+
+| Topic | Note |
+|---|---|
+| `C-o` | opens a real, Magit-style transient popup --- `casual-dired-tmenu` in Dired (grouped File/Directory/Bulk/Navigation/Quick/Search/New; `C`/`R`/`D` copy/rename/delete right there labeled), `casual-org-tmenu` in Org (grouped Headline/Date/Priority/Link/Timestamp/Mark/etc., context-aware --- shows the actual heading text at point) |
+| Package | `casual` (github.com/kickingvegas/casual), verified directly against MELPA, not assumed --- a big umbrella package (109 files), covers other built-in modes too (re-builder, timezone, etc.), only the Dired and Org parts are wired up here |
+| The Dired `C-o` collision | was already `dired-display-file` (show in another window, don't switch) --- kept Casual on `C-o` anyway, matching its own documented cross-mode convention; `o`/`v` already cover similar ground, `M-x dired-display-file` still works directly. Org had no existing `C-o` binding of its own, confirmed directly, so no collision there |
+| First use is slower | loading (and likely natively compiling, like any installed package's first real use) `casual-dired`/`casual-org` the first time `C-o` is pressed in a session takes a few real seconds, confirmed directly (not instant) --- every use after that in the same session is fast |
+
+## Org mode
+
+| Topic | Note |
+|---|---|
+| `.org` auto-activation | back on (was disabled for one session, then re-enabled on request) --- `.org` files open in real `org-mode` again |
+| Its ~103 `C-c` bindings | confirmed mode-local, not global: a plain buffer sees 25 `C-c` bindings (this config's own), a real org buffer sees 109 --- they never show up in any other file type |
+
 ## Year calendar
 
 | Command | Note |

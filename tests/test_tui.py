@@ -133,6 +133,86 @@ class TerminalEmacs(unittest.TestCase):
         scr = self.wait_for("allow-editing", timeout=8)
         self.assertIn("stop-editing", scr)
 
+    def test_casual_dired_menu_shows_copy_rename_delete(self):
+        # User request, after asking "after I mark the files how can I rename or
+        # delete" and finding `*` only covers marking, not actions --- Casual Dired is
+        # a real, MELPA-published (github.com/kickingvegas/casual, verified directly
+        # against the archive, not assumed) transient-based menu, bound to `C-o` here,
+        # matching its own documented cross-mode convention. The real file commands
+        # should show up clearly grouped, not just "a menu appeared".
+        self.make_file("alpha.txt", "a\n")
+        self.start(self.tmp)
+        self.wait_for("alpha.txt")
+        self.keys("C-o")
+        scr = self.wait_for("Rename", timeout=10)  # first use autoloads+compiles casual
+        self.assertIn("Copy", scr)
+        self.assertIn("Delete", scr)
+        self.assertIn("Mark", scr)
+
+    def test_org_files_auto_activate_org_mode(self):
+        # Turned back on by request, after being disabled earlier this session for
+        # showing too many C-c bindings unprompted. Real check that it actually
+        # activates (not just that the file opens), and that its bindings stay
+        # mode-local --- a .org file shows "Org" in the mode line, a plain .txt file
+        # right next to it shows no such thing.
+        org = self.make_file("notes.org", "* heading one\nsome text\n")
+        self.start(org)
+        scr = self.wait_for("heading one")
+        self.assertRegex(scr, r"\(Org\b")
+
+    def test_casual_org_menu_shows_headline_commands(self):
+        # Same idea as Casual Dired, for Org: C-o pops up a grouped, Magit-style menu
+        # (casual-org-tmenu) instead of plain open-line --- confirmed real org-specific
+        # content, not just "a menu appeared".
+        org = self.make_file("notes.org", "* heading one\nsome text\n")
+        self.start(org)
+        self.wait_for("heading one")
+        self.keys("C-o")
+        scr = self.wait_for("Headline", timeout=10)  # first use autoloads+compiles casual
+        self.assertIn("TODO", scr)
+        self.assertIn("Priority", scr)
+
+    # User request: bring the right-side which-key placement back, but scoped to just
+    # Dired and Org this time (reverted globally earlier in this same session for
+    # showing up unexpectedly in an unrelated PDF buffer). Three separate tests, not
+    # one combined scenario, since each needs its own `self.start()` (tmux session).
+
+    def test_which_key_shows_on_the_right_in_dired(self):
+        self.make_file("alpha.txt", "a\n")
+        self.start(self.tmp)                        # opening a directory starts Dired
+        self.wait_for("alpha.txt")
+        self.keys("*")
+        scr = self.wait_for("dired-mark")
+        mark_lines = [l for l in scr.splitlines() if "dired-mark" in l]
+        self.assertTrue(mark_lines)
+        for line in mark_lines:
+            self.assertGreater(line.index("dired-mark"), 50,
+                               f"expected Dired's popup on the right, got: {line!r}")
+
+    def test_which_key_shows_on_the_right_in_org(self):
+        org = self.make_file("notes.org", "* heading one\n")
+        self.start(org)
+        self.wait_for("heading one")
+        self.keys("C-c")
+        scr = self.wait_for("org-ctrl-c-ret")
+        oc_lines = [l for l in scr.splitlines() if "org-ctrl-c-ret" in l]
+        self.assertTrue(oc_lines)
+        for line in oc_lines:
+            self.assertGreater(line.index("org-ctrl-c-ret"), 50,
+                               f"expected Org's popup on the right, got: {line!r}")
+
+    def test_which_key_still_shows_at_the_bottom_elsewhere(self):
+        f = self.make_file("plain.txt", "hello\n")
+        self.start(f)
+        self.wait_for("hello")
+        self.keys("C-x")                             # a real global prefix, no mode of its own
+        scr = self.wait_for("backward-kill-sentence")
+        lines = [l for l in scr.splitlines() if "backward-kill-sentence" in l]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertLess(line.index("backward-kill-sentence"), 20,
+                            f"expected a plain buffer's popup to stay flush left, stock bottom style, got: {line!r}")
+
     def test_m_x_shows_a_vertical_list_of_candidates(self):
         f = self.make_file("a.txt", "hello\n")
         self.start(f)

@@ -1364,8 +1364,191 @@ there, 25/25 `config.el`, 26/26 `emacs-session.el`; 678 tests, 655 pass, 0 regre
 across the full offline suite --- same 1 pre-existing `dictate` flake, same stale-dist
 diffs.
 
+### Which-key's popup moved to the right, for Dired specifically; a real GUI-screenshot environment problem hit and worked around
+
+User: a Magit-style side panel showing available keybindings, specifically wanted for
+Dired ("where we keep changing or copying"), placement left to my judgment ("either on
+right or like magit"). `which-key-mode` was already on and already does almost exactly
+this (a popup listing available keys after any prefix key, in any mode, including
+Dired) --- the only real gap was its default placement: a strip across the **bottom**
+of the frame (which is also Magit's own transient style, so "like magit" and "the
+current default" are actually the same placement, just a different visual format).
+Picked **right** instead: a one-line, already-supported setting
+(`which-key-side-window-location`), and specifically for Dired a bottom strip eats into
+the vertical space needed to see the file listing it's describing, while a right-hand
+column leaves it fully visible.
+
+Tried to demonstrate this with a real screenshot first (the same `x-export-frames`
+mechanism used for the 4 theme screenshots earlier this session), and hit a real,
+unrelated environment problem: the GUI/X11 display state had changed since those
+earlier screenshots worked (confirmed directly --- `xwininfo -root -tree`, which had
+shown real windows hours earlier in this same session, now showed none at all), and
+`x-export-frames` failed outright ("Frames to be exported must be visible"). Chased it
+through several layers before concluding it wasn't worth further time: `which-key-show-
+major-mode` and the internal `which-key--show-keymap` both hung indefinitely when called
+directly via `--eval` (confirmed by adding breadcrumb logging between each step and
+watching execution stop dead at that exact call, no error, no output) --- these
+functions are built around `which-key`'s own idle-timer-and-real-keypress event loop,
+not meant to be driven synchronously from a script. Simulating a real keypress via
+`unread-command-events` instead (queuing the key, then `sit-for`-ing for the idle timer
+to fire naturally, exactly how a human triggers it) got further but still hit the same
+underlying display problem.
+
+Rather than keep spending time on a visual demo, verified the real thing instead,
+through a path that does not depend on the GUI/X11 display at all: `tests/test_tui.py`
+(tmux-driven, a real terminal Emacs, already how this project tests which-key's
+content). Confirmed by hand first with a real `tmux capture-pane`: pressing `*` in
+Dired now shows `dired-mark-executables`/`-directories`/`-symlinks`/etc. in a column
+starting well into the right half of the screen, with `alpha.txt`/`beta.txt` still
+fully visible on the left the whole time. New test,
+`test_which_key_shows_on_the_right_not_the_bottom`, checks both of those facts
+explicitly (not just "a popup appeared somewhere") --- the file listing stays on
+screen, and every `dired-mark` line starts past column 50 of the 110-column test
+terminal. 17/17 in `tests/test_tui.py` (1 new), including the pre-existing `C-c e`
+which-key content test, confirming the move didn't break what it already checked, only
+relocated it. 24/25 `config.el` offline (1 pre-existing, unrelated skip).
+
+The GUI screenshot environment issue itself was not root-caused or fixed --- noted here
+plainly as a real, current limitation rather than hidden: something about this WSL2/
+WSLg session's X11/Wayland state changed partway through this session in a way that now
+blocks `x-export-frames`-based screenshots specifically, while the terminal (`tmux`/
+`-nw`) and the earlier, already-captured theme screenshots were and remain unaffected.
+If asked to investigate, check whether WSLg itself needs a restart (`wsl --shutdown`
+from Windows, then reopening), since nothing on the Linux/Emacs side changed between
+the working and failing attempts.
+
+### Casual Dired added, then the which-key right-side move reverted on request
+
+User asked (not code-related, just a real question): after marking files with `*` in
+Dired, how to rename/delete --- answered directly from the real keymap (`R`/`D`, act on
+the marked set if any exist, otherwise the file at point), and separately explained why
+`*` itself doesn't show them (`*` is specifically Dired's mark-by-criteria prefix, `R`/
+`C`/`D` are separate top-level keys, not nested under it) and what does list everything
+in one place (`?` for a quick summary, `C-h m` for the complete keymap). This led to
+"is there something like Magit, not our own docs" --- verified for real against MELPA
+and the actual GitHub source (not asserted from memory) that **Casual**
+(github.com/kickingvegas/casual, by Charles Choi) is real, current, and genuinely
+includes a Dired module (`casual-dired.el`/`casual-dired-tmenu`, confirmed directly in
+its source).
+
+Installed and wired up on request ("let's do casual for dired i want to decide if it's
+good"): `casual` + its real dependency `csv-mode` added to `tools/install-packages.el`
+(`transient` itself, what both `casual` and Magit are built on, is NOT a separate
+package --- confirmed directly, it is built into Emacs now, the same way `which-key`
+turned out to be, earlier this session); `casual-dired-tmenu` autoloaded and bound to
+`C-o` in `dired-mode-map`, matching Casual's own documented cross-mode convention (used
+consistently for every mode it covers, "to lower cognitive load" in its own words). A
+real, found-before-it-shipped collision, not discovered the hard way: `C-o` was already
+`dired-display-file` (show in another window without switching). Kept Casual on `C-o`
+anyway rather than picking a different key and breaking the cross-mode consistency ---
+`o`/`v` already cover closely related ground, and `M-x dired-display-file` still works
+directly. Verified for real in a terminal session, not just built: `C-o` in Dired pops
+up a genuine grouped menu (File/Directory/Bulk/Navigation/Quick/Search/New), with `C`
+Copy/`R` Rename/`D` Delete right there labeled, directly answering the question that
+started this. New test, `test_casual_dired_menu_shows_copy_rename_delete`, confirms
+those three labels actually appear, not just that some menu did. The whole thing was
+tried on the user's own real Windows machine too, not just this WSL2 session --- the
+Windows dist zip was explicitly rebuilt mid-decision, from the uncommitted working
+tree, specifically so the user could evaluate it for real before any commit happened
+("but I can try only from windows"); confirmed working there from a real photo of the
+grouped menu on their screen.
+
+Separately, while trying it, the user noticed the which-key popup (a completely
+different feature, moved to the right side earlier this session) showing up in a PDF
+buffer after `C-x` --- asked what it was, which led to clarifying the difference
+between which-key (plain list, any prefix, any mode) and the Casual menu (grouped,
+only `C-o` in Dired) for real, since the screenshot genuinely could have been either.
+Once that was clear, the user decided against the which-key relocation specifically:
+"let's not change which key position let's keep original". Reverted cleanly ---
+removed the `which-key-side-window-location` setq and its comment from `config/init.el`
+(left `which-key-side-window-max-height' alone, an unrelated, independently-justified
+fix from earlier in the project), reverted the `docs/KEYBOARD.md`/`docs/MY-NOTES.md`
+wording back to not mention a right-side placement, and removed
+`test_which_key_shows_on_the_right_not_the_bottom` from `tests/test_tui.py` (the
+content-only `test_which_key_lists_the_chords_after_c_c_e` already covers which-key
+working at all, regardless of position). Confirmed reverted for real, not just by
+reading the diff: a fresh terminal session's `*` in Dired now shows the popup back
+across the bottom, exactly as before this session touched it.
+
+17/17 `tests/test_tui.py` (one removed, one new net), 19/19 `keybindings.el`. Casual
+Dired and the install-packages.el/config.el changes for it are the net new, lasting
+change from this whole stretch; the which-key placement itself ends this session
+exactly where it started.
+
+### Follow-up, same day: Org turned back on, Casual Org added, which-key brought back but scoped
+
+User: "Let's turn it on does C o work in org and make that window show up to right for
+for dired and org maybe" --- three real asks in one message, each checked and handled
+on its own:
+
+1. **Org auto-activation turned back on.** The disabling block added earlier this
+   session (removing Org's own `auto-mode-alist` entries) was deleted outright --- `.org`
+   files open in real `org-mode` again, the stock default. Before doing it, confirmed
+   directly (not re-asserted from memory) that the earlier worry behind disabling it in
+   the first place was never actually a problem: Org's ~103 `C-c` bindings are mode-local
+   to `org-mode-map`, never global --- a plain buffer sees 25 `C-c` bindings (this
+   config's own), a real org buffer sees 109, and they never leak anywhere else. The
+   `emacs-session`/Org collision regression test from much earlier this session still
+   passes unaffected (26/26) --- it calls `M-x org-mode` directly, independent of
+   `auto-mode-alist`.
+2. **`casual-org-tmenu` wired to `C-o` in Org**, the same pattern as Casual Dired ---
+   confirmed directly `org-mode-map` has no existing `C-o` binding of its own (unlike
+   Dired's real `dired-display-file` collision), so nothing was displaced. Verified for
+   real in a terminal session: `C-o` on a real heading pops up a genuine, context-aware
+   menu ("Org Headline: heading one", the actual heading text at point), grouped
+   (Headline/Add/Annotate/Date/Priority/Misc, Link/Timestamp/Clock/Display, Mark/Util).
+3. **Which-key's right-side placement came back, but scoped this time** --- not global
+   like the version reverted earlier this session (which showed up unexpectedly in an
+   unrelated PDF buffer, with no obvious reason why, and got reverted for exactly that).
+   `which-key-side-window-location` made buffer-local via `dired-mode-hook`/`org-mode-
+   hook` instead of set globally --- verified directly this actually works before
+   committing to the approach (which-key reads the variable fresh from whichever buffer
+   is current when a prefix fires, not a cached global snapshot, confirmed with a real
+   terminal test showing Dired's popup on the right while a plain text buffer's, same
+   Emacs instance, stayed at the bottom). Both Dired's `*` and Org's `C-c` popups now
+   show on the right; everything else stays at the stock bottom, confirmed the same way.
+
+One real test-writing mistake caught while verifying the third part, fixed before it
+shipped: the first version tried to check all three (Dired/Org/plain-buffer) inside one
+test method with three `self.start()` calls --- failed immediately with "duplicate
+session: t", since `start()` always creates a tmux session literally named `t` and
+`tearDown` only runs once the whole test method finishes, not between stages within it.
+Split into three separate test methods instead. A second real mistake, in the
+plain-buffer check specifically: assumed `describe-bindings`'s content would sit flush
+left in a bottom popup, but a bottom popup lays many bindings out in **multiple
+columns** across the full width, so content legitimately lands at a middle column too
+--- not a real bug, just a test that didn't match how a multi-column bottom layout
+actually looks, confirmed by capturing the real screen and picking a more reliable
+check (`backward-kill-sentence`, the very first entry, genuinely always flush left). A
+third: `self.keys("C-x", " ")` then `self.keys("C-h")` wasn't testing which-key at all
+--- `C-h` right after a prefix is a separate, Emacs-native "open a full *Help* buffer
+listing everything this prefix can do" feature, not which-key's own idle-triggered
+popup; fixed by sending the bare prefix alone and letting which-key's own idle timer
+fire naturally, matching every other test in this file's own established pattern.
+
+5 new tests in `tests/test_tui.py` (Org auto-activates, Casual Org's menu content,
+which-key right-side in Dired, in Org, and still-bottom elsewhere): 22/22 there, 19/19
+`keybindings.el`, 26/26 `emacs-session.el` (the Org collision test, unaffected); 678
+tests, 655 pass, 0 regressions across the full offline suite --- same 1 pre-existing
+`dictate` flake, same stale-dist diffs. `docs/MY-NOTES.md` rewritten to match the final
+state (Org back on, Casual covering both Dired and Org, which-key's real current
+scoping) rather than left describing the now-superseded Dired-only/global-revert state
+from the entry just above.
+
 ## Where things stand as of the last entry
 
+- **New this session, NOT YET COMMITTED** (per the standing "commit only when told"
+  preference): Casual Dired + Casual Org (`C-o` in both --- `config/init.el`,
+  `tools/install-packages.el` for `casual`/`csv-mode`), Org's `.org` auto-activation
+  turned back on, and which-key's right-side placement scoped to just Dired and Org
+  (buffer-local, not global) --- see the two entries above for the full account,
+  including the version of this that was tried globally and reverted earlier in this
+  same unlogged stretch. The Windows zip in Downloads right now was rebuilt from an
+  EARLIER point in this uncommitted tree (Casual Dired + the global which-key move,
+  before it was reverted and before Org/Casual-Org/the scoped-right-side version) ---
+  it does NOT yet match the current working tree; rebuild before handing over another
+  Windows zip. The unresolved GUI-screenshot/X11 environment problem noted above is
+  also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):
