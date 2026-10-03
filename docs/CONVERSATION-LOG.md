@@ -1535,20 +1535,126 @@ state (Org back on, Casual covering both Dired and Org, which-key's real current
 scoping) rather than left describing the now-superseded Dired-only/global-revert state
 from the entry just above.
 
+### Follow-up, same day: which-key fully back to bottom, C-o moved right (scoped), and a genuinely new always-visible reference panel
+
+User: "Keep the which keep in buttom only the c o to the right and keep it open while
+in the dired close when done and same with org" --- three real, separable asks.
+
+**1. Which-key: fully reverted, no exceptions.** The Dired/Org buffer-local scoping
+from the entry just above was removed outright --- which-key is back to the stock
+bottom placement everywhere, including Dired and Org, matching exactly how it behaved
+before this whole subthread started.
+
+**2. `C-o`'s own Casual menu moved to the right, scoped to just Casual.** Real research
+before implementing, not a guess: `transient-display-buffer-action` is `transient`'s
+*shared, global* default --- Magit's own popups use the identical mechanism, so
+changing it globally would have silently moved every Magit transient too, the same
+class of surprise the earlier global which-key change caused (and got reverted for).
+Found the real per-prefix override instead, directly in `transient.el`'s own source:
+every `transient-prefix` object has its own `display-action` slot, checked *before*
+the global variable, settable after the fact via `(get COMMAND 'transient--prefix)`.
+Verified this scoping holds before trusting it: a real terminal session showed
+Casual's menu on the right while Magit's own branch transient (`C-x g` then `b`), same
+Emacs instance, still showed at the bottom untouched.
+
+**3. A genuinely new feature, not a repositioning of anything existing**: an
+always-visible, read-only reference panel (`my/mode-reference-mode`, new
+`config/mode-reference.el`) that auto-shows on the right the moment you're in a real
+Dired or Org buffer and auto-hides the moment you leave, deliberately distinct from
+`C-o`'s modal Casual menu (clarified with the user directly before building anything,
+since a transient menu is fundamentally modal --- it cannot also be a non-blocking
+sidebar you freely navigate past; the user chose this as a separate, second feature
+rather than trying to make Casual itself behave that way).
+
+Several real, found-by-testing bugs along the way, none assumed away:
+
+1. A plain `void-variable` typo --- `my/mode-reference--shown-mode` was read via
+   `buffer-local-value` before ever being `defvar`'d, erroring silently inside a
+   `condition-case` the first debugging pass added, confirmed only by tracing each
+   step to a log file (`princ`/`message` output isn't visible in a real `-nw` session
+   the way `--batch` output is).
+2. The window-change hooks (`window-selection-change-functions`/`window-buffer-change-
+   functions`) never fire for the very first buffer shown at startup --- there is no
+   prior session state to have "changed" from. Fixed by also hooking `dired-mode-hook`/
+   `org-mode-hook` directly, which fire on real mode activation regardless of whether
+   it's the startup buffer or a later switch.
+3. The content itself, first attempt, reused Casual's own wide multi-column menu
+   layout verbatim --- unreadable in a narrow sidebar (28% of a 110-column frame),
+   lines truncated mid-word. Rewritten as a single, narrow column with the same
+   category headers, not Casual's own side-by-side grouping.
+4. `special-mode` left `display-line-numbers-mode` on (this config's own global
+   default) --- irrelevant clutter for a static reference nothing is ever navigated to
+   a specific line in; turned off explicitly for this buffer.
+5. Point/window-start defaulted to wherever `insert` left them (the end of the text),
+   so the panel opened scrolled to the bottom instead of its own title --- fixed with
+   an explicit `(goto-char (point-min))` after inserting, and `set-window-start` to
+   match when the window is first created.
+6. **The real, hardest one**: the panel and `C-o`'s Casual menu both want the exact
+   same `(side . right)` window. Confirmed directly, both marking the panel's window
+   `dedicated` AND trying an explicit hide-before-show handoff failed the same
+   confusing way --- `casual-dired-tmenu` genuinely ran (confirmed via `:before`
+   advice tracing) and its transient keymap genuinely captured all subsequent input
+   (confirmed: a later `C-h e` landed inside an active, invisible transient prompt,
+   "Unbound suffix" error), but nothing ever rendered on screen. Root cause: two
+   side-windows on the same edge fighting over the same default `slot` (0); the loser
+   doesn't visibly display at all, yet still runs as if it had. Fixed cleanly, not
+   with the fragile hide/show choreography first attempted: gave the panel its own
+   distinct `slot` (1) on the same `(side . right)` edge Casual uses (`slot` 0) --- the
+   two now genuinely coexist, stacked, confirmed directly: pressing `C-o` while the
+   panel is already showing adds Casual's menu above it, and dismissing Casual (`C-g`
+   or completing an action) cleanly leaves just the panel behind, no gap, no
+   leftover artifact.
+
+New `config/mode-reference.el` registered in all 10 of the places a new config file
+needs to be (the same checklist this project has hit before, this time anticipated and
+fixed proactively rather than discovered via a crash): `build.sh`, `tools/dist-
+windows.sh`, `tools/dist-linux.sh`, `tools/test-windows.sh`, `tools/doctor.sh`,
+`tests/run-all.sh` (2 occurrences), `tests/test_dist.py`, `tests/test_repo.py`,
+`tests/test_tui.py`, `.gitignore` --- confirmed the one real symptom first
+(`startup-perf` crashed outright, "Cannot open load file", before the fix; 7/7 clean
+after).
+
+4 new tests in `tests/test_tui.py` for the panel itself (shows real Dired content,
+real Org content, hidden in a plain buffer, genuinely coexists with Casual rather than
+being silently replaced by it --- directly pinning down bug #6 above so it cannot
+regress unnoticed). The two which-key-on-the-right tests from the entry above were
+rewritten to assert the opposite (stays at the bottom, even in Dired/Org specifically,
+given how much right-side activity now lives in exactly those two modes) --- one of
+the two needed its own real fix too, the same multi-column-bottom-layout mistake
+already made once this session: `dired-mark-subdir-files` can legitimately land at a
+high column even at the stock bottom placement, since which-key lays many bindings out
+across several columns; switched to `dired-unmark-backward` (bound to `DEL`, always the
+first, always-flush-left entry) instead.
+
+26/26 `tests/test_tui.py`, 15/15 `docsbuffer.el`, 19/19 `keybindings.el`, 7/7
+`startup-perf` (confirmed not slowed by the new always-on hooks/file); 678 tests, 655
+pass, 0 regressions across the full offline suite --- same 1 pre-existing `dictate`
+flake, same stale-dist diffs (now also 2 "file not in archive" errors for the brand
+new `config/mode-reference.el`, the same expected category `docs/DOCKER.md` hit
+earlier this session, not a real failure). `docs/MY-NOTES.md`'s Casual section
+rewritten to cover both `C-o` and the new panel together, including the real
+window-slot conflict and how it was actually fixed, not just that it works now.
+
 ## Where things stand as of the last entry
 
-- **New this session, NOT YET COMMITTED** (per the standing "commit only when told"
-  preference): Casual Dired + Casual Org (`C-o` in both --- `config/init.el`,
-  `tools/install-packages.el` for `casual`/`csv-mode`), Org's `.org` auto-activation
-  turned back on, and which-key's right-side placement scoped to just Dired and Org
-  (buffer-local, not global) --- see the two entries above for the full account,
-  including the version of this that was tried globally and reverted earlier in this
-  same unlogged stretch. The Windows zip in Downloads right now was rebuilt from an
-  EARLIER point in this uncommitted tree (Casual Dired + the global which-key move,
-  before it was reverted and before Org/Casual-Org/the scoped-right-side version) ---
-  it does NOT yet match the current working tree; rebuild before handing over another
-  Windows zip. The unresolved GUI-screenshot/X11 environment problem noted above is
-  also still open.
+- Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, and the
+  which-key-scoped-to-Dired/Org version are all committed and pushed to `origin/main`
+  (commit `74d3bf4`), with a matching Windows zip rebuilt and handed over at that
+  point.
+- **New this session, on top of that, NOT YET COMMITTED** (per the standing "commit
+  only when told" preference): which-key reverted again (now fully back to stock
+  bottom, no exceptions anywhere), `C-o`'s Casual menu moved to the right (scoped to
+  just Casual's two prefixes via `transient-prefix`'s own `display-action` slot, not
+  global), and the new always-visible reference panel (`my/mode-reference-mode`, new
+  `config/mode-reference.el`) --- see the entry just above for the full account,
+  including the real window-slot conflict between the panel and Casual's menu and how
+  it was actually fixed. `git status` will show `config/init.el`, the new
+  `config/mode-reference.el`, `docs/MY-NOTES.md`, and the 10 build/test-tooling files
+  registering the new config file, modified/untracked until explicitly asked to
+  commit. The Windows zip in Downloads is from the EARLIER, already-committed point
+  (`74d3bf4`) --- it does not yet include any of this follow-up work; rebuild before
+  handing over another one. The unresolved GUI-screenshot/X11 environment problem
+  noted above is also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):

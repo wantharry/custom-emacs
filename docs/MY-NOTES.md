@@ -111,16 +111,22 @@ commands and one-line notes, added to as they come up.
 | Topic | Note |
 |---|---|
 | `*` in Dired | a real prefix key (the mark submenu) --- good way to see the popup: open Dired, press `*`, wait a second |
-| Popup side | right side in Dired and Org only (`which-key-side-window-location` made buffer-local via `dired-mode-hook`/`org-mode-hook`), stock bottom everywhere else --- tried globally once, reverted (it showed up unexpectedly in an unrelated PDF buffer with no obvious reason why), then re-added scoped to just these two, which both already have their own `C-o` menu (below) that benefits from the same "don't cover what you're looking at" reasoning |
+| Popup side | stock bottom, everywhere, no exceptions --- tried moving it to the right (globally, then scoped to just Dired/Org) across two earlier attempts this session, reverted both times; the right side in Dired/Org is now used by `C-o`'s Casual menu and the always-visible reference panel instead (below) |
 
-## Dired and Org: Casual
+## Dired and Org: Casual (`C-o`) and the always-visible reference panel
+
+Two deliberately different things, both now living on the right in just these two
+modes --- worth keeping straight:
 
 | Topic | Note |
 |---|---|
-| `C-o` | opens a real, Magit-style transient popup --- `casual-dired-tmenu` in Dired (grouped File/Directory/Bulk/Navigation/Quick/Search/New; `C`/`R`/`D` copy/rename/delete right there labeled), `casual-org-tmenu` in Org (grouped Headline/Date/Priority/Link/Timestamp/Mark/etc., context-aware --- shows the actual heading text at point) |
-| Package | `casual` (github.com/kickingvegas/casual), verified directly against MELPA, not assumed --- a big umbrella package (109 files), covers other built-in modes too (re-builder, timezone, etc.), only the Dired and Org parts are wired up here |
+| `C-o` (Casual) | a real, Magit-style **transient** popup --- modal, takes over the keyboard, closes the instant you pick one action. `casual-dired-tmenu` in Dired (grouped File/Directory/Bulk/Navigation/Quick/Search/New), `casual-org-tmenu` in Org (grouped Headline/Date/Priority/Link/Timestamp/Mark/etc., context-aware --- shows the actual heading text at point) |
+| The reference panel | the opposite --- a plain, read-only, **non-modal** sidebar (`my/mode-reference-mode`, `config/mode-reference.el`), always visible the moment you're in a real Dired or Org buffer, never grabs focus, never closes on its own mid-task. Content is a hand-written, narrow-column transcript of Casual's own real menu (kept in sync by hand, the same tradeoff `docs/KEYBOARD.md`/`C-c k` already accept) |
+| Package (Casual) | `casual` (github.com/kickingvegas/casual), verified directly against MELPA, not assumed --- a big umbrella package (109 files), covers other built-in modes too (re-builder, timezone, etc.), only the Dired and Org parts are wired up here |
 | The Dired `C-o` collision | was already `dired-display-file` (show in another window, don't switch) --- kept Casual on `C-o` anyway, matching its own documented cross-mode convention; `o`/`v` already cover similar ground, `M-x dired-display-file` still works directly. Org had no existing `C-o` binding of its own, confirmed directly, so no collision there |
 | First use is slower | loading (and likely natively compiling, like any installed package's first real use) `casual-dired`/`casual-org` the first time `C-o` is pressed in a session takes a few real seconds, confirmed directly (not instant) --- every use after that in the same session is fast |
+| The real window-slot conflict | both the panel and Casual's menu wanted the exact same right-side window --- found by testing: the second one to try displaying silently failed to show at all, while its modal keymap still captured every keystroke (very confusing until tracked down). Fixed by giving them distinct `slot` values on the same `(side . right)` edge (panel: slot 1, Casual: slot 0) --- they now genuinely coexist, stacked, Casual's menu appearing above the panel when `C-o` is pressed while it's already showing |
+| Auto show/hide | `dired-mode-hook`/`org-mode-hook` (covers the very first buffer at startup) plus `window-selection-change-functions`/`window-buffer-change-functions` (covers every later switch) --- a real gap found by testing: the window-change hooks alone never fire for the first buffer shown at startup, since there is no prior session state to have "changed" from |
 
 ## Org mode
 

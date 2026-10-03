@@ -970,25 +970,45 @@ installed, offer to install it from NonGNU ELPA."
   (with-eval-after-load 'org
     (keymap-set org-mode-map "C-o" #'casual-org-tmenu)))
 
-;; WHAT: in Dired and Org specifically, which-key's own popup (triggered by any prefix
-;; key, not just `C-o' above --- a separate feature, see the "UI" section's own
-;; which-key setup) shows as a column on the right instead of the stock bottom strip.
-;; Everywhere else stays exactly the stock default (bottom).
-;; WHY: user request --- a right-side popup was tried globally earlier this session and
-;; reverted, specifically because it showed up unexpectedly in an unrelated buffer
-;; (a PDF, after plain `C-x') with no obvious reason why. Scoped to just these two modes
-;; this time, both of which have a real, concrete reason for it: a bottom popup eats
-;; into the vertical space needed to see the file/outline it's describing, and both
-;; already have a `C-o' menu of their own (Casual, above) that benefits from the same
-;; "don't cover what you're looking at" reasoning.
-;; HOW: `which-key-side-window-location' made buffer-local (`setq-local') in just these
-;; two mode hooks, rather than set globally --- confirmed directly this actually works
-;; (which-key reads it fresh, from whichever buffer is current when a prefix key is
-;; pressed, not a cached global snapshot): a real terminal test showed Dired's popup on
-;; the right while a plain text buffer's, in the very same Emacs instance, stayed at the
-;; bottom.
-(dolist (hook '(dired-mode-hook org-mode-hook))
-  (add-hook hook (lambda () (setq-local which-key-side-window-location 'right))))
+;; WHAT: both Casual menus above show as a column on the right instead of transient's
+;; own stock bottom strip (the same layout Magit's popups use).
+;; WHY: user request. WHY scoped to just these two prefixes rather than changing
+;; `transient-display-buffer-action' globally: that variable is `transient''s shared
+;; default for every prefix, Magit's own included --- changing it globally would have
+;; silently moved every Magit popup too, never asked for, the same class of surprise
+;; the which-key global change caused earlier this session (reverted for exactly that).
+;; HOW: each `transient-prefix' object has its own `display-action' slot (confirmed
+;; directly in `transient.el''s own source: `transient--display-action' checks `(oref
+;; transient--prefix display-action)' FIRST, before ever consulting the global
+;; variable), settable after the fact via `(get COMMAND 'transient--prefix)' --- so
+;; this overrides only these two prefixes, nothing else that uses `transient'. Verified
+;; directly, not assumed: a real terminal session showed Casual's menu on the right
+;; while Magit's own branch transient (`C-x g' then `b'), in the same Emacs instance,
+;; still showed at the bottom, exactly as it always has.
+;; `slot . 0', explicit rather than left to the default --- `my/mode-reference-mode'
+;; (config/mode-reference.el) puts its own always-visible panel in `slot . 1' on this
+;; same edge specifically so the two can coexist, stacked, instead of fighting over one
+;; slot (a real conflict, found by testing: see that file's own comment on it).
+(with-eval-after-load 'casual-dired
+  (oset (get 'casual-dired-tmenu 'transient--prefix) display-action
+        '(display-buffer-in-side-window (side . right) (slot . 0))))
+(with-eval-after-load 'casual-org
+  (oset (get 'casual-org-tmenu 'transient--prefix) display-action
+        '(display-buffer-in-side-window (side . right) (slot . 0))))
+
+;; which-key itself stays at the stock bottom placement everywhere, including Dired and
+;; Org --- tried scoped to just those two modes for a session, reverted on request in
+;; favor of `C-o''s own menu (above) moving to the right instead, and
+;; `my/mode-reference-mode' (below) for an always-visible version of the same idea.
+
+;; WHAT: an always-visible, read-only command reference on the right while in Dired or
+;; Org --- a deliberately different thing from `C-o''s own Casual menu just above:
+;; never modal, never grabs focus, never closes mid-task, just a sidebar to glance at.
+;; See config/mode-reference.el's own header comment for the full WHY/HOW, including
+;; the real window-slot conflict with Casual's menu found and fixed while building
+;; this (both now coexist, stacked, on the same edge).
+(require 'mode-reference (expand-file-name "mode-reference" user-emacs-directory))
+(my/mode-reference-mode 1)
 
 ;;; Finding git repositories --------------------------------------------------------
 

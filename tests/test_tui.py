@@ -30,7 +30,7 @@ class TerminalEmacs(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="tui-")
         self.cfg = os.path.join(self.tmp, "cfg")
         os.makedirs(self.cfg)
-        for f in ("early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el", "gitfolders.el", "llm.el", "llm-council.el", "shortcuts.el", "dictate.el", "emacs-session.el", "calendar-year.el"):
+        for f in ("early-init.el", "init.el", "fastfind.el", "startpage.el", "docsbuffer.el", "gitfolders.el", "llm.el", "llm-council.el", "shortcuts.el", "dictate.el", "emacs-session.el", "calendar-year.el", "mode-reference.el"):
             shutil.copy(os.path.join(ROOT, "config", f), self.cfg)
         for d in ("elpa", "tree-sitter"):
             src = os.path.join(ROOT, "config", d)
@@ -172,24 +172,74 @@ class TerminalEmacs(unittest.TestCase):
         self.assertIn("TODO", scr)
         self.assertIn("Priority", scr)
 
-    # User request: bring the right-side which-key placement back, but scoped to just
-    # Dired and Org this time (reverted globally earlier in this same session for
-    # showing up unexpectedly in an unrelated PDF buffer). Three separate tests, not
-    # one combined scenario, since each needs its own `self.start()` (tmux session).
+    # User request: an always-visible reference panel, a deliberately different thing
+    # from C-o's own modal Casual menu above --- never grabs focus, never closes
+    # mid-task, just a sidebar to glance at while freely working.
 
-    def test_which_key_shows_on_the_right_in_dired(self):
+    def test_mode_reference_panel_shows_in_dired_and_lists_real_commands(self):
+        self.make_file("alpha.txt", "a\n")
+        self.start(self.tmp)                        # opening a directory starts Dired
+        scr = self.wait_for("Mode Reference")
+        self.assertIn("alpha.txt", scr, "the file listing should stay visible beside the panel")
+        self.assertIn("Rename", scr)
+        self.assertIn("Delete", scr)
+
+    def test_mode_reference_panel_shows_org_specific_content_in_org(self):
+        org = self.make_file("notes.org", "* heading one\n")
+        self.start(org)
+        scr = self.wait_for("Mode Reference")
+        self.assertIn("heading one", scr, "the org buffer should stay visible beside the panel")
+        self.assertIn("TODO state", scr)
+        self.assertIn("Headline", scr)
+
+    def test_mode_reference_panel_hidden_in_a_plain_buffer(self):
+        f = self.make_file("plain.txt", "hello\n")
+        self.start(f)
+        scr = self.wait_for("hello")
+        self.assertNotIn("Mode Reference", scr)
+
+    def test_mode_reference_panel_coexists_with_casual_not_replaced_by_it(self):
+        # The real conflict found while building this: both the panel and C-o's own
+        # Casual menu want the right side of the frame --- confirmed they genuinely
+        # coexist (stacked, distinct window slots) rather than one silently failing to
+        # display while the other's modal keymap still captures all input (the
+        # confusing failure mode this test exists to catch a regression of).
+        self.make_file("alpha.txt", "a\n")
+        self.start(self.tmp)
+        self.wait_for("Mode Reference")
+        self.keys("C-o")
+        scr = self.wait_for("Rename", timeout=10)  # first use autoloads+compiles casual
+        self.assertIn("Mode Reference", scr, "the panel should still be visible, not replaced")
+        self.assertIn("Copy to", scr, "and Casual's own menu should also be visible, stacked with it")
+
+    # Which-key's right-side placement was tried, scoped to Dired/Org, then reverted
+    # on request in favor of C-o's own menu (above) and the always-visible panel
+    # (above) moving to the right instead --- which-key itself stays at the stock
+    # bottom placement everywhere, no exceptions now. Worth its own explicit tests in
+    # Dired/Org specifically (not just "some other plain buffer" below), given how much
+    # right-side activity now exists in exactly these two modes --- a real regression
+    # here (which-key sliding back to the right because of some future change to
+    # either of those features) would be an easy one to miss otherwise.
+
+    def test_which_key_stays_at_the_bottom_in_dired(self):
+        # `dired-unmark-backward', not `dired-mark': a bottom popup lays bindings out
+        # in multiple columns across the full width (confirmed directly, the same
+        # mistake already made and fixed once for a plain buffer, above), so some
+        # `dired-mark*' entries legitimately land at a high column even at the stock
+        # bottom placement --- `dired-unmark-backward' is reliably the very first
+        # entry (bound to DEL), always flush left regardless.
         self.make_file("alpha.txt", "a\n")
         self.start(self.tmp)                        # opening a directory starts Dired
         self.wait_for("alpha.txt")
         self.keys("*")
-        scr = self.wait_for("dired-mark")
-        mark_lines = [l for l in scr.splitlines() if "dired-mark" in l]
-        self.assertTrue(mark_lines)
-        for line in mark_lines:
-            self.assertGreater(line.index("dired-mark"), 50,
-                               f"expected Dired's popup on the right, got: {line!r}")
+        scr = self.wait_for("dired-unmark-backward")
+        lines = [l for l in scr.splitlines() if "dired-unmark-backward" in l]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertLess(line.index("dired-unmark-backward"), 20,
+                            f"expected Dired's which-key popup to stay at the stock bottom, got: {line!r}")
 
-    def test_which_key_shows_on_the_right_in_org(self):
+    def test_which_key_stays_at_the_bottom_in_org(self):
         org = self.make_file("notes.org", "* heading one\n")
         self.start(org)
         self.wait_for("heading one")
@@ -198,8 +248,8 @@ class TerminalEmacs(unittest.TestCase):
         oc_lines = [l for l in scr.splitlines() if "org-ctrl-c-ret" in l]
         self.assertTrue(oc_lines)
         for line in oc_lines:
-            self.assertGreater(line.index("org-ctrl-c-ret"), 50,
-                               f"expected Org's popup on the right, got: {line!r}")
+            self.assertLess(line.index("org-ctrl-c-ret"), 50,
+                            f"expected Org's which-key popup to stay at the stock bottom, got: {line!r}")
 
     def test_which_key_still_shows_at_the_bottom_elsewhere(self):
         f = self.make_file("plain.txt", "hello\n")
