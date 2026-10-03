@@ -113,6 +113,14 @@ own startup defaults, then immediately save that as the session restored next ti
   (tool-bar-mode -1)
   (set-frame-parameter nil 'undecorated nil)
   (my/load-theme-by-number ?0)
+  ;; A real, user-reported bug: toggling menu-bar/tool-bar here changes the real
+  ;; frame's pixel geometry in a GUI, which can leave `my/mode-reference-mode''s own
+  ;; panel (if showing) scrolled a little way down from its own top --- confirmed
+  ;; directly, not assumed, from a real screenshot. `window-size-change-functions'
+  ;; (config/mode-reference.el) already catches this generally, but re-anchoring it
+  ;; explicitly here too, right after the resize that actually causes it, means it
+  ;; never has even a moment to look wrong.
+  (when (fboundp 'my/mode-reference--update) (my/mode-reference--update))
   (my/session-save)
   (message "Frame and theme reset to defaults, and saved"))
 (global-set-key (kbd "C-c U") #'my/reset-to-defaults)

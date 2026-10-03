@@ -42,4 +42,29 @@ the content was written."
     (dolist (key keys)
       (should (lookup-key org-mode-map (kbd key))))))
 
+(ert-deftest mode-reference/re-anchors-to-the-top-after-a-resize ()
+  ;; A real, user-reported bug (a real screenshot, not assumed): `C-c U' (`my/reset-to-
+  ;; defaults') toggles the menu bar/tool bar, which changes the real frame's pixel
+  ;; geometry in a GUI --- that resize left the panel scrolled a little way down from
+  ;; its own top, with nothing re-anchoring it afterward (`my/mode-reference--show'
+  ;; only ever set `window-start' once, the moment the window was first created).
+  ;; Confirmed the fix works directly: force the window to an artificially scrolled
+  ;; position, call `--update' the same way a resize or `C-c U' itself now does, and
+  ;; check it actually comes back to the top.
+  (test-with-temp-dir dir
+    (unwind-protect
+        (progn
+          (dired dir)
+          (my/mode-reference--update)
+          (let ((win (get-buffer-window my/mode-reference-buffer-name t)))
+            (should win)
+            (set-window-start win (with-current-buffer my/mode-reference-buffer-name (point-max)))
+            (should-not (eq (window-start win)
+                            (with-current-buffer my/mode-reference-buffer-name (point-min))))
+            (my/mode-reference--update)
+            (should (eq (window-start win)
+                       (with-current-buffer my/mode-reference-buffer-name (point-min))))))
+      (my/mode-reference--hide)
+      (kill-buffer my/mode-reference-buffer-name))))
+
 ;;; mode-reference.el ends here

@@ -1696,6 +1696,44 @@ real width-sharing effect above; 680 tests, 657 pass, 0 regressions across the f
 offline suite, 26/26 `tests/test_tui.py` --- same 1 pre-existing `dictate` flake, same
 stale-dist diffs.
 
+### Follow-up, same day: the panel's top getting cut off after C-c U, a real GUI bug this time
+
+User, with a real screenshot: "when i do the c c- u , i see the top is cut off little
+bit why is that." Could not reproduce visually this time --- the same GUI/X11
+environment problem noted several entries back is still open, and `menu-bar-mode`/
+`tool-bar-mode` have no visual effect in a terminal test either way, so this needed
+reading the actual code rather than a live repro.
+
+Root cause, found by reading `my/mode-reference--show' closely: `(set-window-start win
+...)' only ever ran inside the `(unless (get-buffer-window buf) ...)' branch --- the
+very first time the window is created. Once `C-c U' (`my/reset-to-defaults') toggles
+the menu bar/tool bar, which changes the real frame's pixel geometry in a GUI and
+resizes every window on it (including the panel's), nothing ever re-asserted
+`window-start' afterward --- a plain, real Emacs behavior (resizing a window can make
+its own redisplay auto-scroll to keep `window-point' visible), left completely
+unguarded against here.
+
+Fixed two ways, not just one, since the bug has two real shapes: `window-size-change-
+functions' added to `my/mode-reference-mode''s own hooks (catches ANY resize that
+might do this, not just this one trigger), and `my/reset-to-defaults' itself now
+explicitly calls `my/mode-reference--update' right after it changes the frame chrome
+(catches this exact, reported trigger directly, with no gap at all between cause and
+fix). `--show' itself changed to re-anchor both `window-point' and `window-start' to
+`point-min' every time it confirms the panel should be showing, not only on creation.
+
+Verified for real, not just reasoned about, despite not being able to see the actual
+GUI bug: artificially scrolled the panel's window (`set-window-start' to `point-max'),
+called the same update path a resize or `C-c U' now triggers, and confirmed it
+genuinely comes back to the top --- this works identically in `--batch', since nothing
+about `window-start'/`window-point' manipulation needs a real display. New test,
+`mode-reference/re-anchors-to-the-top-after-a-resize', pins this down directly.
+
+3/3 `tests/ert/mode-reference.el` (1 new), 26/26 `tests/test_tui.py` (unaffected); 681
+tests, 658 pass, 0 regressions across the full offline suite --- same 1 pre-existing
+`dictate` flake, same stale-dist diffs. The underlying GUI-screenshot/X11 environment
+problem remains unresolved and was not what blocked this fix --- noted again so it
+doesn't get assumed fixed by proximity to this entry.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -1715,14 +1753,17 @@ stale-dist diffs.
   install-packages.el` too if nothing else ends up using them. Org's `.org` auto-
   activation itself is a SEPARATE decision, not part of this "training wheels" framing
   --- don't assume it should also be reverted unless asked separately.
-- **New this session, on top of `4fce844`, NOT YET COMMITTED**: the reference-panel
-  content rebuild (the real `F`-is-undefined bug and everything it turned up) and the
-  new `tests/ert/mode-reference.el` --- see the entry just above for the full account.
-  `git status` will show `config/mode-reference.el`, `tests/test_tui.py`, the new
-  `tests/ert/mode-reference.el`, and this file modified/untracked until explicitly
-  asked to commit. The Windows zip in Downloads matches `4fce844`, NOT this follow-up
-  --- it still has the wrong panel content; rebuild before handing over another one.
-  The unresolved GUI-screenshot/X11 environment problem noted above is also still open.
+- The reference-panel content rebuild (the real `F`-is-undefined bug and everything it
+  turned up) is committed and pushed (`805a060`), with a matching Windows zip rebuilt,
+  verified, and handed over.
+- **New this session, on top of `805a060`, NOT YET COMMITTED**: the panel's `window-
+  start`-not-re-anchored-after-a-resize fix (the "top is cut off after `C-c U`"
+  screenshot bug) and its new test --- see the entry just above for the full account.
+  `git status` will show `config/mode-reference.el`, `config/init.el`, the updated
+  `tests/ert/mode-reference.el`, and this file modified until explicitly asked to
+  commit. The Windows zip in Downloads matches `805a060`, NOT this follow-up --- it
+  still has the unfixed scroll behavior; rebuild before handing over another one. The
+  unresolved GUI-screenshot/X11 environment problem noted above is also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):

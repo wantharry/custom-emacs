@@ -157,21 +157,33 @@ itself.")
         (special-mode)
         (setq-local display-line-numbers nil) ; a static reference, not something to jump to a line in
         (setq-local my/mode-reference--shown-mode mode)))
-    (unless (get-buffer-window buf)
-      ;; `slot . 1', not the default (0) --- a real conflict, found by testing: `C-o''s
-      ;; own Casual menu (config/init.el) ALSO shows on the right now, in the default
-      ;; slot 0. Two side windows sharing one slot fight over it (whichever shows
-      ;; second silently fails to display at all, confirmed directly --- its transient
-      ;; keymap still captured all input even though nothing was visible, the
-      ;; confusing part that took the longest to track down). A distinct slot instead
-      ;; makes them genuinely coexist, stacked on the same edge, no conflict: pressing
-      ;; `C-o' while this panel is already showing adds Casual's menu above it, rather
-      ;; than replacing or fighting with it.
-      (let ((win (display-buffer-in-side-window
-                  buf '((side . right) (slot . 1) (window-width . 0.28)))))
-        (when win
-          (set-window-parameter win 'no-other-window t)
-          (set-window-start win (with-current-buffer buf (point-min))))))))
+    (let ((win (get-buffer-window buf)))
+      (unless win
+        ;; `slot . 1', not the default (0) --- a real conflict, found by testing: `C-o''s
+        ;; own Casual menu (config/init.el) ALSO shows on the right now, in the default
+        ;; slot 0. Two side windows sharing one slot fight over it (whichever shows
+        ;; second silently fails to display at all, confirmed directly --- its transient
+        ;; keymap still captured all input even though nothing was visible, the
+        ;; confusing part that took the longest to track down). A distinct slot instead
+        ;; makes them genuinely coexist, stacked on the same edge, no conflict: pressing
+        ;; `C-o' while this panel is already showing adds Casual's menu above it, rather
+        ;; than replacing or fighting with it.
+        (setq win (display-buffer-in-side-window
+                   buf '((side . right) (slot . 1) (window-width . 0.28))))
+        (when win (set-window-parameter win 'no-other-window t)))
+      ;; Re-anchored every time `--show' runs, not only when the window is first
+      ;; created --- a real, user-reported bug: `C-c U' (menu-bar/tool-bar toggled,
+      ;; which changes the real frame's pixel geometry in a GUI) left the panel
+      ;; scrolled a little way down from its own top, cutting the first few lines off.
+      ;; Resizing a window can make Emacs's own redisplay auto-scroll it to keep
+      ;; `window-point' visible, and nothing was ever re-asserting the top position
+      ;; afterward --- `my/reset-to-defaults' (`C-c U', config/init.el) explicitly
+      ;; calls `my/mode-reference--update' after it finishes for exactly this reason,
+      ;; and `window-size-change-functions' (added in `my/mode-reference-mode', below)
+      ;; covers any other frame/window resize that might do the same thing.
+      (when win
+        (set-window-point win (with-current-buffer buf (point-min)))
+        (set-window-start win (with-current-buffer buf (point-min)))))))
 
 (defun my/mode-reference--hide ()
   (when-let* ((win (get-buffer-window my/mode-reference-buffer-name t)))
@@ -206,9 +218,15 @@ comment for how this differs from `C-o''s own Casual menu."
         (add-hook 'org-mode-hook #'my/mode-reference--update)
         (add-hook 'window-selection-change-functions #'my/mode-reference--update)
         (add-hook 'window-buffer-change-functions #'my/mode-reference--update)
+        ;; Catches a real, user-reported bug (see `my/mode-reference--show''s own
+        ;; comment): a frame-geometry change (e.g. `menu-bar-mode'/`tool-bar-mode'
+        ;; toggling in a real GUI frame) can resize the panel's window and leave it
+        ;; scrolled away from its own top, with nothing else re-anchoring it.
+        (add-hook 'window-size-change-functions #'my/mode-reference--update)
         (my/mode-reference--update))
     (remove-hook 'dired-mode-hook #'my/mode-reference--update)
     (remove-hook 'org-mode-hook #'my/mode-reference--update)
+    (remove-hook 'window-size-change-functions #'my/mode-reference--update)
     (remove-hook 'window-selection-change-functions #'my/mode-reference--update)
     (remove-hook 'window-buffer-change-functions #'my/mode-reference--update)
     (my/mode-reference--hide)))
