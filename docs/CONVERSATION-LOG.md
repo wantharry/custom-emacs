@@ -1734,6 +1734,58 @@ tests, 658 pass, 0 regressions across the full offline suite --- same 1 pre-exis
 problem remains unresolved and was not what blocked this fix --- noted again so it
 doesn't get assumed fixed by proximity to this entry.
 
+### Follow-up, same day: a real "Custom" menu-bar menu, deliberately not hand-written this time
+
+User: "Can we have the drop down menu for the items like dired , llm custom , git
+repositories , treemacs , recent folders and files custom , anything else we did
+custom." A real, legitimate Emacs feature (a top-level menu-bar entry), and --- given
+what had just happened with the reference panel's own hand-transcribed content going
+stale and shipping a real bug --- deliberately built to avoid that exact mistake a
+second time: generated directly from `my/shortcuts-list' (`config/shortcuts.el'), the
+single source of truth `C-c k' and `tests/ert/shortcuts.el' already keep accurate,
+rather than a second, separately hand-written menu spec that could drift the same way.
+
+`my/custom-menu--spec' walks `my/shortcuts-list' and builds a real `easy-menu-define'
+vector tree from it --- one submenu per topic (Finding files, Searching, Git, Project
+tree, Recent work, LLM chat, Themes, Help, and every other topic already there,
+covering everything asked for: Dired via Finding files/Recent work, LLM via LLM chat,
+git repositories and Treemacs each already their own topic, recent folders/files via
+Recent work). `my/shortcuts-packages' (Magit/Treemacs/etc.'s own "how to open/close/
+use it" prose) was deliberately left out of the menu --- its own OPEN/CLOSE/COMMANDS
+fields are description strings, not real command symbols a menu item could call, and
+the commands that actually open those packages (`magit-status', `my/treemacs', ...)
+are already real `my/shortcuts-list' entries under their own topics, so nothing from
+that "world" was actually missing.
+
+Verified live, not just that the keymap structure looked right: a real `-nw' terminal
+session, `M-\`' (`tmm-menubar', the text-mode menu --- works without a mouse or even a
+real GUI) correctly showed "Custom" as the very first entry, drilling into it showed
+all 15 real topics, drilling into "Git" showed its 3 real commands **with their real
+keybindings shown automatically** (`Git status... C-x g`, confirmed directly in the
+captured screen, not typed in by hand anywhere in the generating code), and actually
+selecting "Git status" ran real `magit-status', landing in a real Magit buffer.
+
+New tests in `tests/ert/shortcuts.el`: the generated menu has exactly the same topics,
+same order, as `my/shortcuts-list' itself (catches the generation function silently
+dropping or reordering something); every single menu item resolves to the exact
+command its row claims, walking the real keymap rather than re-deriving the spec a
+second way; and a live-regeneration check (temporarily rebinding `my/shortcuts-list'
+itself and confirming the menu spec picks it up) --- confirming this is a real,
+on-demand generation, not a snapshot baked in once at load time that a later addition
+to the list could silently miss. Two real test-writing mistakes in these, both caught
+immediately by running them rather than assumed correct: an off-by-one in how many
+`cdr's to peel off the real keymap structure (dropped "Finding files", the first
+topic, from the parsed list) fixed with a plain `cddr'; and assuming a leaf menu item's
+`lookup-key' result had the same `(... menu-item LABEL COMMAND ...)' shape a submenu's
+does, when `lookup-key' actually unwraps a leaf binding straight down to the bare
+command symbol --- fixed to compare directly instead of indexing into it.
+
+19/19 `tests/ert/shortcuts.el` (3 new); 684 tests, 661 pass, 0 regressions across the
+full offline suite --- same 1 pre-existing `dictate` flake, same stale-dist diffs.
+`docs/MY-NOTES.md` gets a new "Custom menu" section (where it is, how to open it
+without a mouse via `M-\``, and the deliberate "generated, not hand-written" design
+choice).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -1753,17 +1805,17 @@ doesn't get assumed fixed by proximity to this entry.
   install-packages.el` too if nothing else ends up using them. Org's `.org` auto-
   activation itself is a SEPARATE decision, not part of this "training wheels" framing
   --- don't assume it should also be reverted unless asked separately.
-- The reference-panel content rebuild (the real `F`-is-undefined bug and everything it
-  turned up) is committed and pushed (`805a060`), with a matching Windows zip rebuilt,
-  verified, and handed over.
-- **New this session, on top of `805a060`, NOT YET COMMITTED**: the panel's `window-
-  start`-not-re-anchored-after-a-resize fix (the "top is cut off after `C-c U`"
-  screenshot bug) and its new test --- see the entry just above for the full account.
-  `git status` will show `config/mode-reference.el`, `config/init.el`, the updated
-  `tests/ert/mode-reference.el`, and this file modified until explicitly asked to
-  commit. The Windows zip in Downloads matches `805a060`, NOT this follow-up --- it
-  still has the unfixed scroll behavior; rebuild before handing over another one. The
-  unresolved GUI-screenshot/X11 environment problem noted above is also still open.
+- The reference-panel content rebuild (`805a060`) and the panel's scroll-position fix
+  (`ac7d9d7`) are both committed, pushed, and each got its own verified, handed-over
+  Windows zip rebuild right after.
+- **New this session, on top of `ac7d9d7`, NOT YET COMMITTED**: the real "Custom"
+  menu-bar menu, generated from `my/shortcuts-list` --- see the entry just above for
+  the full account. `git status` will show `config/shortcuts.el`, the updated
+  `tests/ert/shortcuts.el`, `docs/MY-NOTES.md`, and this file modified until
+  explicitly asked to commit. The Windows zip in Downloads matches `ac7d9d7`, NOT this
+  follow-up --- it does not have the new menu at all yet; rebuild before handing over
+  another one. The unresolved GUI-screenshot/X11 environment problem noted above is
+  also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):

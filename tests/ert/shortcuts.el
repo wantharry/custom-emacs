@@ -177,6 +177,41 @@ recorders; binds `calls', a list of each call in order, newest first."
             (should-not calls)))
       (kill-buffer start-buf))))
 
+;;; The "Custom" menu-bar menu: generated from my/shortcuts-list, not a second,
+;;; separately hand-maintained copy --- so what matters here is that the generation
+;;; itself stays correct, not spot-checking individual labels the way
+;;; `mode-reference/*' now has to (that content IS hand-written, this is not).
+
+(ert-deftest shortcuts/custom-menu-exists-with-every-topic ()
+  (let ((menu (lookup-key global-map [menu-bar custom])))
+    (should menu)
+    (should (equal (nth 1 menu) "Custom"))
+    ;; One submenu per topic in `my/shortcuts-list', same order, same names --- the
+    ;; real test that the generation function (`my/custom-menu--spec') is not
+    ;; silently dropping or reordering anything, not just that *a* menu exists.
+    (let ((topic-names (mapcar (lambda (topic) (nth 2 topic))
+                               (cddr menu))))
+      (should (equal topic-names (mapcar #'car my/shortcuts-list))))))
+
+(ert-deftest shortcuts/custom-menu-items-run-the-real-commands ()
+  ;; Every (KEY COMMAND DESC) row in `my/shortcuts-list' must show up as a menu item
+  ;; bound to that exact COMMAND --- walks the real generated keymap, not a
+  ;; re-implementation of `my/custom-menu--spec' that could drift the same way.
+  (dolist (topic my/shortcuts-list)
+    (let ((submenu (lookup-key global-map (vector 'menu-bar 'custom (intern (car topic))))))
+      (should submenu)
+      (dolist (row (cdr topic))
+        (cl-destructuring-bind (_key command desc) row
+          (should (eq (lookup-key submenu (vector (intern desc))) command)))))))
+
+(ert-deftest shortcuts/custom-menu-regenerates-if-shortcuts-list-changes ()
+  ;; Confirms this is a live generation, not a one-time snapshot baked in at load
+  ;; time --- a real risk for anyone adding a topic later and assuming the menu
+  ;; picks it up automatically just because the list did.
+  (let ((my/shortcuts-list '(("Fake Topic" ("C-c z" ignore "a fake entry for this test")))))
+    (let ((spec (my/custom-menu--spec)))
+      (should (equal (car (nth 1 spec)) "Fake Topic")))))
+
 (ert-deftest shortcuts/does-not-slow-startup ()
   (let ((best most-positive-fixnum))
     (dotimes (_ 3)

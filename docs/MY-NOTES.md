@@ -15,6 +15,15 @@ commands and one-line notes, added to as they come up.
 
 `--init-directory=` is what makes it *this* config; without it, Emacs falls back to its own stock default.
 
+## Custom menu
+
+| Topic | Note |
+|---|---|
+| Where | a real "Custom" entry in the menu bar itself, one submenu per topic (Finding files, Searching, Git, Project tree, Recent work, LLM chat, Themes, Help, ...) --- every command this config adds, clickable, not just a keyboard reference |
+| Opening it without a mouse | `F10` (`menu-bar-open`, the real dropdown) or `M-\`` (`tmm-menubar`, a text-mode version that works in a plain terminal/`-nw` session too --- type the highlighted letter to drill down, same letters shown in `c==>Custom` style) |
+| How it's built | generated directly from `my/shortcuts-list` (`config/shortcuts.el`), the exact same data `C-c k` and its tests already keep accurate --- not a second, separately hand-written copy, specifically to avoid repeating the reference panel's own real `F`-is-undefined mistake from earlier this session |
+| Keybindings shown in the menu | real, live, straight from the actual keymap (e.g. "Git status... `C-x g`") --- never typed in by hand, so they can't go stale either |
+
 ## Exiting Emacs
 
 | Command | What it does |

@@ -199,6 +199,42 @@ tests/ert/shortcuts.el); the buffer itself shows only KEY and DESCRIPTION.  Kept
 step with docs/KEYBOARD.md's own \"this config:\" rows by hand; add a new command to
 both places.")
 
+;; WHAT: a real \"Custom\" menu in the menu bar, one submenu per topic above, listing
+;; every command this config itself adds --- Dired/file-finding, LLM chat, git
+;; repositories, Treemacs, recent files, themes, and everything else in `my/shortcuts-
+;; list' --- clickable, not just a keyboard reference.
+;; WHY: user request, after the mode-reference panel's own real bug this same session
+;; (hand-transcribing a menu's labels, which drifted from the real commands and broke)
+;; --- deliberately NOT repeating that mistake: this menu is generated directly from
+;; `my/shortcuts-list', the exact same data `C-c k'/`tests/ert/shortcuts.el' already
+;; keep accurate, not a second, separately hand-maintained copy that could go stale
+;; the same way.  `my/shortcuts-packages' (Magit/Treemacs/etc.'s own \"how to open/
+;; close/use it\" prose) is deliberately NOT also folded in here --- its OPEN/CLOSE/
+;; COMMANDS fields are description strings, not real command symbols a menu item could
+;; call, and the commands that open those packages in the first place (`magit-status',
+;; `my/treemacs', ...) are already real entries in `my/shortcuts-list' under \"Git\"/
+;; \"Project tree\", so nothing from that \"world\" is actually missing here.
+;; HOW: `easy-menu-define' builds one real keymap from the vector spec below; each
+;; item's REAL keybinding (`C-c f f', `C-x g', ...) is shown automatically next to its
+;; label by Emacs's own menu code, straight from the live keymap --- never typed in by
+;; hand here, so it can never go stale the way a hand-copied key string could.
+(defun my/custom-menu--spec ()
+  "Build the `easy-menu' vector spec for the \"Custom\" menu, directly from
+`my/shortcuts-list'."
+  (append
+   '("Custom")
+   (mapcar
+    (lambda (topic)
+      (cons (car topic)
+            (mapcar (lambda (row)
+                      (cl-destructuring-bind (_key command desc) row
+                        (vector desc command t)))
+                    (cdr topic))))
+    my/shortcuts-list)))
+
+(easy-menu-define my/custom-menu global-map "This config's own commands, by topic."
+  (my/custom-menu--spec))
+
 (defvar my/shortcuts-mode-map
   (let ((m (make-sparse-keymap)))
     (set-keymap-parent m outline-mode-map)
