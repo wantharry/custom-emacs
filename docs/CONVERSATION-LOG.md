@@ -1786,6 +1786,31 @@ full offline suite --- same 1 pre-existing `dictate` flake, same stale-dist diff
 without a mouse via `M-\``, and the deliberate "generated, not hand-written" design
 choice).
 
+### Follow-up, same day: Evil was missing from the new Custom menu (and C-c k's flat list too)
+
+User: "Only thing missing is evil mode can you add that." A real, pre-existing gap,
+not introduced by the menu work itself: `my/toggle-evil' (`C-c v') was already real and
+already documented, but only in `my/shortcuts-packages' (`C-c k''s "world" section,
+prose about packages with their own open/close/commands) --- never in
+`my/shortcuts-list', the flat (TOPIC (KEY COMMAND DESC) ...) data the new Custom menu
+is generated from. So it was missing from the menu, and, less obviously, from `C-c k''s
+own flat topic list too, only ever showing up further down in its packages section.
+
+Fixed at the actual source of truth, not just for the menu: added a new "Evil, vi
+keys" topic to `my/shortcuts-list' itself, one entry, `C-c v' -> `my/toggle-evil' ---
+the right call precisely because `my/toggle-evil' is a single command on one key that
+both turns Evil on and off, exactly the shape this list already expects (unlike most
+of `my/shortcuts-packages''s other entries --- Magit, Treemacs, ... --- whose own
+OPEN/CLOSE/COMMANDS are prose, not callable commands, so cannot be mechanically folded
+into the menu the same way). This one fix therefore fixed both places that read from
+it: confirmed directly, not assumed, that both `lookup-key' on the real menu keymap
+and `(my/shortcuts-buffer)''s own buffer text now show it.
+
+19/19 `tests/ert/shortcuts.el` (the existing menu/topic-count tests passed unchanged,
+confirming they generically picked up the new topic without needing their own
+update); 684 tests, 661 pass, 0 regressions across the full offline suite --- same 1
+pre-existing `dictate` flake, same stale-dist diffs.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -1805,17 +1830,16 @@ choice).
   install-packages.el` too if nothing else ends up using them. Org's `.org` auto-
   activation itself is a SEPARATE decision, not part of this "training wheels" framing
   --- don't assume it should also be reverted unless asked separately.
-- The reference-panel content rebuild (`805a060`) and the panel's scroll-position fix
-  (`ac7d9d7`) are both committed, pushed, and each got its own verified, handed-over
-  Windows zip rebuild right after.
-- **New this session, on top of `ac7d9d7`, NOT YET COMMITTED**: the real "Custom"
-  menu-bar menu, generated from `my/shortcuts-list` --- see the entry just above for
-  the full account. `git status` will show `config/shortcuts.el`, the updated
-  `tests/ert/shortcuts.el`, `docs/MY-NOTES.md`, and this file modified until
-  explicitly asked to commit. The Windows zip in Downloads matches `ac7d9d7`, NOT this
-  follow-up --- it does not have the new menu at all yet; rebuild before handing over
-  another one. The unresolved GUI-screenshot/X11 environment problem noted above is
-  also still open.
+- The reference-panel content rebuild (`805a060`), the panel's scroll-position fix
+  (`ac7d9d7`), and the new "Custom" menu-bar menu (`dec97de`) are all committed,
+  pushed, and each got its own verified, handed-over Windows zip rebuild right after.
+- **New this session, on top of `dec97de`, NOT YET COMMITTED**: Evil added to
+  `my/shortcuts-list` (the "Evil, vi keys" topic, fixing both the Custom menu and
+  `C-c k`'s own flat list at once) --- see the entry just above for the full account.
+  `git status` will show `config/shortcuts.el` and this file modified until explicitly
+  asked to commit. The Windows zip in Downloads matches `dec97de`, NOT this follow-up
+  --- its Custom menu is missing Evil; rebuild before handing over another one. The
+  unresolved GUI-screenshot/X11 environment problem noted above is also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):

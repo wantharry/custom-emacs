@@ -159,6 +159,18 @@ by hand.")
     ("Editing lock"
      ("C-c e e" allow-editing "make this buffer editable")
      ("C-c e l" stop-editing "lock this buffer read-only again"))
+    ("Evil, vi keys"
+     ;; WHAT/WHY: a real gap, found by the user, not caught before --- `my/toggle-evil'
+     ;; already existed and was already documented in `my/shortcuts-packages' (the
+     ;; "world" section, `C-c k''s own second half), but was never also in THIS list,
+     ;; the one the new "Custom" menu-bar menu (above) is generated from --- so it
+     ;; never showed up there, or (less obviously) in `C-c k''s own flat topic list
+     ;; either, only in its packages section further down. A single toggle command on
+     ;; one key is exactly the shape this list already expects, unlike most of
+     ;; `my/shortcuts-packages''s other entries (Magit, Treemacs, ...), whose
+     ;; OPEN/CLOSE/COMMANDS fields are prose, not callable commands --- this one entry
+     ;; genuinely belongs in both places, and now is.
+     ("C-c v" my/toggle-evil "turn vi-style (Evil) keybindings on; C-c v again turns them off"))
     ("Session (crash-safe auto-save and restore)"
      ("C-c w s" my/session-save "save the session (open buffers, window layout) now")
      ("C-c w r" my/session-reset "discard it: back to the plain start screen next time")
