@@ -1312,6 +1312,58 @@ one.
 unrelated `dictate/live-server-really-starts-and-answers` flake (the same one, same
 root cause, seen in multiple earlier entries) and the usual stale-dist-bundle diffs.
 
+### Follow-up, same day: the session now remembers the theme too, and a self-correction
+
+User, working through the above with real confusion ("session is more of buffers right,
+if that the case why did it save theme and window when i want to reset it"): a fair,
+sharp question that caught an inaccuracy in the entry just above, not something to wave
+away. Re-verified from scratch, empirically, rather than re-asserting the prior
+explanation: saved a real session with specific frame parameters and a specific theme
+active, inspected the raw saved file directly, then restored it in a fresh process and
+checked what actually came back.
+
+Confirmed two different, real answers: (1) window placement, buffers, files AND frame
+chrome (menu bar/tool bar/decorations) were already genuinely persisted on their own ---
+the raw saved file shows `menu-bar-lines`/`tool-bar-lines`/`undecorated` sitting right
+there as real, explicit frame parameters, since `desktop-save-mode` bundles "remember my
+windows" and "remember my frame's appearance" into one mechanism (a frameset), not two
+separate ones, even though "session" sounds like it should mean just the buffers. (2) The
+color theme was genuinely NOT part of that at all --- restoring a saved session brought
+back whatever `theme-buffet` randomly picked for the current time of day, never what was
+actually active when saved. This directly contradicted something `C-c U`'s own comment
+had just claimed a few messages earlier in this same session ("saves... theme"); fixed
+the comment first to be honest about the gap, then --- since the user's actual ask,
+stated directly, was "i want session to save the theme, window placement, buffers,
+files, and decorations" --- closed the gap for real instead of just documenting it.
+
+New `my/session-theme` variable, wired into `desktop-globals-to-save` (the stock,
+already-built-in mechanism for persisting a plain variable's value alongside a session,
+not something invented here) to save/restore the theme's *name*; restoring the name
+alone would not re-enable it, though (`load-theme` is a real function call), so
+`desktop-save-hook` records the active theme right before every save and `desktop-after-
+read-hook` re-applies it after every restore. Ordering mattered and was checked
+directly, not assumed: `theme-buffet-a-la-carte` (the random initial pick) is plain
+top-level code in `config/init.el`, so it always finishes before `after-init-hook` fires;
+this config's own `after-init-hook` entry (depth 90, in `config/emacs-session.el`) is
+what triggers the real `desktop-read`, and `desktop-after-read-hook` runs from inside
+that call --- so the theme restore always runs *after* `theme-buffet`'s own pick and
+correctly overrides it, confirmed with a real save/restore round trip in a fresh process
+(not just reasoned about): `theme-buffet` served a random theme on its own, then the
+saved one (`dracula`) still ended up active once `desktop-read` finished. The no-theme
+case was checked the same way, confirming it correctly disables whatever `theme-buffet`
+picked rather than just leaving it alone.
+
+Went back and corrected `C-c U`'s own comment and docstring (written earlier in this
+same session, now actually accurate) to reflect that all four --- chrome and theme ---
+genuinely persist now, not just the first three.
+
+2 new tests in `tests/ert/themes.el` (a real save/restore round trip for both a specific
+theme and no theme, both using the same real-`desktop-read'-first pattern `tests/ert/
+emacs-session.el` already established, not the artificial batch-only shortcut): 20/20
+there, 25/25 `config.el`, 26/26 `emacs-session.el`; 678 tests, 655 pass, 0 regressions
+across the full offline suite --- same 1 pre-existing `dictate` flake, same stale-dist
+diffs.
+
 ## Where things stand as of the last entry
 
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
@@ -1320,10 +1372,12 @@ root cause, seen in multiple earlier entries) and the usual stale-dist-bundle di
   the Windows zip was rebuilt locally and copied to Downloads, and a fresh Linux bundle
   was built from scratch and published via a manual `workflow_dispatch` run of
   `.github/workflows/release.yml` (tagged `manual-run-2`) --- see the two entries above.
-- `Dockerfile`, `.dockerignore`, `docs/DOCKER.md` and the `v1.0` tag/release are all
-  committed and pushed now (the user explicitly asked for each, per the standing
-  "commit only when told" preference). `C-c u`/`C-c U` (frame-chrome toggle/reset,
-  see the entry just above) are committed in the same batch as this entry.
+- `Dockerfile`, `.dockerignore`, `docs/DOCKER.md`, the `v1.0` tag/release, and `C-c u`/
+  `C-c U` (frame-chrome toggle/reset, their own commit) are all committed and pushed.
+  **The session-remembers-the-theme follow-up just above is NOT yet committed** (per
+  the standing "commit only when told" preference) --- `git status` will show
+  `config/init.el`, `tests/ert/themes.el`, `docs/MY-NOTES.md` and this file modified
+  until explicitly asked to commit.
 - Whether to strip the `.git` dirs out of the three VC-installed theme packages
   (`seti-theme`, `xcode-theme`, `ember-theme`, ~6 MB combined) before that rebuild is
   an open question raised but not yet answered.

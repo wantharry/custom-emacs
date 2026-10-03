@@ -72,7 +72,7 @@ only; the menu/tool bar change (like the modes themselves) applies to every fram
 
 ;; WHAT: `C-c U' (paired with `C-c u') puts the menu bar, tool bar, window decorations
 ;; and color theme back to exactly what this config's own "UI"/"Themes" sections set at
-;; a fresh start --- then immediately saves that as the session restored next time.
+;; a fresh start, then immediately saves that as the session restored next time.
 ;; WHY: a real, repeatedly-hit two-part problem, not something guessed at --- (1)
 ;; neither toggling these by hand nor `C-c w r' (`my/session-reset') actually puts the
 ;; LIVE frame back to this config's own defaults: `my/session-reset' only deletes the
@@ -82,6 +82,20 @@ only; the menu/tool bar change (like the modes themselves) applies to every fram
 ;; the very next exit anyway, undoing the fix before it ever took effect --- confirmed
 ;; directly, this exact sequence, more than once. This command does both halves at
 ;; once, in the right order, so there is no second step left to forget.
+;; A real correction made along the way, after a user question about exactly this, not
+;; assumed: menu-bar/tool-bar/decorations were ALREADY genuinely persisted by `my/
+;; session-save' on their own --- confirmed directly by saving a real session and
+;; inspecting the raw saved file, which shows `menu-bar-lines'/`tool-bar-lines'/
+;; `undecorated' sitting right there as real, explicit frame parameters (stock
+;; `desktop-save-mode' behavior: "remember my windows" and "remember my frame's
+;; appearance" are the same underlying mechanism, a frameset, not two separate ones,
+;; even though "session" sounds like it should mean "just the buffers"). The color
+;; theme was NOT part of that, though --- confirmed the same way, restoring a saved
+;; session used to bring back whatever `theme-buffet' happened to randomly pick for the
+;; current time of day, never what was actually active when saved. Fixed separately
+;; (see `my/session-theme'/`desktop-after-read-hook' in the "Themes" section above), so
+;; by the time this function runs, disabling the theme here really does persist too,
+;; the same as the other three.
 ;; HOW: reuses the same logic the rest of this config already trusts, rather than
 ;; re-stating what "default" means a second time in a second place: `my/load-theme-by-
 ;; number' with `?0' is exactly what `C-c c 0' already does to return to no theme
@@ -1211,6 +1225,48 @@ relative to whichever theme is currently active; wraps around at either end."
           :night     ,my/themes-dark))
   (theme-buffet-a-la-carte)
   (theme-buffet-timer-hours 1))
+
+;; WHAT: the session system (`C-c w s'/`C-c w r', and the automatic save/restore) also
+;; remembers and restores the active color theme, not just window placement, buffers,
+;; files and frame chrome.
+;; WHY: user request, after confirming for real (not assumed) that theme was the ONE
+;; thing the session system did NOT already cover --- everything else (window
+;; placement, buffers, files, frame chrome) already persists via `desktop-save-mode''s
+;; own frameset mechanism, confirmed directly by saving a real session and inspecting
+;; the raw saved file. Without this, `theme-buffet' always re-picks a fresh random theme
+;; at every startup regardless of what was active when the session was saved --- a
+;; sensible DEFAULT, but it meant there was no way to make a deliberately-chosen theme
+;; stick across restarts the way the rest of the session already does.
+;; HOW: `desktop-globals-to-save' is `desktop-save-mode''s own, already-built-in
+;; mechanism for saving/restoring the VALUE of a plain variable (not a buffer or frame)
+;; --- `my/session-theme' just records the name of whatever theme was active, updated
+;; via `desktop-save-hook' (runs right before every save, whichever of the several
+;; places that trigger one actually fired: `C-c w s', `C-c U', the periodic auto-save,
+;; or exit). Restoring the VALUE alone would not actually re-enable the theme, though
+;; (`load-theme' is a real function call, not just a variable) --- `desktop-after-read-
+;; hook' does that explicitly, and runs from INSIDE the real `desktop-read' call that
+;; this config's own `after-init-hook' entry (depth 90, in config/emacs-session.el)
+;; triggers --- which happens AFTER `theme-buffet-a-la-carte''s own initial pick above
+;; has already run (that call is plain top-level code, finished before `after-init-hook'
+;; ever fires), so this always runs later and correctly wins, rather than `theme-buffet'
+;; silently overriding it back on the very next startup.
+(defvar my/session-theme nil
+  "Name of the color theme active when the session was last saved, or nil for none.
+Saved and restored automatically as part of the session (see `desktop-globals-to-save')
+--- not meant to be set by hand.")
+(add-to-list 'desktop-globals-to-save 'my/session-theme)
+(defun my/session--remember-theme ()
+  "Record the currently active theme into `my/session-theme', right before a save."
+  (setq my/session-theme (car custom-enabled-themes)))
+(add-hook 'desktop-save-hook #'my/session--remember-theme)
+(defun my/session--restore-theme ()
+  "Re-apply `my/session-theme' after a restore, overriding whatever `theme-buffet'
+already picked at startup (this runs later, so it wins)."
+  (mapc #'disable-theme custom-enabled-themes)
+  (if my/session-theme
+      (load-theme my/session-theme t)
+    (my/ensure-visible-cursor)))
+(add-hook 'desktop-after-read-hook #'my/session--restore-theme)
 
 ;;; Keys ---------------------------------------------------------------------
 

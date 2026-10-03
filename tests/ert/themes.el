@@ -128,6 +128,51 @@
         (should (equal (face-attribute 'cursor :background) "DarkOrange")))
     (mapc #'disable-theme custom-enabled-themes)))
 
+(ert-deftest themes/session-save-and-restore-round-trips-the-active-theme ()
+  ;; User request, after confirming theme was the one thing the session system did NOT
+  ;; already cover (window placement/buffers/files/frame chrome all already persisted on
+  ;; their own, confirmed by inspecting a real saved file). Without this,
+  ;; `theme-buffet''s own initial pick at startup (a real, non-empty choice --- it always
+  ;; applies something, confirmed by `themes/theme-buffet-applies-a-theme-and-starts-its-
+  ;; timer-at-startup' above) would silently override whatever was active when saved. A
+  ;; real `desktop-read' first (`noninteractive' makes it an unconditional no-op
+  ;; otherwise, the same documented limit `tests/ert/emacs-session.el' already works
+  ;; around), since that is what actually runs `desktop-after-read-hook' --- the point
+  ;; this restores `my/session-theme' from.
+  (test-with-temp-dir dir
+    (let ((desktop-dirname dir) (desktop-path (list dir)) (desktop-save t))
+      (unwind-protect
+          (progn
+            (mapc #'disable-theme custom-enabled-themes)
+            (load-theme 'dracula t)
+            (desktop-save dir)
+            (desktop-release-lock dir)
+            (mapc #'disable-theme custom-enabled-themes) ; theme-buffet's own pick, in between
+            (let ((noninteractive nil)) (desktop-read dir))
+            (should (eq my/session-theme 'dracula))
+            (should (equal custom-enabled-themes '(dracula))))
+        (mapc #'disable-theme custom-enabled-themes)
+        (ignore-errors (desktop-release-lock dir))))))
+
+(ert-deftest themes/session-save-and-restore-round-trips-no-theme-too ()
+  ;; The other half: a session saved with NO theme active must come back with none
+  ;; either, overriding `theme-buffet''s own startup pick the same way a real one would
+  ;; --- not just "do nothing and leave whatever theme-buffet already picked."
+  (test-with-temp-dir dir
+    (let ((desktop-dirname dir) (desktop-path (list dir)) (desktop-save t))
+      (unwind-protect
+          (progn
+            (mapc #'disable-theme custom-enabled-themes)
+            (desktop-save dir)
+            (desktop-release-lock dir)
+            (load-theme 'dracula t) ; stand in for theme-buffet's own pick, in between
+            (let ((noninteractive nil)) (desktop-read dir))
+            (should-not my/session-theme)
+            (should-not custom-enabled-themes)
+            (should (equal (face-attribute 'cursor :background) "DarkOrange")))
+        (mapc #'disable-theme custom-enabled-themes)
+        (ignore-errors (desktop-release-lock dir))))))
+
 (ert-deftest themes/missing-lexical-binding-cookie-warning-is-suppressed ()
   ;; Several of the 15 theme packages (`rebecca-theme', `night-owl-theme', `seti-theme')
   ;; are old enough to never declare `lexical-binding: t' on their first line --- the
