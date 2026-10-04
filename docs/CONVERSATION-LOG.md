@@ -2183,6 +2183,52 @@ fixed to wait on mode-specific content instead, and to assert on short substring
 that survive truncation in `ranger`'s own narrower pane). 717 tests, 694 pass, 0
 regressions, plus 31/31 real terminal tests. `docs/MY-NOTES.md` updated.
 
+### Follow-up, same day: real troubleshooting, no code changes --- a Windows vterm toolchain, and two real gaps caught in earlier docs
+
+A run of real, practical questions, no feature work: why a large Dired copy froze
+Emacs (confirmed directly: `dired-do-copy' uses the built-in, synchronous `copy-
+file'/`copy-directory', no separate process, genuinely blocks the single-threaded UI
+for a large tree --- `vterm' + a real `cp -r'/`rsync', or Dired's own `!' with a
+trailing `&', are the real workarounds); how to navigate `ranger' -> Dired/Treemacs/
+Magit (already built, just needed restating); and a real, user-caught problem ---
+opening a FILE from `ranger' (not a directory) replaces that window with the file's
+own buffer, leaving `ranger-mode-map''s own keys behind entirely, with no way back
+via a key --- `C-c R' being bound GLOBALLY, not just inside `ranger', means pressing
+it again from the opened file re-opens `ranger' right there; confirmed live, this
+genuinely works and is the simplest way back. Also clarified a real case-sensitivity
+mixup: `C-c v' (toggle Evil) and `C-c V' (vterm) are two different keys, confirmed
+directly via `key-binding', not just asserted.
+
+Then, at the user's explicit request ("try to install whatever you can on windows"):
+installed a real C toolchain on the user's own Windows machine via `winget`, for
+`vterm''s native module to be able to compile there --- `cmake' was already present;
+`gcc'/`g++' were not, installed via `winget install --id
+BrechtSanders.WinLibs.POSIX.UCRT' (a maintained MinGW-w64 build), confirmed working
+from a freshly-read PATH (a shell already open when `winget' runs does not see the
+update). Attempted to also verify the real compile end-to-end by driving the
+unzipped Windows `Emacs.exe' from WSL (`cmd.exe' bridging) --- this uncovered a real,
+if indirect, finding: the resulting "compiled" module was an actual Linux ELF file,
+not a Windows DLL, traced to `cmd.exe' launched this way using a STALE PATH that
+does not yet include the just-installed MinGW --- confirmed by reading the real
+Windows registry-level PATH directly (correct) vs. what that specific `cmd.exe'
+session saw (`where gcc' failed there). Treated as a testing-methodology artifact of
+this specific WSL-to-Windows bridge, not a real problem with the install itself; the
+contaminated build artifacts were cleaned up, and the user was asked to verify with
+a normal, directly-launched Windows Emacs session instead (the one trustworthy test
+this session genuinely cannot perform itself).
+
+User, directly: "Did you update notes and documentation with commands and this chat
+commit and push" --- a fair, real check, not rhetorical: two genuine, stale/missing
+spots were found and fixed while answering it. `docs/MY-NOTES.md`'s own "ranger"
+section still described the reference panel as EXCLUDING `ranger-mode` (true before
+the panel-extension work two entries above, stale after it); and neither the
+"opening a file leaves ranger's keys behind" gotcha nor the real Windows vterm
+toolchain findings from this very entry had been written down anywhere yet. Both
+fixed here, in the same pass, rather than left for a future session to rediscover.
+
+No code changed this entire segment --- comment/documentation-only, nothing to
+regression-test beyond confirming the repo's own working tree is otherwise clean.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2227,18 +2273,22 @@ regressions, plus 31/31 real terminal tests. `docs/MY-NOTES.md` updated.
   directly this was never about screen size, just the ratio itself) --- committed and
   pushed (`5a92510`), with a matching Windows zip rebuilt, verified 10/10, and handed
   over.
-- **New this session, on top of `5a92510`, NOT YET COMMITTED, two features**: (1) the
-  current directory/file shown at the top of every buffer (a global `header-line-
-  format`; `ranger`'s own, already-informative header is left untouched) and (2) the
-  always-visible reference panel extended to `ranger`/Treemacs, with its own two real
-  bugs found and fixed (checking `ranger-mode` before `dired-mode`, and a second real
-  instance of the window-slot conflict Casual's menu hit earlier) --- see the two
-  entries just above for the full account of both. `git status` will show
-  `config/init.el`, `config/mode-reference.el`, `docs/MY-NOTES.md`, `tests/ert/
-  mode-reference.el`, `tests/ert/ranger.el`, `tests/test_tui.py`, this file, until
-  explicitly asked to commit. The Windows zip in Downloads matches `5a92510` --- the
-  header line and the extended reference panel are not in it yet; rebuild before
-  handing over another one.
+- The current directory/file shown at the top of every buffer (a global `header-
+  line-format`; `ranger`'s own, already-informative header is left untouched), and
+  the always-visible reference panel extended to `ranger`/Treemacs (with its own two
+  real bugs found and fixed: checking `ranger-mode` before `dired-mode`, and a
+  second real instance of the window-slot conflict Casual's menu hit earlier) are
+  committed and pushed (`a4ed9bf`), with a matching Windows zip rebuilt, verified
+  10/10, and handed over.
+- **New this session, on top of `a4ed9bf`, NOT YET COMMITTED**: documentation-only
+  --- a real Windows vterm toolchain installed on the user's own machine (`cmake`
+  already present; MinGW-w64 installed via `winget`), the real gotcha about opening
+  a file from `ranger` leaving its keymap behind (`C-c R` again is the way back),
+  and two stale/missing spots in `docs/MY-NOTES.md` found and fixed while checking
+  --- see the entry just above for the full account. No code changed, nothing to
+  rebuild for the Windows zip (still matches `a4ed9bf`, which already has
+  everything code-wise). `git status` will show only `docs/MY-NOTES.md` and this
+  file until explicitly asked to commit.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is
