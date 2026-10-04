@@ -1035,11 +1035,16 @@ only `let'-binds `default-directory' rather than passing the path as an argument
 ;; `ranger-width-preview' 0.65 --- parent 12%, middle (the pane you're actually
 ;; reading/navigating) only 23%, preview a full 65%, leaving the middle pane crammed
 ;; into the left third of the frame instead of sitting anywhere near its center.
-;; Rebalanced to parent 15%, middle 35%, preview 50% --- still gives the preview pane
-;; the largest share (it's still the point of ranger), but the middle pane is now
-;; nearly 1.5x wider and sits noticeably closer to center.
-(setq ranger-width-parents 0.15
-      ranger-width-preview 0.50)
+;; A first rebalance (15/35/50) widened the middle pane but, confirmed directly with
+;; a real screenshot, still left its own midpoint at ~32% of the frame, not the true
+;; 50% center --- giving the preview pane the single biggest share necessarily pushes
+;; everything else left of center, however the middle pane's own width is tuned.
+;; 25/50/25 is the one ratio that puts the middle pane's own midpoint EXACTLY at the
+;; frame's true center (`0.25 + 0.50/2 = 0.5'), at the real cost of a visibly smaller
+;; preview pane than ranger's own default convention favors --- the user's own
+;; explicit choice, offered directly as the tradeoff it is, not assumed.
+(setq ranger-width-parents 0.25
+      ranger-width-preview 0.25)
 (when (locate-library "ranger")
   (autoload 'ranger "ranger" "Open a ranger-style file manager (Miller columns, a live preview pane)." t))
 (defun my/ranger-missing ()

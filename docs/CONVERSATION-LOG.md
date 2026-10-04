@@ -2097,6 +2097,30 @@ stale-dist diffs), plus 29/29 real terminal tests. `docs/TREEMACS.md` and
 map -->` table) both updated and cross-checked by `tests/ert/keybindings.el` against
 the real keymaps, not just described.
 
+### Follow-up, same day: ranger's pane widths, take two --- a real screenshot from the user's own Windows machine
+
+User, after a real screenshot from their own Windows build: "dont see it centered
+for ranger, does it depend on the screen size? how to make sure it works on all
+screens." Right to push back --- the 15/35/50 rebalance from the entry above widened
+the middle pane but, worked out properly this time, only ever put its own midpoint
+at ~32% of the frame, not true center: giving the preview pane the single biggest
+share necessarily pushes everything else left, no matter how the middle pane's own
+width is tuned alone. Confirmed directly, not assumed, that `ranger-width-parents'/
+`ranger-width-preview' are FRACTIONS of `(frame-pixel-width)', recomputed fresh every
+time the layout builds (`ranger.el''s own source) --- so screen size/resolution was
+never actually the cause, and the same ratio holds identically on any screen.
+
+Offered the real tradeoff directly rather than guessing at a number: 25/50/25 is the
+one ratio where the middle pane's own midpoint lands EXACTLY at the frame's true
+center (`0.25 + 0.50/2 = 0.5`), at the cost of a visibly smaller preview pane than
+ranger's own default convention favors. User picked it explicitly over two other
+offered options (20/40/40, or keeping 15/35/50). Confirmed with a fresh screenshot ---
+the middle pane's own midpoint genuinely lines up with the frame's center now.
+
+714 tests still pass (comment/variable-only change, no logic to regress); Windows
+zip rebuilt and verified 10/10 after. `docs/MY-NOTES.md` updated with the real
+"does this depend on screen size" answer, not just the new ratio.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2129,19 +2153,22 @@ the real keymaps, not just described.
   bytes) handed over after.
 - The ranger-style file manager (`C-c R`) --- the two real mingling bugs found and
   fixed (the reference panel's window-slot conflict, and `ranger.el`'s own `C-p`
-  rebinding via `ranger-autoloads`) --- is committed and pushed (`15bd627`), with a
-  matching Windows zip rebuilt, verified 10/10, and handed over.
-- **New this session, on top of `15bd627`, NOT YET COMMITTED**: ranger's pane widths
-  rebalanced, and the full Dired/ranger/Treemacs/Magit cross-navigation matrix --- see
-  the entry just above for the full account, including the 5 real bugs found along
-  the way (the `C-c T` directory-buffer gap, `ranger-to-dired`'s leftover windows, the
-  `magit-status` nested-repo gotcha, the trailing-slash bug, and the async-subprocess
-  test-crash). `git status` will show `config/init.el` (further changed on top of
-  `15bd627`), `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `docs/TREEMACS.md`, `tests/ert/
-  keybindings.el`, `tests/ert/treemacs.el`, this file, until explicitly asked to
-  commit. The Windows zip in Downloads matches `15bd627` --- the cross-navigation
-  keys and rebalanced pane widths are not in it yet; rebuild before handing over
-  another one.
+  rebinding via `ranger-autoloads`) --- is committed and pushed (`15bd627`). The first
+  pane-width rebalance (15/35/50) and the full Dired/ranger/Treemacs/Magit cross-
+  navigation matrix (the 5 real bugs found along the way: the `C-c T` directory-
+  buffer gap, `ranger-to-dired`'s leftover windows, the `magit-status` nested-repo
+  gotcha, the trailing-slash bug, and the async-subprocess test-crash) are also
+  committed and pushed (`48ab61b`). Both have a matching Windows zip rebuilt, verified
+  10/10, and handed over.
+- **New this session, on top of `48ab61b`, NOT YET COMMITTED**: ranger's pane widths
+  rebalanced a SECOND time, to 25/50/25 --- see the entry just above for the full
+  account (a real screenshot from the user's own Windows machine showed 15/35/50
+  still was not centered; confirmed directly this was never about screen size, just
+  the ratio itself, and 25/50/25 is the one ratio that puts the middle pane's own
+  midpoint exactly at the frame's center). `git status` will show `config/init.el`
+  and `docs/MY-NOTES.md` until explicitly asked to commit. The Windows zip in
+  Downloads matches `48ab61b` --- still has the 15/35/50 ratio, not this; rebuild
+  before handing over another one.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is
