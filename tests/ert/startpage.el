@@ -1,5 +1,9 @@
 ;;; startpage.el --- the start screen: recent files, folders and projects  -*- lexical-binding: t; -*-
 ;; harness: config
+;; Covers the history itself (remembering, capping, saving/loading, deriving it from
+;; `recentf-list' on a first run with nothing of its own saved yet), the buffer built from
+;; it (sections, the "more" links, read-only), and the per-entry actions (RET, m/d/t,
+;; number keys).
 
 (require 'startpage (expand-file-name "startpage" (or (getenv "CONFIG_DIR") user-emacs-directory)))
 
@@ -165,6 +169,11 @@
         (should (string-match-p "File1\\.txt" txt))))))
 
 (ert-deftest start/first-run-derives-folders-and-projects-from-recentf ()
+  ;; `my/start-remember' is never called here --- deliberately: this is `startpage.el's own
+  ;; "first-run fallback" (its term, see `my/start--all'), which derives the Folders/
+  ;; Projects sections straight from `recentf-list' whenever this file's own tracking is
+  ;; still empty, so the screen is not blank and useless the very first time a freshly
+  ;; installed config opens it, before anything has had a chance to be remembered yet.
   (sp-with-state
     (let ((fs (sp--make-tree sp-dir 2)))
       (setq recentf-list (reverse fs))
@@ -203,6 +212,11 @@
 ;;; the same three actions as the git-repos list (see gitfolders.el's own tests).
 
 (ert-deftest start/m-opens-magit-on-a-projects-own-folder ()
+  ;; `fboundp' is stubbed too, not just `magit-status' itself: `my/start-open-magit' falls
+  ;; back to plain `dired' when `(fboundp 'magit-status)' is nil (a real machine without
+  ;; Magit installed), so without this, on such a machine `opened' would silently never get
+  ;; set and the real assertion below would fail for an unrelated reason --- stubbing both
+  ;; makes this test deterministic whether or not Magit actually happens to be installed.
   (sp-with-state
     (let* ((f (car (sp--make-tree sp-dir 1))) opened (real-fboundp (symbol-function 'fboundp)))
       (my/start-remember (file-name-directory f))

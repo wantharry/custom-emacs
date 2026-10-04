@@ -85,6 +85,10 @@
 (ert-deftest treemacs/its-project-list-file-is-recognised ()
   (dolist (f '("/home/u/.emacs.d/.cache/treemacs-persist" "c:/x/config/.cache/treemacs-persist-at-last-error"))
     (should (string-match-p my/always-editable-file-regexp f)))
+  ;; The negative cases are not just "any other file": they exercise the regexp's own
+  ;; anchors --- a trailing ".txt" (the real pattern ends in `\'', right after the exact
+  ;; name) and a missing "/.cache/" directory (the real pattern requires it) must each
+  ;; fail on their own; a looser, unanchored substring match would wrongly pass both.
   (dolist (f '("/home/u/.cache/treemacs-persist.txt" "/home/u/treemacs-persist" "/home/u/notes.txt"))
     (should-not (string-match-p my/always-editable-file-regexp f))))
 

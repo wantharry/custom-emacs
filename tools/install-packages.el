@@ -4,6 +4,10 @@
 ;; Needs network.
 
 (require 'package)
+;; `package-user-dir' points into this config's own `config/elpa' (what `my/elpa-dir' in
+;; init.el also points at), not the Emacs default of `~/.emacs.d/elpa' --- so everything
+;; this script installs stays inside this project, gitignored, instead of leaking into
+;; wherever else Emacs happens to be run on this machine.
 (setq package-user-dir (expand-file-name "elpa" user-emacs-directory)
       package-archives '(("gnu"    . "https://elpa.gnu.org/packages/")
                          ("nongnu" . "https://elpa.nongnu.org/nongnu/")
@@ -39,6 +43,9 @@ for it; `pdf-tools' genuinely needs one real system package (`libpoppler-glib-de
 this build process cannot install for itself (confirmed missing here, see init.el's own
 comment on `pdf-loader-install' for how that gap is handled without a regression).")
 
+;; `package-refresh-contents' (one network fetch of every archive's index) only runs
+;; when something is actually missing --- re-running this script on an already-complete
+;; install does no network access at all, not even to check for updates.
 (let ((missing (seq-remove #'package-installed-p my/packages)))
   (if (null missing)
       (message "All packages already installed: %S" my/packages)

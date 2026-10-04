@@ -230,6 +230,16 @@ own startup defaults, then immediately save that as the session restored next ti
 (savehist-mode 1)
 
 ;; Backups and auto-saves go to one place instead of littering projects.
+;; WHY these two settings specifically, not just the redirect above: `backup-by-copying'
+;; makes Emacs back a file up by copying it, rather than its own normal default of
+;; renaming the original aside and writing a fresh file in its place --- the usual
+;; default quietly breaks a hard-linked or symlinked file (the rename severs the link,
+;; so the backup ends up holding the only copy of what used to be shared) and is also
+;; the one that changes a file's ownership/permissions on every save; copying instead
+;; never touches the original file's identity at all.  `create-lockfiles' nil turns off
+;; Emacs's own `.#filename' lock files --- harmless on a single-user machine with nothing
+;; else watching these directories, and otherwise just one more stray generated file
+;; per edited buffer for no benefit here.
 (let ((dir (expand-file-name "backups/" user-emacs-directory)))
   (make-directory dir t)
   (setq backup-directory-alist `(("." . ,dir))
@@ -420,6 +430,19 @@ key sequence can never make a file editable."
         corfu-cycle t)
   (global-corfu-mode 1))
 
+;; WHAT: install a single package on demand, straight from Lisp, rather than via
+;; `./build.sh packages' (`tools/install-packages.el').  WHY: that script is how every
+;; package this config actually uses gets onto disk normally --- but Evil (the one and
+;; only caller of this function, see `my/toggle-evil' below) is deliberately NOT one of
+;; them, since most people running this config never turn Evil on at all; this lets
+;; `C-c v' offer to install it right there, the first time it's actually asked for,
+;; instead of making everyone carry a vi-emulation package they may never use.  HOW:
+;; only `gnu'/`nongnu' are listed here, not `melpa' too (confirmed directly against
+;; `tools/install-packages.el''s own archive list, which adds `melpa' specifically
+;; because Treemacs is only published there) --- Evil itself ships on NonGNU ELPA (see
+;; the `y-or-n-p' prompt below), so this function has never needed `melpa' for the one
+;; package it actually installs; a future caller needing a MELPA-only package would
+;; have to add it here too.
 (defun my/install-package (pkg)
   "Install PKG from ELPA into `my/elpa-dir'.  Loads package.el on demand."
   (require 'package)

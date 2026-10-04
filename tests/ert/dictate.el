@@ -4,6 +4,16 @@
 ;; installed at the configured paths (they are never bundled with this project; see
 ;; docs/DICTATE.md) --- the same "skip if the real local tool is not set up" pattern
 ;; llm.el uses for Ollama.
+;;
+;; Live dictation (`C-c M') talks to a real `whisper-server' subprocess over HTTP,
+;; started fresh by the tests that need one. Its startup has real timing subtleties,
+;; worked out the hard way (see docs/DICTATE.md and docs/CONVERSATION-LOG.md): the
+;; listening socket accepts a connection a short time before the server's request
+;; handling is actually ready to serve one, which needed a settle delay after the
+;; readiness probe, not just before it. `dictate/live-server-really-starts-and-answers'
+;; below has a known, pre-existing flake tied to this same cold-start timing ---
+;; reproduced across several separate, unrelated sessions and never root-caused; it is
+;; not something a change to this file is expected to cause or fix.
 
 (require 'dictate (expand-file-name "dictate" (or (getenv "CONFIG_DIR") user-emacs-directory)))
 
@@ -284,6 +294,8 @@ alone, the same as the real code does between real sessions: it is meant to pers
 ;;; Against the real whisper-server in this environment (skips if not built/downloaded)
 
 (ert-deftest dictate/live-server-really-starts-and-answers ()
+  ;; The known flake described in the file header lives here: a real `whisper-server'
+  ;; cold start, timing-sensitive, reproduced more than once and still not root-caused.
   (skip-unless (file-executable-p my/dictate-server-binary))
   (skip-unless (file-readable-p my/dictate-live-model))
   (dict-isolated

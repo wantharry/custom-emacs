@@ -15,6 +15,13 @@
                "ido" "icomplete" "package" "url" "json"))
     (should (locate-library l))))
 
+;; `mm-archive' is the one real breakage this caught: the first pruned build was
+;; checked only by `require'-ing every package and looked clean, but `url' loads
+;; `gnus/mm-archive' lazily --- only when something actually fetches a URL --- so a
+;; static dependency scan never saw it, and it was pruned anyway. Nothing failed until
+;; `package-refresh-contents' itself broke with "Cannot open load file ... mm-archive".
+;; Fixed with an explicit exception in `prune.list'; see docs/PRUNING.md ("What went
+;; wrong the first time").
 (ert-deftest pruning/lazily-needed-exceptions-are-kept ()
   (dolist (l '("mm-archive" "mm-decode" "message"))
     (should (locate-library l))))

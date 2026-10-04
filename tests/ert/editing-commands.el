@@ -1,5 +1,10 @@
 ;;; editing-commands.el --- everyday editing commands  -*- lexical-binding: t; -*-
 ;; harness: config
+;; A mix of plain Emacs defaults (kill/yank, case conversion, transpose, whitespace, fill,
+;; sort, rectangles, registers, keyboard macros) and behavior this config specifically
+;; turns on in init.el (`electric-pair-mode', `delete-selection-mode') --- regression
+;; coverage for the everyday editing primitives day-to-day work depends on, not for any
+;; of this repo's own code.
 
 (ert-deftest editing/kill-and-yank ()
   (test-in-buffer #'text-mode "hello world"

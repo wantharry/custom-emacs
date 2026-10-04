@@ -1,5 +1,14 @@
 ;;; config.el --- our init.el / early-init.el take effect  -*- lexical-binding: t; -*-
 ;; harness: config
+;;
+;; This file is the shallow, breadth-first check: one assertion per setting that
+;; init.el/early-init.el makes, confirming it actually took effect after a real startup --- not
+;; the full depth of any one feature. Where a feature is complex enough to earn its own file
+;; (sessions, the read-only lock, Consult, themes, shortcuts, ...), THAT file is where the real
+;; behavior, fixtures and regression tests live; this file only needs to know that feature's own
+;; entry point got wired up at all. Several tests below are themselves regressions pinned down
+;; the hard way (the calendar's width, the GC threshold, recentf's messages, frame-chrome
+;; toggling) --- see each test's own comment for the real incident behind it.
 
 (ert-deftest config/init-file-reloads-cleanly ()
   (let ((init (expand-file-name "init.el" user-emacs-directory)))

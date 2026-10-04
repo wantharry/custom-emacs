@@ -1,5 +1,9 @@
 ;;; processes.el --- subprocesses and timers  -*- lexical-binding: t; -*-
 ;; harness: bare
+;; Plain Elisp coverage for the process primitives (synchronous and asynchronous,
+;; `:filter'/`:sentinel', `accept-process-output') that this config's own background work
+;; is built on --- fastfind.el's background index build (see config/fastfind.el) is the
+;; main real user of exactly this `make-process' shape elsewhere in this repo.
 
 (ert-deftest processes/call-process-captures-output ()
   (with-temp-buffer

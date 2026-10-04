@@ -20,6 +20,12 @@
   (should (< (sp--startup-seconds) 0.5)))
 
 (ert-deftest startup/package-el-not-loaded ()
+  ;; `browse-url' is checked here, not for its own sake, but as a second, independent
+  ;; witness that `package.el' itself never got loaded: `package.el' loads `browse-url',
+  ;; which is the actual PATH-searching cost init.el's own comment on this says to avoid
+  ;; (see init.el on why `package.el' is deliberately not loaded at startup) --- so this
+  ;; would catch `package' sneaking in some other way that left `featurep' on `package'
+  ;; itself looking clean.
   (should-not (featurep 'package))
   (should-not (featurep 'browse-url)))
 

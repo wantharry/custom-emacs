@@ -4,9 +4,19 @@
 ;; Usage (see tools/verify-prune.sh):
 ;;   S=outdir R=repo-root emacs -Q --batch -l tools/workflows.el --eval '(run-workflow "name")'
 ;; Needs network for the package-* and url-https workflows.
+;; This is a throwaway verification run, not a real editing session: skip native-comp's
+;; async background compilation and the usual byte-compile warnings, neither of which
+;; is useful noise for what this file is checking.
 (setq native-comp-jit-compilation nil byte-compile-warnings nil)
 (defvar S (or (getenv "S") temporary-file-directory))
+;; A fresh scratch directory per run, so each workflow's own files (package installs,
+;; diff fixtures, dired targets, ...) never collide with a previous run's leftovers.
 (defvar tmp (make-temp-file "wf" t))
+;; Signature checking is turned off here on purpose: the point of this workflow is to
+;; exercise package.el's archive-metadata machinery itself (can it even fetch and parse
+;; an index from each archive), not whether GPG is set up in this throwaway batch
+;; environment --- `wf-package-install-signed' below is the one that deliberately
+;; leaves checking on instead.
 (defun wf-package-refresh ()
   (require 'package)
   (setq package-user-dir (concat tmp "/pkgs") package-check-signature nil
@@ -16,6 +26,10 @@
 (defun wf-package-install ()
   (wf-package-refresh) (package-install 'evil)
   (unless (package-installed-p 'evil) (error "evil not installed")))
+;; Unlike `wf-package-refresh' above, `package-check-signature' is left at its default
+;; here and only GNU ELPA (the one archive that actually signs its packages) is used ---
+;; this is the one workflow whose real job is confirming signature verification itself
+;; still works, not just that installing in general does.
 (defun wf-package-install-signed ()
   (require 'package)
   (setq package-user-dir (concat tmp "/pkgs2")
@@ -44,11 +58,19 @@
 (defun wf-calendar ()
   (require 'calendar) (require 'diary-lib) (require 'holidays) (require 'icalendar)
   (calendar-holiday-list) (require 'time-date))
+;; `ignore-errors' here specifically: this host does not exist, and the point is only to
+;; exercise Tramp's own file-name parsing/dispatch machinery, not to actually reach a
+;; real SSH server --- without it, Tramp's own attempt to resolve/connect to "nobody"
+;; would fail this workflow for a reason that has nothing to do with what it is checking.
 (defun wf-tramp ()
   (require 'tramp) (ignore-errors (expand-file-name "/ssh:nobody@localhost:/tmp")) (tramp-dissect-file-name "/ssh:a@b:/c"))
 (defun wf-compile-edebug-ert ()
   (require 'compile) (require 'edebug) (require 'ert) (require 'elp) (require 'profiler)
   (ert-deftest wf-t () (should t)) (ert-run-tests-batch "wf-t"))
+;; `smtpmail' is required (to confirm it still loads) but never actually asked to send
+;; anything --- this only builds a `message-mode' buffer and reads a header back out of
+;; it, so despite the mail-sending requires, this workflow needs no network and sends no
+;; real mail (it is not listed among the network-needing workflows in this file's header).
 (defun wf-compose-mail ()
   (require 'sendmail) (require 'message) (require 'emacsbug) (require 'rfc822) (require 'mail-utils) (require 'mailcap) (require 'smtpmail)
   (with-temp-buffer (message-mode) (insert "To: a@b\nSubject: t\n--text follows this line--\nhi") (message-fetch-field "to")))
@@ -58,12 +80,24 @@
   (project-current nil (getenv "R")))
 (defun wf-treesit-python-js ()
   (require 'treesit) (require 'python) (require 'js) (require 'c-ts-mode) (with-temp-buffer (python-mode) (insert "def f(): pass\n") (font-lock-ensure) (imenu--make-index-alist)))
+;; Unlike every workflow above, this one is not modeling one realistic usage session ---
+;; it is a flat catch-all list of built-in UI/editing packages with no single story to
+;; tie them together, grouped here together on purpose rather than split into one tiny
+;; workflow each: the thing it actually guards against is a pruning pass accidentally
+;; dropping a lisp file one of these still needs (see tools/verify-prune.sh), which a
+;; plain `require' is enough to catch regardless of which realistic workflow it belongs to.
 (defun wf-misc-ui ()
   (require 'ibuffer) (require 'recentf) (require 'savehist) (require 'winner) (require 'which-key) (require 'tab-bar) (require 'bookmark) (require 'desktop) (require 'ido) (require 'icomplete) (require 'completion-preview)
   (require 'speedbar) (require 'imenu) (require 'whitespace) (require 'so-long) (require 'hideshow) (require 'outline) (require 'flyspell) (require 'ispell) (require 'doc-view) (require 'image-mode) (require 'shell) (require 'comint) (require 'eshell) (require 'esh-mode) (require 'term) (require 'calc) (require 'proced) (require 'man) (require 'woman) (require 'texinfo) (require 'sql) (require 'gdb-mi) (require 'server) (require 'dictionary) (require 'json) (require 'soap-client) (require 'zeroconf))
 (defun run-workflow (name)
   (let ((fn (intern (concat "wf-" name))) (status "OK"))
     (condition-case e (funcall fn) (error (setq status (format "ERROR: %s" (error-message-string e)))))
+    ;; `load-history' is Emacs's own running record of every file loaded this session
+    ;; (by `require', autoload, or otherwise) --- dumping the file names here, not just
+    ;; the OK/ERROR result, is what lets tools/verify-prune.sh later cross-check which
+    ;; of those files are on the prune list: a workflow passing on the unpruned build
+    ;; while quietly depending on a file that pruning then removes is exactly the
+    ;; regression this trace exists to catch.
     (with-temp-file (format "%s/trace-%s.txt" S name)
       (dolist (h load-history) (when (stringp (car h)) (insert (car h) "\n"))))
     (princ (format "%-26s %s\n" name status))))

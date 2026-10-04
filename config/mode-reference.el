@@ -189,6 +189,22 @@ itself.")
   (when-let* ((win (get-buffer-window my/mode-reference-buffer-name t)))
     (delete-window win)))
 
+;; WHAT: the single update routine every hook below actually calls --- decides whether the
+;; panel should show (and for which mode) or hide entirely, based on what's visible right
+;; now.  WHY: used directly as the hook function for `window-selection-change-functions'/
+;; `window-buffer-change-functions'/`window-size-change-functions' and the mode hooks, each
+;; of which calls its functions with different real arguments (a frame, a window, ...) this
+;; never actually needs --- `&rest _' just discards whatever was passed.  Binding
+;; `my/mode-reference--updating' to t with `let*' (rather than a plain `setq'/`unwind-
+;; protect' pair) is what makes the reentrancy guard self-resetting: it is automatically
+;; back to nil the moment this call returns, including through a non-local exit, with
+;; nothing separate to remember to clean up.  HOW: `(window-buffer (selected-window))'
+;; rather than plain `(current-buffer)' --- the buffer actually shown in the selected
+;; window is the one whose mode should decide the panel's state, which is not guaranteed to
+;; be the same buffer that happens to be current at the exact moment one of these hooks
+;; fires; `ignore-errors' means an edge case here (no real buffer to check, a transient
+;; state) just leaves the panel as it was, rather than erroring out of a hook Emacs itself
+;; is relying on to keep firing.
 (defun my/mode-reference--update (&rest _)
   (unless my/mode-reference--updating
     (let* ((my/mode-reference--updating t)

@@ -266,6 +266,15 @@ both places.")
 (easy-menu-define my/custom-menu global-map "This config's own commands, by topic."
   (my/custom-menu--spec))
 
+;; WHAT: this buffer's own keymap and major mode.  WHY/HOW: derives from `outline-mode'
+;; (TAB fold/unfold, heading navigation) rather than `special-mode' --- same choice, and
+;; same reason, as `my/llm-council-mode'/`my/docs-mode'; `outline-mode' has no `special-
+;; mode' ancestry at all, so unlike `my/start-mode'/`my/git-repos-mode' (which get `q' for
+;; free by inheriting `special-mode-map'), it has to be bound by hand here --- see
+;; docsbuffer.el's own comment on its matching `my/docs-mode-map' for the fuller version of
+;; this same point, about these being the two buffers in this config needing that.
+;; `outline-regexp' is set to match this buffer's own "* NAME" heading style, the same one
+;; every other outline-derived buffer here uses.
 (defvar my/shortcuts-mode-map
   (let ((m (make-sparse-keymap)))
     (set-keymap-parent m outline-mode-map)
@@ -277,6 +286,12 @@ both places.")
   (setq-local outline-regexp "\\* ")
   (setq-local buffer-read-only t))
 
+;; WHAT: write the whole *shortcuts* buffer's text: title, a short usage reminder, the flat
+;; per-topic key list built straight from `my/shortcuts-list', then (see the comment a few
+;; lines down) the separate packages section built from `my/shortcuts-packages'.  WHY: kept
+;; as one function, called once per redraw from `my/shortcuts-buffer' below, rather than two
+;; functions called separately by that caller --- the usual "always rebuild the whole buffer
+;; from the data model in one place" pattern this config uses throughout.
 (defun my/shortcuts--insert ()
   (insert (propertize "This config's keybindings\n\n" 'face '(:height 1.2 :weight bold)))
   (insert "  TAB folds a topic; RET/click on a topic also works.  See docs/KEYBOARD.md\n")

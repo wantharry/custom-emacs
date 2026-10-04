@@ -48,6 +48,9 @@ Emacs 31 build, which has no native compilation, so they do not apply to it."
   (should (pdumper-stats)))
 
 (ert-deftest build/gtk-wayland-toolkit-on-linux ()
+  ;; Confirms the build was configured `--with-pgtk' (see docs/BUILD.md), not that a Wayland
+  ;; session is actually running right now --- the same pure-GTK toolkit also works under
+  ;; WSLg and plain X11, so this only checks which toolkit got compiled in.
   (skip-unless (eq system-type 'gnu/linux))
   (should (featurep 'pgtk)))
 

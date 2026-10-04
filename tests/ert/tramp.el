@@ -4,6 +4,9 @@
 (require 'tramp)
 
 (ert-deftest tramp/dissects-an-ssh-name ()
+  ;; `#2222' here, not `:2222' --- Tramp's own file-name syntax writes a non-default port
+  ;; after `#' in the host field, since `:' already separates the host from the real
+  ;; (local) path that follows it.
   (let ((v (tramp-dissect-file-name "/ssh:alice@example.com#2222:/etc/hosts")))
     (should (equal (tramp-file-name-method v) "ssh"))
     (should (equal (tramp-file-name-user v) "alice"))

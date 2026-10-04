@@ -277,6 +277,20 @@ saved right now), each a link to switch to it."
   "Where named session snapshots are kept, one subdirectory per name.")
 (make-directory my/session-named-root t)
 
+;; WHAT: the four small helpers `my/session-save-as'/`-open'/`-delete'/`-named-list' below
+;; all go through to turn a typed NAME into a real, safe filesystem path and back.  WHY: a
+;; named session's NAME becomes a literal subdirectory name under `my/session-named-root'
+;; --- taken straight from user input (`interactive "s..."' or `completing-read'), so it has
+;; to be checked before ever reaching `expand-file-name'/`make-directory': a slash would let
+;; it escape into an unrelated subdirectory instead of naming one directly inside
+;; `my/session-named-root', and "." or ".." are reserved by the filesystem itself (the
+;; current/parent directory), not a real session name at all.  HOW: `--sanitize-name' is the
+;; one gate every path-building call (`--named-dir') goes through; `--named-names' lists only
+;; real, non-dotfile subdirectories (so a stray dotfile some other tool left there is never
+;; mistaken for a saved session); `--read-name' wraps that listing for the two different ways
+;; callers need to ask for a name --- REQUIRE-MATCH t for "pick an existing one" (`my/session-
+;; open'/`-delete', which refuse outright if none exist yet), nil for "type a new one"
+;; (`my/session-save-as', where no match is expected).
 (defun my/session--sanitize-name (name)
   "NAME as a single, safe directory name: no slashes, not empty, not \".\" or \"..\"."
   (let ((name (string-trim name)))

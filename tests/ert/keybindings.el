@@ -84,7 +84,7 @@ would see them."
 (defun kb--maps () (delete-dups (mapcar #'car (kb--rows))))
 
 (ert-deftest keys/guide-has-a-substantial-number-of-rows ()
-  (should (> (length (kb--rows)) 240)))
+  (should (> (length (kb--rows)) 240))) ; sanity: catches `kb--rows' itself silently parsing almost nothing
 
 (ert-deftest keys/guide-covers-the-modes-people-ask-about ()
   (dolist (m '("global" "dired-mode-map" "wdired-mode-map" "ibuffer-mode-map"

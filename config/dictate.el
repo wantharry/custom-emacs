@@ -398,6 +398,11 @@ decode-and-load cost again; see the section comment above for the real numbers."
 ;; the real, measured speed/accuracy tradeoff this is chosen for.
 (defvar my/dictate-live-model (expand-file-name "~/.local/share/whisper-cpp/models/ggml-base.en.bin")
   "Path to the (smaller, faster) GGML model live dictation transcribes with.")
+;; WHAT: the address live dictation starts `whisper-server' on, and talks to it over.
+;; WHY: a loopback address, deliberately, not "0.0.0.0" or the machine's real network
+;; address --- this server has no authentication of its own, so it must never be
+;; reachable from anywhere but this same machine (see `my/dictate-live-port's own
+;; comment just below, which this fact is also part of).
 (defvar my/dictate-live-host "127.0.0.1")
 ;; WHAT: the local port `whisper-server' listens on.  WHY: an unusual-enough number to be
 ;; unlikely to collide with something else already using a common port; never reachable
@@ -422,6 +427,16 @@ decode-and-load cost again; see the section comment above for the real numbers."
 ;; every time would mean paying its ~1-2s model-load cost on every single `C-c M', for a
 ;; server that otherwise stays perfectly idle and harmless in the meantime.
 (defvar my/dictate-live--server-process nil "The running `whisper-server' process, if any.")
+;; WHAT: the rest of live dictation's own module state, one slot per concern, same
+;; shape as `my/dictate--process'/`-transcribing'/`-wav-file'/`-target-buffer'/`-target-
+;; marker' above (each of those has its own WHAT/WHY/HOW comment; this is the live-mode
+;; counterpart of that same set, so it is not repeated here) --- `--active' standing in
+;; for the one-shot flow's `my/dictate--transcribing' flag (there is no separate
+;; "currently transcribing" state to track here: a chunk's recording and its
+;; transcription overlap by design, see `my/dictate-live--rotate' below), `--timer' is
+;; genuinely new (nothing in the one-shot flow repeats on its own), and `--recording-
+;; process'/`-wav-file'/`-target-buffer'/`-target-marker' are exactly the one-shot
+;; versions' roles, just for whichever chunk is currently in flight.
 (defvar my/dictate-live--active nil "Non-nil while live dictation is running.")
 (defvar my/dictate-live--timer nil "The repeating timer driving the chunk cycle, if any.")
 (defvar my/dictate-live--recording-process nil "The current chunk's recording process, if any.")
@@ -442,6 +457,10 @@ decode-and-load cost again; see the section comment above for the real numbers."
        ((not (file-readable-p my/dictate-live-model))
         (format "no live-dictation model at %s --- see docs/DICTATE.md to download one" my/dictate-live-model)))))
 
+;; WHAT: the URL a chunk's audio is POSTed to.  WHY/HOW: `/inference' is `whisper-
+;; server''s own fixed request path for transcription (not a convention this file
+;; invented, and not configurable on either side) --- everything else in this function
+;; is just this file's own host/port variables above, assembled into one string.
 (defun my/dictate-live--server-url ()
   (format "http://%s:%d/inference" my/dictate-live-host my/dictate-live-port))
 

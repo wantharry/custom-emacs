@@ -1,5 +1,12 @@
 ;;; readonly.el --- files open read-only; one typed command allows editing  -*- lexical-binding: t; -*-
 ;; harness: config
+;;
+;; Why the feature exists at all (config/init.el's own "Every file opens read-only" section):
+;; nothing on disk should change by accident, such as a slip while learning shortcuts turning
+;; into typed text. The unlock is deliberately a three-key chord (`C-c e e'), never a single
+;; key or the standard `C-x C-q' toggle, so no mistyped sequence can ever turn editing on by
+;; itself --- the "Slips of the fingers" and the chord-length sections below check exactly
+;; that, not just that editing is off by default.
 
 (require 'ibuffer) (require 'dired)
 
@@ -108,6 +115,9 @@ hook runs.  Also binds `ro-file' to the path."
   (ro-with-file (b "a.txt" "hello\n")
     (allow-editing)
     (insert "X")
+    ;; `inhibit-message' only suppresses the echo area, so `current-message' here would just
+    ;; hand back whatever was displayed *before* this call, not the suppressed text --- the
+    ;; message is still logged, so reading the tail of *Messages* is what actually sees it.
     (let ((msg (let ((inhibit-message t)) (stop-editing) (current-message))))
       (should (string-match-p "UNSAVED" (or (with-current-buffer "*Messages*" (buffer-substring (max (point-min) (- (point-max) 300)) (point-max))) msg))))))
 

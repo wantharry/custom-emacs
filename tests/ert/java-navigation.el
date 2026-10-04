@@ -189,6 +189,12 @@
           (my/eglot-find-type-definition-at-mouse event))))
     (should (equal (sort called #'string<) '("implementation" "type")))))
 
+;; Both paths matter: jdtls reads `pom.xml'/`build.gradle' for the real source layout
+;; when one exists, but the demo project above (like plenty of real small ones) has
+;; neither, so without this default it has no way to know where sources start at all.
+;; Getting it wrong is easy to miss: methods still resolve, but references to a class
+;; or interface itself come back silently empty (see docs/EGLOT.md) --- which is also
+;; why `.dir-locals.el' is the documented escape hatch for a project laid out differently.
 (ert-deftest jnav/the-source-path-default-is-set-for-servers-without-a-build-file ()
   (should (equal (plist-get (plist-get (default-value 'eglot-workspace-configuration) :java) :project)
                  '(:sourcePaths ["src/main/java" "src"]))))

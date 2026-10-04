@@ -37,6 +37,10 @@
   (dolist (l '(html css javascript jsdoc typescript tsx json))
     (unless (treesit-language-available-p l)
       (ert-fail (format "tree-sitter grammar for %s is not installed; run ./build.sh grammars" l)))
+    ;; A compiled grammar's own parser-format version (its "ABI") must not be newer than
+    ;; what the tree-sitter library on this machine can load --- see docs/LANGUAGES.md
+    ;; ("Why the grammars are pinned"): this is exactly why init.el pins specific grammar
+    ;; tags instead of always building the newest release.
     (should (<= (treesit-language-abi-version l) (treesit-library-abi-version)))))
 
 (ert-deftest langsweb/grammar-sources-are-pinned ()

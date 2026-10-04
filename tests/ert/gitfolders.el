@@ -268,6 +268,11 @@ exactly like the Windows bundle, which is the case it is meant to handle)."
 
 ;;; Opening a result: RET/click (Magit), d (Dired), t (Treemacs)
 
+;; The real code is `(if (fboundp 'magit-status) (magit-status dir) (dired dir))'; stubbing
+;; `fboundp' itself (not just `magit-status'), routed through the saved `real-fboundp' for
+;; every other symbol, is what lets this test force the "Magit is available" branch on a
+;; machine where Magit genuinely is not installed --- the next test below does the mirror
+;; image, forcing the fallback branch even when Magit IS installed.
 (ert-deftest gitfolders/clicking-a-result-opens-magit-status-there ()
   (gr-with-stub-script "echo '== Linux =='\necho '/tmp/some-repo'\n"
     (let (opened (real-fboundp (symbol-function 'fboundp)))

@@ -140,6 +140,12 @@
 ;;; Language servers: configured, not auto-started
 
 (ert-deftest langs/rust-server-is-rust-analyzer ()
+  ;; This isn't our own entry (unlike the bundled Java one below) --- it's whatever
+  ;; Eglot's own built-in default for Rust happens to be, so the key is read defensively
+  ;; rather than assuming today's exact shape: an `eglot-server-programs' key can be a
+  ;; bare mode symbol, a list of mode symbols, or a list mixing those with (MODE . ID)
+  ;; conses, depending on the entry; normalizing all three before the `memq' is what
+  ;; keeps this from breaking the moment a future Eglot release reshapes its own default.
   (let ((entry (cl-find-if (lambda (e) (let ((k (car e))) (memq 'rust-ts-mode (mapcar (lambda (x) (if (consp x) (car x) x)) (if (listp k) k (list k))))))
                            eglot-server-programs)))
     (should entry)

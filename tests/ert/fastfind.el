@@ -1,5 +1,9 @@
 ;;; fastfind.el --- instant fuzzy file finding over an index, with a live fallback  -*- lexical-binding: t; -*-
 ;; harness: config
+;; Three concerns, tested roughly in this order: the persisted index itself (built,
+;; refreshed, gone stale); the live ripgrep/grep/elisp search that covers whatever the
+;; index missed (new/excluded/untracked files); and the `completing-read' glue (ranking,
+;; debounce, annotations) that ties both of those to the actual prompt a key press opens.
 
 (require 'fastfind (expand-file-name "fastfind" (or (getenv "CONFIG_DIR") user-emacs-directory)))
 (require 'project)
@@ -256,6 +260,11 @@ gone is not enough: the step that moves the finished file into place runs just a
      ('grep (skip-unless (executable-find "grep"))
             (let ((my/ff-rg nil)) ,@body))
      ('lisp (let ((my/ff-rg nil))
+              ;; `my/ff--grep-program' falls back to real `grep' on its own whenever
+              ;; `my/ff-rg' is nil; on a machine that actually has `grep' (i.e. everywhere
+              ;; this tier's own counterpart above runs), binding `my/ff-rg' alone would
+              ;; still land on the grep tier, never the pure-elisp one this clause means
+              ;; to force --- so `my/ff--grep-program' itself has to be stubbed out too.
               (cl-letf (((symbol-function 'my/ff--grep-program) (lambda () nil))) ,@body)))))
 
 (ert-deftest ff/every-matcher-gives-the-same-answers ()

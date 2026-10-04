@@ -35,6 +35,10 @@ because keyboard macros and the command loop act on the window's buffer."
              (goto-char (point-min))
              ,@body))
        (set-window-buffer test--win test--old)
+       ;; `buffer-live-p' guards against BODY itself having already killed the
+       ;; buffer (a real case: a test exercising a command that kills its own
+       ;; buffer) --- calling `kill-buffer' again here would otherwise error,
+       ;; masking whatever BODY's own `should' actually found.
        (when (buffer-live-p test--buf) (kill-buffer test--buf)))))
 
 (defun test-write-file (path content)
@@ -63,6 +67,11 @@ because keyboard macros and the command loop act on the window's buffer."
 (defun test-git (dir &rest args)
   "Run git ARGS in DIR with a fixed identity.  Return the exit status."
   (let ((default-directory dir)
+        ;; A fixed author/committer identity so a commit never fails for lack of one
+        ;; on a machine where git has never been configured; the global/system config
+        ;; files are pointed at /dev/null so nothing in the real user's own gitconfig
+        ;; (a commit template, `commit.gpgsign', color settings that could leak ANSI
+        ;; codes into output a test then parses, ...) can change a test's behavior.
         (process-environment
          (append '("GIT_AUTHOR_NAME=t" "GIT_AUTHOR_EMAIL=t@t" "GIT_COMMITTER_NAME=t"
                    "GIT_COMMITTER_EMAIL=t@t" "GIT_CONFIG_GLOBAL=/dev/null"
