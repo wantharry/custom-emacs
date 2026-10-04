@@ -78,20 +78,30 @@
   (ranger-need
     (should (eq (get 'ranger-mode 'derived-mode-parent) 'dired-mode))))
 
-(ert-deftest ranger/reference-panel-is-excluded-so-it-does-not-fight-rangers-own-layout ()
+(ert-deftest ranger/reference-panel-shows-ranger-text-not-dired-text ()
   ;; A real, found-in-a-live-terminal-session bug this test pins down: `ranger-mode' IS
-  ;; `dired-mode' underneath (the test above), so without an explicit exclusion,
-  ;; `my/mode-reference-mode' (mode-reference.el, hooked to `dired-mode-hook') would
-  ;; claim the exact side-window slot `ranger''s own Miller-columns preview pane needs
-  ;; --- confirmed visually in a real `-nw' session before this exclusion was added.
+  ;; `dired-mode' underneath (the test above), so without checking it FIRST,
+  ;; `my/mode-reference--relevant-mode' (mode-reference.el) would report `dired-mode'
+  ;; and show the wrong (Dired's) text for a `ranger' session.
   (ranger-need
     (test-with-temp-dir d
       (let ((buf (dired-noselect d)))
         (unwind-protect
             (with-current-buffer buf
               (ranger-mode)
-              (should-not (my/mode-reference--relevant-mode)))
+              (should (eq (my/mode-reference--relevant-mode) 'ranger-mode)))
           (kill-buffer buf))))))
+
+(ert-deftest ranger/reference-panel-uses-a-different-slot-so-it-does-not-fight-rangers-own-layout ()
+  ;; `ranger''s own preview pane (confirmed directly in its source) uses the SAME
+  ;; `(side . right) (slot . 1)' the reference panel already uses for Dired/Org/
+  ;; Treemacs --- confirmed the hard way, in a real terminal session, that showing it
+  ;; there for `ranger' too silently fails to display at all (the same conflict `C-o''s
+  ;; own Casual menu hit earlier against the DEFAULT slot 0). `ranger' gets its own,
+  ;; genuinely different slot instead.
+  (ranger-need
+    (should-not (eql (my/mode-reference--slot-for 'ranger-mode)
+                     (my/mode-reference--slot-for 'dired-mode)))))
 
 (ert-deftest ranger/plain-dired-still-shows-the-reference-panel ()
   ;; The other half of "genuinely separate": plain Dired (not opened through `ranger')

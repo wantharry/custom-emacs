@@ -4,6 +4,13 @@
 (require 'dired)
 (require 'org)
 
+;; WHAT/WHY: user request --- the same always-visible reference panel, extended to
+;; `ranger' and Treemacs, the two other file browsers this session built real cross-
+;; navigation between. Every key in BOTH new texts was individually re-verified
+;; against the real `ranger-mode-map'/`treemacs-mode-map' before being written here,
+;; the same discipline the comment above describes for Dired/Org --- confirmed by the
+;; two tests below, not just asserted.
+
 ;; The real bug this whole file exists to pin down, found by the user, not caught by
 ;; anything until then: an earlier version of the panel's text was transcribed from
 ;; Casual's own `C-o' menu labels, which look like real standalone keybindings but
@@ -41,6 +48,24 @@ the content was written."
     (should (> (length keys) 15))
     (dolist (key keys)
       (should (lookup-key org-mode-map (kbd key))))))
+
+(ert-deftest mode-reference/every-ranger-key-is-really-bound ()
+  (if (not (locate-library "ranger"))
+      (ert-skip "ranger is not installed (./build.sh packages)")
+    (require 'ranger)
+    (let ((keys (mref--parse-keys my/mode-reference-ranger-text)))
+      (should (> (length keys) 15))
+      (dolist (key keys)
+        (should (lookup-key ranger-mode-map (kbd key)))))))
+
+(ert-deftest mode-reference/every-treemacs-key-is-really-bound ()
+  (if (not (locate-library "treemacs"))
+      (ert-skip "treemacs is not installed (./build.sh packages)")
+    (require 'treemacs)
+    (let ((keys (mref--parse-keys my/mode-reference-treemacs-text)))
+      (should (> (length keys) 15))
+      (dolist (key keys)
+        (should (lookup-key treemacs-mode-map (kbd key)))))))
 
 (ert-deftest mode-reference/re-anchors-to-the-top-after-a-resize ()
   ;; A real, user-reported bug (a real screenshot, not assumed): `C-c U' (`my/reset-to-

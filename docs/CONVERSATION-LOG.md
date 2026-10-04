@@ -2121,6 +2121,68 @@ the middle pane's own midpoint genuinely lines up with the frame's center now.
 zip rebuilt and verified 10/10 after. `docs/MY-NOTES.md` updated with the real
 "does this depend on screen size" answer, not just the new ratio.
 
+### Follow-up, same day: the current directory/file, always shown at the top
+
+User: "Can you add current location of eMacs all the time on the top." A global
+`header-line-format` (`(or buffer-file-name default-directory)`, `abbreviate-file-
+name`'d) --- the mode line (bottom) already shows the bare buffer name, never the
+full path; this fills that one real gap without duplicating it. `setq-default', not
+a minor mode or hook: a plain default only ever applies to a buffer that has not set
+its own `header-line-format' already, confirmed directly in `ranger.el''s own source
+it already does (`ranger-header-func', the "user@host : /path" line already visible
+at the top of a `ranger' session) --- so this adds the gap everywhere else (plain
+Dired, file buffers, `*scratch*', `vterm') without touching or fighting ranger's own,
+already more detailed header. Confirmed visually in a real terminal session across
+all of those buffer types, not just file buffers.
+
+714 tests still pass, plus 29/29 real terminal tests (including the existing which-
+key-stays-at-the-bottom checks, confirming the new header at the TOP doesn't disturb
+anything already anchored at the bottom). `docs/MY-NOTES.md` gets a new section.
+
+### Follow-up, same day: the reference panel extended to ranger and Treemacs
+
+User: "Can you all all the commands on the right side how we did for the dired add
+that for ranger and any others you can think of." Extended the existing always-
+visible reference panel (built for Dired/Org earlier this session) to `ranger` and
+Treemacs --- the two other file browsers this same session built real cross-
+navigation between. Treemacs's panel text reuses the already-verified table from
+`docs/TREEMACS.md` directly; `ranger`'s own ~35 entries went through the identical
+discipline the ORIGINAL panel text needed after its own real "F is undefined" bug:
+every key individually `lookup-key`-checked against the real `ranger-mode-map`
+before being written, confirmed with a real keymap dump (`h`/`j`/`k`/`l` plus arrow
+keys, `y`/`d`/`p` as real two-key prefixes for copy/cut/paste, etc.), not guessed or
+assumed from a quick skim.
+
+Two real bugs found and fixed, both only visible by actually running it, not from
+reading the code:
+
+- **`ranger-mode` IS `dired-mode` underneath (confirmed earlier this session) ---
+  checking order in `my/mode-reference--relevant-mode` matters.** `ranger-mode` has
+  to be checked BEFORE `dired-mode`, or a `ranger` session would show Dired's text
+  instead of its own.
+- **`ranger`'s own preview pane uses the exact same window slot the panel already
+  used.** The identical failure mode `C-o`'s own Casual menu hit against this panel
+  earlier in the session (see the entry on that, above) --- confirmed directly in
+  `ranger.el`'s own source, its preview pane uses `(side . right) (slot . 1)`, the
+  same slot the panel already occupied for Dired/Org/Treemacs. Fixed with a new
+  `my/mode-reference--slot-for` (`ranger` gets slot 2) and `--width-for` (`ranger`
+  gets a narrower 0.16, since its own three panes already fill the frame); switching
+  into or out of `ranger` now deletes and recreates the panel's window in the right
+  slot, since a side window's slot can't be changed on an already-open window.
+  Confirmed visually in a real terminal session: all 4 panes (parent, listing,
+  preview, reference) genuinely coexist now, and switching `ranger` <-> Dired <->
+  Treemacs moves the panel cleanly each time with no stale leftover window.
+
+5 new tests (`tests/ert/mode-reference.el` extended with `ranger'/Treemacs key
+verification; `tests/ert/ranger.el`'s own stale "panel is excluded" test replaced
+with "panel shows ranger's own text" and "panel uses a different slot"; 2 new real-
+terminal tests in `tests/test_tui.py`, which needed their own real fix along the
+way: `wait_for("Mode Reference")` returned instantly in both, since that buffer name
+is already on screen from Dired's own panel before the mode switch even happens ---
+fixed to wait on mode-specific content instead, and to assert on short substrings
+that survive truncation in `ranger`'s own narrower pane). 717 tests, 694 pass, 0
+regressions, plus 31/31 real terminal tests. `docs/MY-NOTES.md` updated.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2160,15 +2222,23 @@ zip rebuilt and verified 10/10 after. `docs/MY-NOTES.md` updated with the real
   gotcha, the trailing-slash bug, and the async-subprocess test-crash) are also
   committed and pushed (`48ab61b`). Both have a matching Windows zip rebuilt, verified
   10/10, and handed over.
-- **New this session, on top of `48ab61b`, NOT YET COMMITTED**: ranger's pane widths
-  rebalanced a SECOND time, to 25/50/25 --- see the entry just above for the full
-  account (a real screenshot from the user's own Windows machine showed 15/35/50
-  still was not centered; confirmed directly this was never about screen size, just
-  the ratio itself, and 25/50/25 is the one ratio that puts the middle pane's own
-  midpoint exactly at the frame's center). `git status` will show `config/init.el`
-  and `docs/MY-NOTES.md` until explicitly asked to commit. The Windows zip in
-  Downloads matches `48ab61b` --- still has the 15/35/50 ratio, not this; rebuild
-  before handing over another one.
+- Ranger's pane widths, rebalanced a SECOND time to 25/50/25 (a real screenshot from
+  the user's own Windows machine showed 15/35/50 still was not centered; confirmed
+  directly this was never about screen size, just the ratio itself) --- committed and
+  pushed (`5a92510`), with a matching Windows zip rebuilt, verified 10/10, and handed
+  over.
+- **New this session, on top of `5a92510`, NOT YET COMMITTED, two features**: (1) the
+  current directory/file shown at the top of every buffer (a global `header-line-
+  format`; `ranger`'s own, already-informative header is left untouched) and (2) the
+  always-visible reference panel extended to `ranger`/Treemacs, with its own two real
+  bugs found and fixed (checking `ranger-mode` before `dired-mode`, and a second real
+  instance of the window-slot conflict Casual's menu hit earlier) --- see the two
+  entries just above for the full account of both. `git status` will show
+  `config/init.el`, `config/mode-reference.el`, `docs/MY-NOTES.md`, `tests/ert/
+  mode-reference.el`, `tests/ert/ranger.el`, `tests/test_tui.py`, this file, until
+  explicitly asked to commit. The Windows zip in Downloads matches `5a92510` --- the
+  header line and the extended reference panel are not in it yet; rebuild before
+  handing over another one.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is

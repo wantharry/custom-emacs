@@ -15,6 +15,14 @@ commands and one-line notes, added to as they come up.
 
 `--init-directory=` is what makes it *this* config; without it, Emacs falls back to its own stock default.
 
+## Current location, always shown at the top
+
+| Topic | Note |
+|---|---|
+| What | every buffer's own header line (top of the window, not the mode line at the bottom) shows the full path of the file being edited, or the directory for one that isn't (Dired, `*scratch*`, ...) --- `~`-abbreviated the same way the minibuffer already shortens the home directory |
+| Why there, not the mode line | the mode line (bottom) already shows the bare buffer NAME; this adds the one thing it doesn't, without duplicating it |
+| `ranger` | untouched --- it already sets its own, more detailed header (`user@host : /path`), confirmed directly in its source; `setq-default` only ever applies to a buffer that hasn't set its own |
+
 ## Custom menu
 
 | Topic | Note |
@@ -124,13 +132,15 @@ commands and one-line notes, added to as they come up.
 
 ## Dired and Org: Casual (`C-o`) and the always-visible reference panel
 
-Two deliberately different things, both now living on the right in just these two
-modes --- worth keeping straight:
+Two deliberately different things --- worth keeping straight:
 
 | Topic | Note |
 |---|---|
-| `C-o` (Casual) | a real, Magit-style **transient** popup --- modal, takes over the keyboard, closes the instant you pick one action. `casual-dired-tmenu` in Dired (grouped File/Directory/Bulk/Navigation/Quick/Search/New), `casual-org-tmenu` in Org (grouped Headline/Date/Priority/Link/Timestamp/Mark/etc., context-aware --- shows the actual heading text at point) |
-| The reference panel | the opposite --- a plain, read-only, **non-modal** sidebar (`my/mode-reference-mode`, `config/mode-reference.el`), always visible the moment you're in a real Dired or Org buffer, never grabs focus, never closes on its own mid-task. A real bug, found by actually using it (`F` for "new file" said "F is undefined"): the first version of this content was transcribed from Casual's own `C-o` menu *labels*, which mostly only mean anything while that menu has focus, not as real standalone keys --- turned up to be systematic, not a one-off, across both panels. Rebuilt with every single entry re-verified directly against the real `dired-mode-map`/`org-mode-map` instead, with `tests/ert/mode-reference.el` now parsing and checking every key automatically so this can't silently come back |
+| `C-o` (Casual) | a real, Magit-style **transient** popup --- modal, takes over the keyboard, closes the instant you pick one action. `casual-dired-tmenu` in Dired (grouped File/Directory/Bulk/Navigation/Quick/Search/New), `casual-org-tmenu` in Org (grouped Headline/Date/Priority/Link/Timestamp/Mark/etc., context-aware --- shows the actual heading text at point). Dired/Org only --- `ranger`/Treemacs have no Casual integration |
+| The reference panel | the opposite --- a plain, read-only, **non-modal** sidebar (`my/mode-reference-mode`, `config/mode-reference.el`), always visible the moment you're in a real Dired, Org, `ranger', or Treemacs buffer, never grabs focus, never closes on its own mid-task. A real bug, found by actually using it (`F` for "new file" said "F is undefined"): the first version of this content was transcribed from Casual's own `C-o` menu *labels*, which mostly only mean anything while that menu has focus, not as real standalone keys --- turned up to be systematic, not a one-off, across both original panels. Rebuilt with every single entry re-verified directly against the real `dired-mode-map`/`org-mode-map` instead, with `tests/ert/mode-reference.el` now parsing and checking every key automatically so this can't silently come back |
+| Extended to `ranger`/Treemacs | user request, after the panel had already proven itself for Dired/Org --- `ranger''s own entries went through the same discipline (every key individually `lookup-key'-checked, not guessed), and Treemacs's text reuses the already-verified table from `docs/TREEMACS.md' directly (including this config's own `D'/`z'/`G' cross-navigation commands). `ranger-mode' is checked BEFORE `dired-mode' in `my/mode-reference--relevant-mode' --- confirmed directly, `ranger-mode' IS `dired-mode' underneath, so checking order matters or it would show Dired's text in a `ranger' session |
+| `ranger`'s own window-slot conflict, found again | `ranger''s own preview pane (confirmed directly in its source) uses the exact same `(side . right) (slot . 1)' the panel already used --- the identical failure mode Casual's menu hit against the panel earlier (see below), just a second real instance of it. Fixed with `my/mode-reference--slot-for': `ranger' gets slot 2, a genuinely different one, so all 4 panes (parent, listing, preview, reference) now coexist; switching INTO or OUT OF `ranger' deletes and recreates the panel's window in the right slot, since a side window's slot can't be changed after it's created |
+| `ranger`'s own panel is narrower | its own three panes already fill the frame (see "A ranger-style file manager" above) --- the panel uses 0.16 width there instead of the usual 0.28, confirmed visually to still read comfortably in a real terminal session |
 | Package (Casual) | `casual` (github.com/kickingvegas/casual), verified directly against MELPA, not assumed --- a big umbrella package (109 files), covers other built-in modes too (re-builder, timezone, etc.), only the Dired and Org parts are wired up here |
 | The Dired `C-o` collision | was already `dired-display-file` (show in another window, don't switch) --- kept Casual on `C-o` anyway, matching its own documented cross-mode convention; `o`/`v` already cover similar ground, `M-x dired-display-file` still works directly. Org had no existing `C-o` binding of its own, confirmed directly, so no collision there |
 | First use is slower | loading (and likely natively compiling, like any installed package's first real use) `casual-dired`/`casual-org` the first time `C-o` is pressed in a session takes a few real seconds, confirmed directly (not instant) --- every use after that in the same session is fast |

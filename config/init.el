@@ -30,6 +30,21 @@
 (setq-default indicate-empty-lines t
               fill-column 80)
 
+;; User request: always know where you are, at a glance, without reading the mode
+;; line's own (just the bare buffer NAME, not its location) --- the full path for a
+;; file-visiting buffer, or the directory for one that isn't (Dired, `ranger',
+;; `*scratch*', ...), `abbreviate-file-name'd the same way Emacs's own minibuffer
+;; prompts already shorten the home directory to `~'. `setq-default' here, not a
+;; global minor mode: a plain default only ever applies to a buffer that has not set
+;; its OWN `header-line-format' --- confirmed directly in `ranger.el''s own source,
+;; it already sets one buffer-locally (`ranger-header-func', the "openclaw@host :
+;; /path" line already visible at the top of a `ranger' session) --- so this adds
+;; the one real gap (plain Dired, file buffers, everything else) without touching or
+;; fighting ranger's own, already-informative header.
+(setq-default header-line-format
+              '(:eval (propertize (abbreviate-file-name (or buffer-file-name default-directory))
+                                  'face 'header-line)))
+
 ;; WHAT: `C-c u' hides/shows the menu bar, tool bar and this frame's own window
 ;; decorations (title bar/border) together, as one switch, rather than three separate
 ;; `eval-expression'/`M-x' calls. WHY: a real, found-by-doing-it problem --- these three
