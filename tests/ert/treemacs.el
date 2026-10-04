@@ -14,6 +14,28 @@
   (dolist (b (buffer-list)) (when (string-prefix-p " *Treemacs" (buffer-name b)) (kill-buffer b)))
   (delete-other-windows))
 
+(defun tm--kill-pending-git-status-processes ()
+  "Kill any still-running `pfuture' process (what Treemacs's own extended git-status
+integration uses for its background `treemacs-git-status.py' subprocess) and wait
+for it to really exit.  A real, found-while-adding-the-cross-navigation-tests crash:
+adding a project to the workspace kicks off this subprocess in the background, and
+these processes are confirmed directly to be unidentifiable by anything useful in
+`process-name' (just the generic \"Process Future\"/\"Process Future<1>\", no script
+name) or `process-buffer' (nil) --- so every process left in a `run'/`open' state is
+treated as one of these, since nothing legitimate in this test file's own fixtures
+starts a real, intentionally-long-lived process of its own. Without this,
+`tm-with-project''s own cleanup can delete the temp directory the subprocess is
+still reading from before it finishes, crashing the whole batch process with an
+unhandled \"Setting current directory\" error from its process sentinel, outside
+ERT's own error handling."
+  (dolist (p (process-list))
+    (when (memq (process-status p) '(run open))
+      (delete-process p)))
+  (let ((tries 20))
+    (while (and (> tries 0) (cl-some (lambda (p) (memq (process-status p) '(run open))) (process-list)))
+      (accept-process-output nil 0.05)
+      (setq tries (1- tries)))))
+
 (defmacro tm-with-project (var &rest body)
   "Run BODY with VAR bound to a fresh git project holding two files, its README.md open."
   (declare (indent 1))
@@ -156,5 +178,113 @@
     (let ((b (find-buffer-visiting (concat d "README.md"))))
       (should b)
       (should (buffer-local-value 'buffer-read-only b)))))
+
+(ert-deftest treemacs/c-c-shift-t-also-works-from-dired-on-a-subdirectory ()
+  ;; A real gap, found while adding cross-navigation between Dired/ranger/Treemacs:
+  ;; `treemacs-find-file' (what `my/treemacs-reveal' wraps) only ever looks at
+  ;; `(buffer-file-name (current-buffer))' --- confirmed directly in its own source
+  ;; --- always nil in a directory-listing buffer, so this used to fall into
+  ;; Treemacs's own interactive "File to find: " prompt instead of just going there.
+  (tm-need)
+  (tm-with-project d
+    (dired (concat d "src"))
+    (my/treemacs-reveal)
+    (should (eq (treemacs-current-visibility) 'visible))
+    (should (equal (treemacs--prop-at-point :path) (directory-file-name (concat d "src"))))
+    (tm--kill-pending-git-status-processes)))
+
+(defun tm--buffer-with-mode-and-dir (mode dir)
+  "The first live buffer in MODE whose `default-directory' is DIR, or nil.
+Checked this way, rather than via `major-mode'/`default-directory' right after
+calling the command under test, since `select-window' inside a real `--batch' ERT
+process does not reliably make `(current-buffer)' follow along the way it would in
+a real, displayed session --- the buffer existing at all, in the right place, is the
+actual thing each of these commands promises."
+  (cl-find-if (lambda (b)
+                (and (buffer-live-p b)
+                     (eq (buffer-local-value 'major-mode b) mode)
+                     (equal (file-truename (file-name-as-directory (buffer-local-value 'default-directory b)))
+                            (file-truename (file-name-as-directory dir)))))
+              (buffer-list)))
+
+(ert-deftest treemacs/to-dired-opens-plain-dired-on-the-directory-at-point ()
+  (tm-need)
+  (tm-with-project d
+    (my/treemacs-reveal)
+    (with-current-buffer (treemacs-get-local-buffer)
+      (goto-char (point-min))
+      (search-forward "src")
+      (my/treemacs-to-dired))
+    (let ((b (tm--buffer-with-mode-and-dir 'dired-mode (concat d "src"))))
+      (should b)
+      (kill-buffer b))
+    (tm--kill-pending-git-status-processes)))
+
+(ert-deftest treemacs/to-magit-opens-the-enclosing-repository-not-a-nested-one ()
+  ;; The real gotcha this test pins down: `magit-status' called WITH an explicit
+  ;; DIRECTORY argument (confirmed directly in its own source) requires that exact
+  ;; directory to already be a repository's own toplevel, or it offers to create a
+  ;; SEPARATE, NESTED repository there instead --- `my/treemacs-to-magit' instead
+  ;; `let'-binds `default-directory' and calls `magit-status' with no argument, the
+  ;; same way `C-x g' itself does, so it finds the ENCLOSING repository correctly even
+  ;; when point is on a subdirectory, not the project root.
+  (tm-need)
+  (if (not (locate-library "magit"))
+      (ert-skip "magit is not installed (./build.sh packages)")
+    (require 'magit)
+    (tm-with-project d
+      (my/treemacs-reveal)
+      (with-current-buffer (treemacs-get-local-buffer)
+        (goto-char (point-min))
+        (search-forward "src")
+        (my/treemacs-to-magit))
+      (let ((b (tm--buffer-with-mode-and-dir 'magit-status-mode d)))
+        (should b)
+        (kill-buffer b))
+      (tm--kill-pending-git-status-processes))))
+
+(ert-deftest treemacs/to-ranger-opens-ranger-on-the-directory-at-point ()
+  ;; A fresh subprocess, not the shared test-file process: `ranger' keeps its own
+  ;; global tracked-window/tab state (`ranger-w-alist'/`ranger-t-alist') across calls
+  ;; within one Emacs process, by design, for its real, interactive, long-running use
+  ;; --- confirmed the hard way, repeatedly, that resetting it by hand between calls in
+  ;; the SAME process was not enough to stop it from reusing a stale session and
+  ;; opening the wrong directory. A real, separate process sidesteps that --- and also
+  ;; Treemacs's own async git-status subprocess, the same cleanup-race source noted on
+  ;; the "to-dired" test above, which a whole separate process finishing and exiting
+  ;; cleanly avoids entirely rather than needing to out-race.
+  (tm-need)
+  (if (not (locate-library "ranger"))
+      (ert-skip "ranger is not installed (./build.sh packages)")
+    (test-with-temp-dir d
+      (make-directory (concat d "src") t)
+      (dolist (f '("README.md" "src/Main.java")) (test-write-file (concat d f) "x\n"))
+      (call-process "git" nil nil nil "init" "-q" d)
+      (let* ((src (concat d "src"))
+             (form `(progn
+                      (require 'treemacs)
+                      (require 'ranger)
+                      (setq default-directory ,d
+                            treemacs-persist-file ,(concat d "persist")
+                            treemacs-last-error-persist-file ,(concat d "persist-error")
+                            treemacs-python-executable nil
+                            ranger-preview-file nil)
+                      (switch-to-buffer (find-file-noselect ,(concat d "README.md")))
+                      (my/treemacs-reveal)
+                      (with-current-buffer (treemacs-get-local-buffer)
+                        (goto-char (point-min))
+                        (search-forward "src")
+                        (my/treemacs-to-ranger))
+                      (princ (cl-loop for b in (buffer-list)
+                                      thereis (and (eq (buffer-local-value 'major-mode b) 'ranger-mode)
+                                                   (equal (file-truename (file-name-as-directory (buffer-local-value 'default-directory b)))
+                                                          (file-truename (file-name-as-directory ,src))))))))
+             (out (with-output-to-string
+                    (with-current-buffer standard-output
+                      (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
+                                    "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
+                                    "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
+                                    "--eval" (format "%S" form))))))
+        (should (string-suffix-p "t" out))))))
 
 ;;; treemacs.el ends here

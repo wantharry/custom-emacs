@@ -256,6 +256,25 @@ color on their own.
 | `C-c R` (`ranger`) | opens a real Miller-columns file manager (parent dir, listing, live preview) --- explicitly kept separate from plain Dired, per a real user request, not a default |
 | Why `ranger`, not `dirvish` | `dirvish` (tried first) only works at all with its own GLOBAL `dirvish-override-dired-mode` turned on, which would make plain `dired`/`C-x d` ALSO become Dirvish sessions --- confirmed directly by calling its standalone `dirvish` command without that mode on and getting a perfectly plain Dired buffer back, nothing Dirvish-specific at all; `ranger-mode` is a real, self-contained derived mode instead, no global switch needed |
 | Two real "mingling" bugs found and fixed before this shipped | (1) the always-visible reference panel (built earlier this session) would claim the exact side-window slot ranger's own preview pane needs, breaking its layout --- fixed by excluding `ranger-mode` in `my/mode-reference--relevant-mode`; (2) `ranger.el` itself installs `C-p` → `deer-from-dired` into the SHARED `dired-mode-map` (its own default `ranger-key`) the first time ANY Dired buffer opens after it's loaded, silently breaking plain `previous-line` in Dired everywhere --- fixed by pre-setting `ranger-key` to nil in init.el before the library ever loads |
+| Pane widths | the default 3-pane split (`ranger-width-parents` 0.12, `ranger-width-preview` 0.65) left the middle pane --- the one you're actually reading --- squeezed into just 23% of the frame, well left of center; rebalanced to 0.15/0.50 (parent 15%, middle 35%, preview 50%) after a real screenshot comparison, confirmed visually, not just by the numbers |
+
+## Dired / ranger / Treemacs / Magit: cross-navigation
+
+Jump between all three file browsers (and Magit) without losing the directory you're
+currently in, user-requested one route at a time until the whole matrix was covered.
+Every key here is LOCAL to that one mode's own keymap (`r` means something different
+in Dired than in `ranger`, etc.), never a shared global one --- exactly to avoid
+repeating the real `C-p' mingling bug above.
+
+| From | Key | Goes to |
+|---|---|---|
+| Dired | `r` | `ranger`, same directory |
+| `ranger` | `r` | plain Dired, same directory (and cleans up `ranger`'s own extra parent/preview panes, which its own `ranger-to-dired` deliberately leaves open) |
+| Dired or `ranger` | `C-c T` | Treemacs, on that directory --- a real gap fixed along the way: `treemacs-find-file` (what `C-c T` wraps) only ever looks at `buffer-file-name`, always nil in a directory listing, so this used to fall into Treemacs's own "File to find:" prompt instead |
+| Treemacs | `D` | plain Dired, on the directory at point |
+| Treemacs | `z` | `ranger`, on the directory at point |
+| Treemacs | `G` | Magit status for the repository the directory at point belongs to --- a real gotcha: `magit-status` called WITH a directory argument requires that EXACT directory to be a repo's own toplevel, or it offers to init a nested repo there instead, so this `let`-binds `default-directory` and calls it with no argument instead, the same way `C-x g` itself does |
+| Dired or `ranger` | `C-x g` | Magit status for the enclosing repository --- already worked, no new binding needed, confirmed directly (`key-binding` from inside each) |
 
 ## Dist bundles / GitHub Actions
 

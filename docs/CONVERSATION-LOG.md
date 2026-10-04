@@ -2026,6 +2026,77 @@ real terminal tests --- same pre-existing `dictate` flake, same stale-dist diffs
 `docs/KEYBOARD.md` and `docs/MY-NOTES.md` both updated with the real account of why
 `dirvish` was rejected and what `ranger` needed to actually stay separate.
 
+### Follow-up, same day: ranger's pane widths rebalanced, then full cross-navigation between Dired/ranger/Treemacs/Magit
+
+User, after a real screenshot: "Why does the ranger app center the middle column in
+the center of the screen it's more towards the left side can you fix that." The
+default 3-pane split (`ranger-width-parents` 0.12, `ranger-width-preview' 0.65) left
+the middle pane --- the one actually being read/navigated --- at only 23% of the
+frame; rebalanced to 0.15/0.50 (parent 15%, middle 35%, preview 50%), confirmed with
+a real side-by-side screenshot comparison, not just the arithmetic.
+
+Then, one route at a time: "Can we go to dired and treemacs from the location of the
+ranger... also from dired to ranger and treemacs" → "Also treemacs to dired and
+ranger" → "Also include magit in this from all three routes" --- building out the
+full cross-navigation matrix between all four. Each addition surfaced a real, found-
+the-hard-way bug, never assumed fixed just because the code looked right:
+
+- **`C-c T` (`my/treemacs-reveal`) never worked from Dired/`ranger` at all.**
+  `treemacs-find-file` (what it wraps) only ever reads `(buffer-file-name
+  (current-buffer))`, always nil in a directory listing --- confirmed directly, it
+  fell into Treemacs's own interactive "File to find:" prompt instead. Fixed with a
+  `cl-letf` that makes `buffer-file-name` return this buffer's own
+  `default-directory` (run through `treemacs-canonical-path` first --- skipping that
+  made Treemacs's project lookup fail to match the very project it had just added,
+  confirmed the hard way) only for the duration of the one call; a file-visiting
+  buffer is completely unaffected either way.
+- **Leaving `ranger` back to Dired left 3 extra windows open.** `ranger-to-dired` (the
+  real function this wraps) deliberately leaves `ranger`'s other panes open, by its
+  own docstring, meant for toggling ranger's visual style while staying in the same
+  session --- not for actually leaving it. `my/ranger-to-dired` adds a
+  `delete-other-windows` after it.
+- **`my/treemacs-to-magit` almost offered to create a nested git repo.**
+  `magit-status` called WITH a directory argument (confirmed directly in its own
+  source) requires that EXACT directory to already be a repository's own toplevel,
+  or it asks to init a separate, nested repo there instead --- hit for real, live,
+  the first time this was tried on a subdirectory. Fixed by `let`-binding
+  `default-directory` and calling `magit-status` with no argument instead, the same
+  way `C-x g` itself does, so it finds the enclosing repository correctly.
+- **`my/treemacs-to-ranger` silently opened one directory level too high.**
+  `my/treemacs--dir-at-point` returned a path with no trailing slash;
+  `ranger`'s own entry function (confirmed directly in its source) treats a
+  no-trailing-slash path as a FILE and opens its PARENT directory --- caught by a new
+  test opening the wrong directory, not assumed working from the code alone. Fixed
+  by running every path through `file-name-as-directory` in the one shared helper,
+  fixing all three `to-dired`/`to-ranger`/`to-magit` commands at once.
+- **Dired/`ranger` → Magit needed no new binding at all.** `C-x g` already reaches
+  `magit-status` correctly from both --- confirmed directly via `key-binding` from
+  inside a real buffer of each, rather than assumed from "it's a global key."
+
+New tests (`tests/ert/treemacs.el`, 5 new; `tests/ert/keybindings.el` extended with a
+`ranger-mode-map` table check) surfaced one more real, found-while-testing-this
+problem of their own: adding a project kicks off Treemacs's own background
+`treemacs-git-status.py` subprocess (via `pfuture`), and these tests --- opening a
+second buffer right after and returning quickly --- gave the test fixture's own
+cleanup (deleting the temp directory) a real chance to run before that subprocess
+finished, crashing the whole batch process with an unhandled "Setting current
+directory" error outside ERT's own error handling. Several mitigations
+(`treemacs-python-executable`, `treemacs-git-mode`, both `let`-bound to nil) were
+tried and confirmed NOT to actually stop the subprocess from spawning; what actually
+worked was a small helper that kills any process still in `run`/`open` state and
+waits for it to really exit, called at the end of the affected tests before the
+fixture's own cleanup runs. The `ranger` cross-navigation test runs in a fresh
+subprocess instead (same reasoning as the earlier `ranger-autoloads` test): `ranger`
+keeps its own global tracked-window state across calls within one process, by
+design, confirmed the hard way to still reuse a stale session even after resetting
+it by hand between calls in the same process.
+
+714 tests, 691 pass, 0 regressions (same pre-existing `dictate` flake, same
+stale-dist diffs), plus 29/29 real terminal tests. `docs/TREEMACS.md` and
+`docs/KEYBOARD.md` (a new "Ranger" section, with its own `<!-- keymap: ranger-mode-
+map -->` table) both updated and cross-checked by `tests/ert/keybindings.el` against
+the real keymaps, not just described.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2056,15 +2127,21 @@ real terminal tests --- same pre-existing `dictate` flake, same stale-dist diffs
   The full-codebase documentation pass (53 comments, 28 files, comment-only) is also
   committed and pushed (`9742ece`), with its own small Windows zip rebuild (+2,517
   bytes) handed over after.
-- **New this session, on top of `9742ece`, NOT YET COMMITTED**: the ranger-style file
-  manager (`C-c R`) --- see the entry just above for the full account, including the
-  two real mingling bugs found and fixed (the reference panel's window-slot conflict,
-  and `ranger.el`'s own `C-p` rebinding via `ranger-autoloads`). `git status` will show
-  `config/init.el`, `config/mode-reference.el`, `config/shortcuts.el`, `tools/
-  install-packages.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, this file, and the new
-  `tests/ert/ranger.el`, until explicitly asked to commit. The Windows zip in Downloads
-  matches `9742ece`, NOT this --- `ranger` is not in it at all yet; rebuild before
-  handing over another one.
+- The ranger-style file manager (`C-c R`) --- the two real mingling bugs found and
+  fixed (the reference panel's window-slot conflict, and `ranger.el`'s own `C-p`
+  rebinding via `ranger-autoloads`) --- is committed and pushed (`15bd627`), with a
+  matching Windows zip rebuilt, verified 10/10, and handed over.
+- **New this session, on top of `15bd627`, NOT YET COMMITTED**: ranger's pane widths
+  rebalanced, and the full Dired/ranger/Treemacs/Magit cross-navigation matrix --- see
+  the entry just above for the full account, including the 5 real bugs found along
+  the way (the `C-c T` directory-buffer gap, `ranger-to-dired`'s leftover windows, the
+  `magit-status` nested-repo gotcha, the trailing-slash bug, and the async-subprocess
+  test-crash). `git status` will show `config/init.el` (further changed on top of
+  `15bd627`), `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `docs/TREEMACS.md`, `tests/ert/
+  keybindings.el`, `tests/ert/treemacs.el`, this file, until explicitly asked to
+  commit. The Windows zip in Downloads matches `15bd627` --- the cross-navigation
+  keys and rebalanced pane widths are not in it yet; rebuild before handing over
+  another one.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is

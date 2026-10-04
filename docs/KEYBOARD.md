@@ -455,6 +455,7 @@ preview pane) --- without changing how plain Dired above behaves at all; `q` clo
 | `$` | `dired-hide-subdir` | hide or show a subdirectory |
 | `w` | `dired-copy-filename-as-kill` | copy the file name (`0 w` full path) |
 | `=` | `dired-diff` | diff this file against another |
+| `r` | `my/dired-to-ranger` | **this config:** open `ranger` on this same directory |
 
 ### Mark and unmark
 
@@ -527,6 +528,22 @@ buffer (**wdired**). Rename files by editing their names with normal editing key
 - **Everything of one type:** `% m` and a regexp such as `\.pdf$`, then act on them.
 - **Find a file by name across folders:** `M-x find-name-dired`.
 - **Run a command on files:** mark them, `!`, for example `chmod +x *`.
+
+## Ranger: a Miller-columns file manager (this config, `C-c R`)
+
+A genuinely separate alternative to Dired above --- parent directory, current
+listing, and a live preview of whatever is under the cursor, all three panes at
+once. `C-c R` opens it; it never changes how plain Dired behaves.
+
+<!-- keymap: ranger-mode-map -->
+| Key | Command | What it does |
+|---|---|---|
+| `j` | `ranger-next-file` | next line |
+| `k` | `ranger-prev-file` | previous line |
+| `h` | `ranger-up-directory` | go up to the parent directory |
+| `l` | `ranger-find-file` | open the file, or enter the directory |
+| `q` | `ranger-close` | close `ranger` |
+| `r` | `my/ranger-to-dired` | **this config:** switch back to plain Dired, same directory |
 
 ## The buffer list (ibuffer)
 

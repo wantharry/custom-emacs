@@ -19,7 +19,7 @@ mode line, as every file is here).*
 | Key | Command | What it does |
 |---|---|---|
 | `C-c t` | `my/treemacs` | show the tree of the project you are in; press it again to hide it. The first time it needs no prompt: it takes the project (or the folder) of the current file |
-| `C-c T` | `my/treemacs-reveal` | show the tree and move into it, on the current file |
+| `C-c T` | `my/treemacs-reveal` | show the tree and move into it, on the current file --- or, in Dired/`ranger`, on that directory |
 
 Two "follow" modes are switched on when Treemacs loads: the current file is kept highlighted in the tree, and
 the tree switches to the project of the buffer you move to. So with one tree and a few projects you do not
@@ -57,6 +57,9 @@ Inside the tree (`?` lists more; the popup is from Treemacs):
 | `C-c C-p d` | `treemacs-remove-project-from-workspace` | remove a project from the tree |
 | `q` | `treemacs-quit` | close the tree window |
 | `Q` | `treemacs-kill-buffer` | close it and forget its state |
+| `D` | `my/treemacs-to-dired` | **this config:** open plain Dired on the directory at point |
+| `z` | `my/treemacs-to-ranger` | **this config:** open `ranger` on the directory at point |
+| `G` | `my/treemacs-to-magit` | **this config:** open Magit status for the repository the directory at point belongs to |
 <!-- keymap: global -->
 
 ## Tree, finder, Dired or the start screen?

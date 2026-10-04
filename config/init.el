@@ -666,13 +666,30 @@ installed, offer to install it from NonGNU ELPA."
    (t (treemacs))))
 
 (defun my/treemacs-reveal ()
-  "Show the file tree and move into it, on the file of this buffer."
+  "Show the file tree and move into it, on the file of this buffer --- or, in a
+Dired/ranger buffer (which visits no file, just a directory), on that directory.
+A real, found-while-wiring-up-ranger-cross-navigation gap: `treemacs-find-file'
+(Treemacs's own command this wraps) only ever looks at `(buffer-file-name
+(current-buffer))' --- confirmed directly in its own source --- which is always nil
+in a directory-listing buffer, so calling this from Dired or `ranger' used to fall
+straight into Treemacs's OWN interactive \"File to find: \" prompt instead of just
+going there. Fixed by feeding it the right path directly: `cl-letf' temporarily
+makes `buffer-file-name' return this buffer's `default-directory' (properly run
+through `treemacs-canonical-path' first --- confirmed the hard way that skipping
+this, a bare `default-directory''s own trailing slash, makes Treemacs's own project
+lookup fail to match the very project it just added seconds earlier) only for the
+duration of this one call, for a buffer that actually visits a file this changes
+nothing at all, since `buffer-file-name' already returns that same path either way."
   (interactive)
   (require 'treemacs)
   ;; first time: add this buffer's project (without leaving this window, since
   ;; `treemacs-find-file' reads the file from the current buffer)
   (when (treemacs-workspace->is-empty?) (save-selected-window (my/treemacs)))
-  (treemacs-find-file)          ; marks this file in the tree, showing the tree if it was hidden
+  (let* ((dir (treemacs-canonical-path default-directory))
+         (real-buffer-file-name (symbol-function 'buffer-file-name)))
+    (cl-letf (((symbol-function 'buffer-file-name)
+               (lambda (&optional buf) (or (funcall real-buffer-file-name buf) dir))))
+      (treemacs-find-file)))     ; marks this file/directory in the tree, showing it if hidden
   (treemacs-select-window))
 
 (with-eval-after-load 'treemacs
@@ -687,6 +704,57 @@ installed, offer to install it from NonGNU ELPA."
   (message "Treemacs is not installed.  Run ./build.sh packages"))
 (global-set-key (kbd "C-c t") (if (locate-library "treemacs") #'my/treemacs #'my/treemacs-missing))
 (global-set-key (kbd "C-c T") (if (locate-library "treemacs") #'my/treemacs-reveal #'my/treemacs-missing))
+
+;; User request: complete the cross-navigation matrix the other way too --- from
+;; Treemacs, jump to the directory at point (the file's own directory, if point is on
+;; a file) in plain Dired or `ranger'.  `treemacs-current-button'/`treemacs--nearest-
+;; path' are Treemacs's own real, public functions for "the path at point" (confirmed
+;; directly: the exact same pair `treemacs-find-file''s own manual-entry fallback
+;; uses) --- not reimplemented here. Window selection mirrors `treemacs-visit-node-no-
+;; split''s own documented approach (`next-window', the window next to treemacs) ---
+;; deliberately NOT one of Treemacs's own `:dir-action' button-action variants
+;; (`treemacs-visit-node-no-split' etc.): those are for VISITING a file/directory the
+;; normal way, whereas this always wants a directory BROWSER there, whether point is
+;; on a file or a folder.
+(defun my/treemacs--dir-at-point ()
+  "The directory `D'/`z'/`G' (below) should open: the directory at point in the tree,
+or the containing directory of the file at point --- always WITH a trailing slash
+(`file-name-as-directory'). A real, found-while-testing-this bug without it: `ranger'
+(confirmed directly in its own source, `ranger''s entry function) treats a path with
+no trailing slash as a FILE path and opens its PARENT directory instead --- so
+`my/treemacs-to-ranger' on a directory at point silently opened one level too high."
+  (let ((path (treemacs--nearest-path (treemacs-current-button))))
+    (file-name-as-directory (if (file-directory-p path) path (file-name-directory path)))))
+(defun my/treemacs-to-dired ()
+  "Open the directory at point, in the window next to Treemacs, in plain Dired."
+  (interactive)
+  (let ((dir (my/treemacs--dir-at-point)))
+    (select-window (next-window))
+    (dired dir)))
+(defun my/treemacs-to-ranger ()
+  "Open the directory at point, in the window next to Treemacs, in `ranger'."
+  (interactive)
+  (let ((dir (my/treemacs--dir-at-point)))
+    (select-window (next-window))
+    (ranger dir)))
+(defun my/treemacs-to-magit ()
+  "Open Magit status for the repository the directory at point belongs to.
+A real, found-while-testing-this gotcha: `magit-status' called WITH an explicit
+DIRECTORY argument (confirmed directly in its own source) requires that directory to
+already BE a repository's own toplevel --- given any other subdirectory of an
+existing repository instead (the likely case here: point is rarely on a project's
+exact root), it asks to create a SEPARATE, NESTED repository there instead of just
+showing the enclosing one's status. Calling it with NO argument instead, the same
+way `C-x g' itself does, makes it fall back to its own `default-directory'-based
+`magit-toplevel' search --- the correct, enclosing-repository behavior --- so this
+only `let'-binds `default-directory' rather than passing the path as an argument."
+  (interactive)
+  (let ((default-directory (my/treemacs--dir-at-point)))
+    (call-interactively #'magit-status)))
+(with-eval-after-load 'treemacs
+  (define-key treemacs-mode-map "D" #'my/treemacs-to-dired)
+  (when (locate-library "ranger") (define-key treemacs-mode-map "z" #'my/treemacs-to-ranger))
+  (when (locate-library "magit") (define-key treemacs-mode-map "G" #'my/treemacs-to-magit)))
 
 ;;; Consult: search built on the completion list -----------------------------------
 
@@ -962,12 +1030,50 @@ installed, offer to install it from NonGNU ELPA."
 (with-eval-after-load 'ranger-autoloads
   (remove-hook 'dired-mode-hook 'ranger-set-dired-key)
   (setq ranger-key nil))
+;; User request, after actually seeing it: the DEFAULT 3-pane widths (confirmed
+;; directly in `ranger.el''s own defcustoms) are `ranger-width-parents' 0.12 and
+;; `ranger-width-preview' 0.65 --- parent 12%, middle (the pane you're actually
+;; reading/navigating) only 23%, preview a full 65%, leaving the middle pane crammed
+;; into the left third of the frame instead of sitting anywhere near its center.
+;; Rebalanced to parent 15%, middle 35%, preview 50% --- still gives the preview pane
+;; the largest share (it's still the point of ranger), but the middle pane is now
+;; nearly 1.5x wider and sits noticeably closer to center.
+(setq ranger-width-parents 0.15
+      ranger-width-preview 0.50)
 (when (locate-library "ranger")
   (autoload 'ranger "ranger" "Open a ranger-style file manager (Miller columns, a live preview pane)." t))
 (defun my/ranger-missing ()
   (interactive)
   (message "ranger is not installed.  Run ./build.sh packages"))
 (global-set-key (kbd "C-c R") (if (locate-library "ranger") #'ranger #'my/ranger-missing))
+
+;; User request: jump between plain Dired and `ranger' without losing the directory
+;; you're currently in, in both directions --- `r' in each (local to that one mode's
+;; own keymap, never the shared global one, so this can't repeat the earlier `C-p'
+;; mistake). Dired -> ranger is one line, since `ranger' itself needs no global mode
+;; to work (see the big comment above); ranger -> Dired reuses `ranger-to-dired', a
+;; real function already in `ranger.el' (confirmed directly in its source) that swaps
+;; the CURRENT buffer back to plain `dired-mode' in place, at the same directory ---
+;; it was simply never bound to a key here, since its own suggested binding is the
+;; same `ranger-key' this config deliberately leaves nil.
+(defun my/dired-to-ranger ()
+  "Open `ranger' on this Dired buffer's own directory."
+  (interactive)
+  (ranger default-directory))
+(defun my/ranger-to-dired ()
+  "Switch back to plain Dired, on the same directory --- a real, found-live fact
+about `ranger-to-dired' (the real function this wraps, confirmed directly in its own
+docstring): it deliberately leaves ranger's OTHER panes (the parent directory, the
+preview) open, meant for toggling ranger's visual style while staying in the same
+multi-pane session, not for actually leaving it --- `delete-other-windows' here is
+what actually gets back to a clean, single plain-Dired window afterward."
+  (interactive)
+  (ranger-to-dired)
+  (delete-other-windows))
+(with-eval-after-load 'dired
+  (when (locate-library "ranger") (define-key dired-mode-map "r" #'my/dired-to-ranger)))
+(with-eval-after-load 'ranger
+  (define-key ranger-mode-map "r" #'my/ranger-to-dired))
 
 ;;; Start screen ---------------------------------------------------------------
 
