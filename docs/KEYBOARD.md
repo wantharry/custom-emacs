@@ -309,6 +309,9 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `M-o` | `ace-window` | **this config:** jump to a window by the letter shown in it (with only 2 windows open, behaves just like `other-window` did) |
 | `C-c u` | `my/toggle-frame-chrome` | **this config:** hide/show the menu bar, tool bar and this frame's window decorations together, in one keystroke --- note the current on/off state is itself part of what this config's session-restore system (`C-c w s`/`C-c w r`) remembers across restarts |
 | `C-c U` | `my/reset-to-defaults` | **this config:** put the menu bar, tool bar, window decorations and color theme back to this config's own startup defaults, and immediately save that so it's what gets restored next time too (the one-step fix for "I toggled something off and it keeps coming back off") |
+| `C-c H` | `my/mode-reference-mode` | **this config:** turn the always-visible command-reference panel on the right (Dired/Org/ranger/Treemacs) off, or back on --- shown by default; `C-c H` again toggles it back |
+| `C-c K d` | `docker` | **this config:** a Magit-style transient menu of Docker containers/images/volumes/networks (needs a real `docker` binary on PATH to do anything once opened) |
+| `C-c K k` | `kubernetes-overview` | **this config:** a buffer listing a Kubernetes cluster's resources (needs `kubectl` configured against a real cluster) |
 | `C-x ^` | `enlarge-window` | taller |
 | `C-x }` | `enlarge-window-horizontally` | wider |
 | `C-x {` | `shrink-window-horizontally` | narrower |

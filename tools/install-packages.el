@@ -20,7 +20,8 @@
                         avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes
                         casual csv-mode
                         corfu yasnippet expand-region diff-hl vterm pdf-tools
-                        ranger)
+                        ranger
+                        docker dockerfile-mode kubernetes)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -53,7 +54,26 @@ compat.elc'), so `package-installed-p' already reports it present with nothing i
 `ranger' is a real ranger-style file manager, bound to its own separate key (`C-c R',
 see init.el's own, much longer comment for the full account of why `dirvish' was
 tried and rejected first) rather than replacing plain Dired --- a real, explicit user
-requirement, not a default choice.")
+requirement, not a default choice.
+`docker' is a Magit-style transient UI for containers/images/volumes/networks
+(list, start/stop/rm, logs, exec, and TRAMP file browsing into a running container);
+`dockerfile-mode' is a plain major mode (syntax highlighting/indentation, a one-key
+build-from-buffer command) for this project's own `Dockerfile'. `docker-compose-mode'
+is NOT listed here --- checked directly, not assumed: it is not published on any of
+the three archives above any more (confirmed 404/\"unavailable\" on all three), and is
+redundant anyway --- `docker' itself already bundles its own `docker-compose.el'
+module (confirmed directly in its own source), with compose support built into the
+same transient UI, not a separate package. `kubernetes' (the real MELPA package name;
+its own menu/command calls itself `kubernetes-overview') is the same Magit-style idea
+one layer up, for a Kubernetes cluster rather than plain Docker --- unrelated to this
+repo's own `Dockerfile', included only because the user asked for everything in the
+family.
+`docker'/`kubernetes' share a real, genuinely new dependency, `tablist' --- the first
+package this project has ever installed that hard-requires part of CEDET/Semantic
+(`semantic/wisent/comp.el', for `tablist-filter''s on-the-fly filter-expression
+grammar) at its own top level, confirmed directly by actually trying to `require' it
+and getting a real \"Cannot open load file\" error --- `prune.list' (project root) has
+the full account of the fix, a single explicit keep added there.")
 
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete

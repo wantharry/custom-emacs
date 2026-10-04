@@ -128,6 +128,22 @@ mkdir -p "$STAGE/config/tree-sitter"; cp "$CACHE"/gram/*.dll "$STAGE/config/tree
 cp -r "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"
 find "$STAGE/config/elpa" \( -name '*.elc' -o -name '*.eln' \) -delete   # built by another Emacs; redo below
+# A real, found-the-hard-way bug this guards against: `vterm'/`pdf-tools' compile a
+# native module/helper from C the first time they are actually USED (see init.el's own
+# comments on each) --- if that ever happened on THIS machine first (e.g. while testing
+# vterm directly, not through `./build.sh dist'), the result is a REAL, machine-specific
+# `build/' directory (a genuine CMake build tree, `CMakeCache.txt' and all, not source)
+# sitting in `config/elpa' alongside the package's own real source files, which the
+# plain `cp -r' above would otherwise ship straight into the Windows bundle --- baking
+# in THIS Linux machine's own absolute path, confirmed for real to make CMake refuse to
+# continue on a real Windows machine ("different than the directory ... where
+# CMakeCache.txt was created"). `CMakeCache.txt' is the one reliable signal to tell a
+# REAL build tree apart from a package's own, legitimate `build/' directory of plain
+# SOURCE files (`pdf-tools' ships exactly this: `build/server/epdfinfo.c', never a
+# problem, confirmed directly it is not a CMake project at all) --- only directories
+# that actually contain one are removed, nothing else.
+find "$STAGE/config/elpa" -name 'CMakeCache.txt' -exec dirname {} \; | while read -r d; do rm -rf "$d"; done
+find "$STAGE/config/elpa" -maxdepth 2 \( -name '*.so' -o -name '*.dll' -o -name '*.o' \) -delete
 
 echo "== compile the packages with the Windows Emacs itself"
 TMPWIN="$(cd /mnt/c && cmd.exe /c 'echo %TEMP%' 2>/dev/null | tr -d '\r')"

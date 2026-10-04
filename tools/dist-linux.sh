@@ -58,6 +58,18 @@ echo "== settings, packages, grammars (no personal history)"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el} "$STAGE/config/"
 cp -a "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"      # download state, not needed
+# A real, found-the-hard-way bug this guards against (see tools/dist-windows.sh's own,
+# longer comment on this exact same step): `vterm'/`pdf-tools' compile a native
+# module/helper from C the first time they are actually used --- if that ever happened
+# on THIS machine first (e.g. while testing directly, not through `./build.sh dist'),
+# the result is a real, machine-specific `build/' directory (`CMakeCache.txt' and all)
+# baking in THIS machine's own absolute path --- which breaks the SAME way even on
+# another Linux machine, the moment the bundle is unzipped to a different path than
+# this one. `CMakeCache.txt' is the one reliable signal a real build tree (not a
+# package's own legitimate `build/' of plain source, e.g. `pdf-tools''s
+# `build/server/epdfinfo.c') is there.
+find "$STAGE/config/elpa" -name 'CMakeCache.txt' -exec dirname {} \; | while read -r d; do rm -rf "$d"; done
+find "$STAGE/config/elpa" -maxdepth 2 \( -name '*.so' -o -name '*.dll' -o -name '*.o' \) -delete
 [ -d "$ROOT/config/tree-sitter" ] && cp -a "$ROOT/config/tree-sitter" "$STAGE/config/tree-sitter"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
 # layout as the git repository, so no code needs to know it is running from a bundle

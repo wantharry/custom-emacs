@@ -994,6 +994,55 @@ only `let'-binds `default-directory' rather than passing the path as an argument
   (require 'pdf-loader)
   (pdf-loader-install t nil t))
 
+;; `docker'/`kubernetes': the same Magit-style transient-popup idea Magit itself uses,
+;; applied to containers/images/volumes/networks (`docker') or a Kubernetes cluster
+;; (`kubernetes') instead of git --- user request, after asking what exists in this
+;; family. Grouped under one `C-c K' prefix (rather than hunting for two separate free
+;; top-level letters: `D' is already `my/treemacs-reveal', `k' is already `my/
+;; shortcuts') the same way `C-c f'/`C-c w'/`C-c e' already group several related
+;; commands under one letter. `docker' itself (the `transient-define-prefix' in
+;; `docker-core.el', confirmed directly) is the one entry point for everything ---
+;; containers/images/volumes/networks/contexts are all reachable from its own menu,
+;; the same way `magit-status' is the one entry point into Magit; `kubernetes-overview'
+;; is `kubernetes''s own equivalent, a dedicated buffer rather than a transient menu.
+;; Both need a real `docker'/`kubectl' binary on PATH to do anything once opened ---
+;; not checked here, the same way `magit-status' does not check for a `git' binary
+;; either; opening the menu with neither installed just means every action inside it
+;; fails when actually run, same as Magit would.
+;; A real, found-by-testing fact specific to THIS config, not these packages: `load-
+;; path' only ever gets each `config/elpa/<pkg>' directory added directly (above, right
+;; after it is computed) --- `package.el' itself is used only to DOWNLOAD packages
+;; (`tools/install-packages.el'), never to ACTIVATE them, so none of their own
+;; `-autoloads.el' files (which would otherwise register `docker'/`kubernetes-overview'
+;; and dockerfile-mode's `auto-mode-alist' entries automatically) are ever loaded ---
+;; confirmed directly, the hard way: both were `fboundp' nil even right after startup
+;; until given their own explicit `autoload' calls here, same as every other optional
+;; package in this file (`magit-status', `vterm', ...).
+(when (locate-library "docker")
+  (autoload 'docker "docker-core" "A transient menu of Docker containers/images/volumes/networks." t))
+(when (locate-library "kubernetes")
+  (autoload 'kubernetes-overview "kubernetes-overview" "A buffer listing a Kubernetes cluster's resources." t))
+(defun my/docker-missing ()
+  (interactive)
+  (message "docker.el is not installed.  Run ./build.sh packages"))
+(defun my/kubernetes-missing ()
+  (interactive)
+  (message "kubernetes.el is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-c K d") (if (locate-library "docker") #'docker #'my/docker-missing))
+(global-set-key (kbd "C-c K k") (if (locate-library "kubernetes") #'kubernetes-overview #'my/kubernetes-missing))
+
+;; `dockerfile-mode': the same explicit-activation gap as above, for a plain major mode
+;; instead of a command --- its own `auto-mode-alist' entries (`Dockerfile'/
+;; `Containerfile', any extension, plus bare `*.dockerfile') are registered by its own
+;; `-autoloads.el', which (see above) never loads here, so without this this project's
+;; own `Dockerfile' would keep opening in plain `fundamental-mode' even with the
+;; package installed. Mirrors the package's own two `auto-mode-alist' entries exactly
+;; (`dockerfile-mode.el', confirmed directly) rather than guessing a simpler regexp.
+(when (locate-library "dockerfile-mode")
+  (autoload 'dockerfile-mode "dockerfile-mode" "Major mode for editing Dockerfiles." t)
+  (add-to-list 'auto-mode-alist '("[/\\]\\(?:Containerfile\\|Dockerfile\\)\\(?:\\.[^/\\]*\\)?\\'" . dockerfile-mode))
+  (add-to-list 'auto-mode-alist '("\\.dockerfile\\'" . dockerfile-mode)))
+
 ;; `ranger' is a real ranger-style file manager (Miller columns: parent directory,
 ;; current listing, and a live preview of whatever file the cursor is on). User
 ;; request, explicit: keep plain Dired (and everything already built on it this
@@ -1352,6 +1401,15 @@ what actually gets back to a clean, single plain-Dired window afterward."
 ;; this (both now coexist, stacked, on the same edge).
 (require 'mode-reference (expand-file-name "mode-reference" user-emacs-directory))
 (my/mode-reference-mode 1)
+
+;; `C-c H' turns the panel above off (or back on) --- user request, enabled by
+;; default for now, with an explicit plan to turn it off once comfortable with
+;; Dired/ranger/Treemacs without it. `my/mode-reference-mode' is a real `define-
+;; minor-mode', so calling it interactively with no prefix argument already toggles
+;; it on its own; this just gives that existing toggle a key, the same shape as
+;; `C-c v' for `my/toggle-evil' just below. `C-c h' (lowercase, the start screen) is
+;; already taken --- `H' (uppercase) is free.
+(global-set-key (kbd "C-c H") #'my/mode-reference-mode)
 
 ;;; Finding git repositories --------------------------------------------------------
 

@@ -2229,6 +2229,157 @@ fixed here, in the same pass, rather than left for a future session to rediscove
 No code changed this entire segment --- comment/documentation-only, nothing to
 regression-test beyond confirming the repo's own working tree is otherwise clean.
 
+### Follow-up, same day: a real Windows zip the user actually ran, and the critical bug it caught --- stale native-build artifacts shipped in every dist zip
+
+The user unzipped the handed-over zip on their own real Windows machine and pasted a
+real CMake error verbatim: `vterm`'s `build/CMakeCache.txt` baked in the absolute
+build path from THIS Linux machine (`/home/openclaw/projectsv1/editors/research-
+emacs/config/elpa/vterm-.../build`), so CMake refused to continue once that directory
+landed somewhere else entirely (`C:/Users/openclaw/Downloads/...`); also surfaced a
+real, separate gap in the user's own toolchain, `make: command not found` (WinLibs
+only ships `mingw32-make.exe`, never `make.exe` --- fixed directly on the user's PATH
+by copying it to a `make.exe` alongside it, since `vterm`'s own `CMakeLists.txt`
+hardcodes `make` for non-BSD systems).
+
+Root cause, confirmed directly: an earlier segment's own "attempted to also verify
+the real compile end-to-end" testing (see the entry above) had compiled `vterm`'s
+native module directly inside THIS repo's `config/elpa/`, leaving behind a genuine
+`build/` directory with a real `CMakeCache.txt` --- and despite that entry's claim
+the artifacts were "cleaned up," they were not; both `tools/dist-windows.sh` and
+`tools/dist-linux.sh` do a blind `cp -r`/`cp -a` of the whole `config/elpa` tree with
+no cleanup step at all, so every dist zip built since then (Windows confirmed by the
+user's own test; Linux never actually tried on a bare machine, so silently at the
+same risk) shipped that contaminated build tree forward.
+
+Fixed in both scripts: after staging `config/elpa`, find every directory containing
+a `CMakeCache.txt` and remove it, plus delete any stray `.so`/`.dll`/`.o` directly
+under `config/elpa`. `CMakeCache.txt`'s presence is the reliable signal that
+distinguishes a real leftover build tree from a package's own legitimate `build/`
+directory of plain source --- confirmed `pdf-tools` ships `build/server/
+epdfinfo.c`/`.h` as real vendored source with no `CMakeCache.txt` and no compiled
+binary in it, so this fix does not touch it.
+
+Added `test_no_machine_specific_native_build_artifacts_are_shipped` to both
+`WindowsBundle` and `LinuxBundle` in `tests/test_dist.py` --- confirmed it correctly
+FAILS against the old contaminated zip (23 failures) and passes after the fix
+(11/11), and separately verified end-to-end by deliberately leaving fresh build
+artifacts in place before rebuilding, confirming the dist scripts clean them up on
+their own without any manual pre-cleaning.
+
+Cleaning the stale `.so` also exposed a genuine, previously-untested code path:
+`tests/ert/vterm.el`'s own compile test had never actually exercised a real fresh
+compile before (the `.so` was always already there from earlier sessions), and doing
+so for real surfaced a second real ordering bug on top of the one already known ---
+`(require 'vterm)` itself, not just `vterm-module-compile`, checks `vterm-always-
+compile-module` at its own top level and calls `y-or-n-p` if nil, which errors
+immediately (`"Error reading from stdin"`) in a real `--batch` process with no
+terminal attached. Setting the variable via `let` AFTER `require` (the existing code)
+is too late; setting it via `let` BEFORE `require` reintroduces the ALREADY-FOUND
+"Defining as dynamic an already lexical var" error (this file's own `lexical-
+binding: t` makes a pre-existing `let` collide with `vterm.el`'s own `defcustom` of
+the same name once it finally loads). Fixed with a plain top-level `setq` before the
+`require` --- `setq`, unlike `let`, does not create that lexical binding at top
+level, avoiding both bugs at once; verified against both the short-circuit (already-
+compiled) and the full fresh-compile code paths.
+
+Rebuilt the Windows zip, confirmed 11/11 `WindowsBundle` passing, ran the full
+offline suite (`./tests/run-all.sh`: 717 tests, 694 pass, 22 skipped, only the
+already-known `dictate` flake, no new regressions), copied the fixed zip over the
+user's broken one in Downloads (209,149,831 bytes, 1,413,958 bytes SMALLER than the
+broken one it replaced --- the stale build tree's own weight). Not yet committed at
+the point this entry was written; `git status` will show `tests/ert/vterm.el`,
+`tests/test_dist.py`, `tools/dist-linux.sh`, `tools/dist-windows.sh` modified until
+explicitly asked to commit. The Linux dist zip was deliberately NOT rebuilt (per the
+standing per-feature rule), so it still has the same latent contamination risk until
+a future Linux-affecting change triggers its own rebuild --- worth remembering, not
+yet urgent since it has never actually been tried on a bare machine.
+
+### Follow-up, same day: a toggle key for the reference panel, then Docker/Kubernetes --- a real, previously-untriggered gap in how packages get activated
+
+First, the user's own next request, carried over from before the critical fix above
+interrupted it: "Can we make enable or disable the help window vertical on the right
+side, default can be to enable later I will plan to disable it." `my/mode-reference-
+mode' was already a real `define-minor-mode' (`:global t'), so calling it
+interactively with no prefix argument already toggles it --- this only needed a key.
+`C-c H' (uppercase; lowercase `C-c h' is already the start screen) now does that,
+added to `my/shortcuts-list' and `docs/KEYBOARD.md' the same way every other toggle in
+this config is (`C-c v' for Evil, right above it). A new test, `mode-reference/c-c-h-
+toggles-the-panel-on-and-off', confirms the key really reaches the mode AND that
+toggling genuinely shows/hides the real window, restoring the mode to whatever it was
+before so later tests in the same `--batch' process still see the panel enabled.
+
+Then, from a genuinely unrelated question ("Is there a docker ui in eMacs?"): there
+wasn't one, so --- after the user asked what else exists in the same family and chose
+"all of it, with sizes" --- `docker' (a Magit-style transient UI: containers/images/
+volumes/networks/contexts, all from one `docker' command, the same shape as `magit-
+status') and `kubernetes' (`kubernetes-overview', the same idea for a cluster) were
+added. `docker-compose-mode' was tried first and dropped: confirmed directly against
+all three configured archives (gnu/nongnu/melpa), it is not published on any of them
+any more, and is redundant anyway --- `docker' itself already bundles its own `docker-
+compose.el' module, compose support built into the same transient, not a separate
+package. `dockerfile-mode' (a plain major mode for this project's own `Dockerfile')
+was added alongside them.
+
+Two real, previously-untriggered gaps, found by actually trying to use what was just
+installed rather than assuming `./build.sh packages' finishing cleanly meant it worked:
+
+1. **This config never activates packages the normal way.** `package.el' is used only
+   to download (`tools/install-packages.el'); every package's own directory is added
+   straight to `load-path' (confirmed directly in `init.el''s own `load-path' setup),
+   and `package-initialize' is never called at startup --- so none of a package's own
+   `-autoloads.el' files ever load, and every single optional command needs its own
+   explicit `(autoload ...)' call in `init.el' (already true for `magit-status',
+   `vterm', ...; just never had to be learned freshly until now). `docker'/
+   `kubernetes-overview' were genuinely `fboundp' nil at startup until given that same
+   explicit treatment; `dockerfile-mode''s own `auto-mode-alist' entries needed the
+   identical fix, copied verbatim from its own source rather than guessed, since this
+   project's `Dockerfile' is the first file this config has ever needed a THIRD-PARTY
+   major mode's `auto-mode-alist' entry for (confirmed working: the real `Dockerfile'
+   here now opens in `dockerfile-mode', not `fundamental-mode').
+2. **`tablist' (a real, shared dependency of both new packages) hard-requires part of
+   CEDET/Semantic this project deliberately prunes out of the install.** Confirmed
+   directly, the hard way: `(require 'docker)' failed with a real "Cannot open load
+   file: ... semantic/wisent/comp" the first time it was actually tried, not assumed.
+   Root cause: `prune.py''s own dependency scan only ever looks at dependencies BETWEEN
+   built-in Emacs Lisp files (`emacs-src/lisp'), with no way to know a THIRD-PARTY
+   package in `config/elpa' needs one of them --- a structural gap that simply never
+   surfaced before, since nothing installed until now needed any of CEDET. Traced
+   precisely with `prune.py --plan': only ONE file genuinely needed rescuing,
+   `cedet/semantic/wisent/comp.el' (the wisent grammar *compiler*, for `tablist-
+   filter''s on-the-fly filter-expression grammar) --- its sibling `semantic/wisent/
+   wisent.el' (the grammar *runtime*) was already being kept, via a completely
+   unrelated chain (org's own Python Babel support). Fixed with one explicit `!' keep
+   line in `prune.list'; since the install was pruned once already, before this file
+   existed in `config/elpa' at all, the missing `.el.gz'/`.elc' were also copied back
+   into the live `install/' tree directly (matching the sibling files' own gzip/elc
+   convention) rather than requiring a full `./build.sh install && ./build.sh prune'
+   rebuild for one file.
+
+Real, user-caught rigor carried through on both new packages, not just claimed:
+`tests/ert/shortcuts.el' got `shortcuts/docker-facts-are-real' (checks `docker''s own
+transient suffixes via `transient-get-suffix', the same approach already used for
+Magit's `c c'/`P p') and `shortcuts/kubernetes-facts-are-real' (checks the real
+`kubernetes-mode-map' directly) --- both added BEFORE claiming the `my/shortcuts-
+packages' prose entries were accurate, the same discipline `mode-reference.el''s own
+real bug earlier this session exists to enforce. `tests/ert/keybindings.el' and
+`shortcuts/every-listed-key-really-runs-the-command-it-claims' both got the usual
+optional-package skip clause so neither new doc row/shortcuts-list entry fails on a
+machine that hasn't run `./build.sh packages'.
+
+Bound together under one new `C-c K' prefix (`C-c K d' for `docker', `C-c K k' for
+`kubernetes-overview') rather than hunting for two separate free top-level letters ---
+`D' is already `my/treemacs-reveal', lowercase `k' is already `my/shortcuts' --- the
+same grouping-under-one-letter shape `C-c f'/`C-c w'/`C-c e' already use.
+
+Full regression run after both features: 720 tests, 697 pass, 1 known `dictate' flake,
+22 skipped, no new regressions. Windows zip rebuilt, verified 11/11
+`WindowsBundle', copied to the user's Downloads (209,559,210 bytes, +409,379 over the
+CMakeCache.txt-fix zip from the entry above). Not yet committed; `git status' will
+show `config/init.el', `config/shortcuts.el', `docs/KEYBOARD.md', `prune.list',
+`tools/install-packages.el', `tests/ert/mode-reference.el', `tests/ert/shortcuts.el',
+`tests/ert/keybindings.el', plus the still-uncommitted CMakeCache.txt fix from the
+entry above, until explicitly asked to commit.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2280,15 +2431,45 @@ regression-test beyond confirming the repo's own working tree is otherwise clean
   second real instance of the window-slot conflict Casual's menu hit earlier) are
   committed and pushed (`a4ed9bf`), with a matching Windows zip rebuilt, verified
   10/10, and handed over.
-- **New this session, on top of `a4ed9bf`, NOT YET COMMITTED**: documentation-only
-  --- a real Windows vterm toolchain installed on the user's own machine (`cmake`
-  already present; MinGW-w64 installed via `winget`), the real gotcha about opening
-  a file from `ranger` leaving its keymap behind (`C-c R` again is the way back),
-  and two stale/missing spots in `docs/MY-NOTES.md` found and fixed while checking
-  --- see the entry just above for the full account. No code changed, nothing to
-  rebuild for the Windows zip (still matches `a4ed9bf`, which already has
-  everything code-wise). `git status` will show only `docs/MY-NOTES.md` and this
-  file until explicitly asked to commit.
+- The documentation-only follow-up on top of `a4ed9bf` (real Windows vterm toolchain
+  findings, the ranger-file-leaves-keymap-behind gotcha, two stale `docs/MY-NOTES.md`
+  spots fixed) is committed and pushed along with everything below, once the user
+  confirms.
+- **New this session, NOT YET COMMITTED**: a critical bug the user's own real Windows
+  test caught --- every dist zip (Windows confirmed, Linux likewise at risk but never
+  tried bare) was shipping a stale, machine-specific `vterm` native-build tree
+  (`CMakeCache.txt` baking in this Linux machine's own absolute path) left over from
+  an earlier segment's compile-verification testing that was never actually cleaned
+  up despite being reported as such. Fixed in both `tools/dist-windows.sh` and
+  `tools/dist-linux.sh` (strip any `CMakeCache.txt`-containing directory plus stray
+  `.so`/`.dll`/`.o` from `config/elpa` before staging); a new regression test,
+  `test_no_machine_specific_native_build_artifacts_are_shipped`, added to both
+  `WindowsBundle` and `LinuxBundle` in `tests/test_dist.py`, confirmed to fail against
+  the old contaminated zip and pass after the fix. Also fixed a second, genuine
+  `tests/ert/vterm.el` ordering bug this exposed (`(require 'vterm)` itself prompts
+  via `y-or-n-p` in batch mode unless `vterm-always-compile-module` is already `t`
+  via a top-level `setq` BEFORE the `require` --- not a `let`, and not after). Full
+  account in the entry just above. Windows zip rebuilt, verified 11/11, full suite
+  re-run clean (717 tests, 694 pass, known `dictate` flake only), and the fixed zip
+  (209,149,831 bytes, 1,413,958 bytes smaller) already copied over the user's broken
+  one in Downloads --- the user can retry their vterm compile now without waiting for
+  a commit. `git status` will show `tests/ert/vterm.el`, `tests/test_dist.py`,
+  `tools/dist-linux.sh`, `tools/dist-windows.sh`, and this file modified until
+  explicitly asked to commit.
+- The `C-c H` toggle for `my/mode-reference-mode` (the always-visible reference
+  panel, still on by default) and the new `docker`/`kubernetes` packages (`C-c K d'/
+  `C-c K k'), including the two real gaps found while wiring them in (this config
+  never activates packages via `package.el`, only `load-path` --- every optional
+  command needs its own explicit `autoload`; and `tablist` needed one file rescued
+  out of `prune.list`'s CEDET exclusion) are done, verified (720 tests, 697 pass, only
+  the known `dictate` flake, no new regressions), and a matching Windows zip rebuilt,
+  verified 11/11, and already copied to the user's Downloads (209,559,210 bytes). Full
+  account two entries above. **NOT YET COMMITTED, on top of the still-uncommitted
+  CMakeCache.txt fix from the entry before it** --- `git status` will show
+  `config/init.el`, `config/shortcuts.el`, `docs/KEYBOARD.md`, `prune.list`, `tools/
+  install-packages.el`, `tests/ert/mode-reference.el`, `tests/ert/shortcuts.el`,
+  `tests/ert/keybindings.el`, plus everything from the CMakeCache.txt fix, until
+  explicitly asked to commit.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is

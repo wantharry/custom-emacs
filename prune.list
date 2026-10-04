@@ -26,3 +26,17 @@ cedet/
 # dependency scan, because they are loaded lazily at run time:
 # url -> mm-decode loads this when package.el downloads anything.
 !gnus/mm-archive.el
+# tablist (a real, hard dependency of the docker/kubernetes packages) unconditionally
+# requires this at its own top level for its "/" filter-expression feature (confirmed
+# directly: config/elpa/tablist-*/tablist.el -> tablist-filter.el -> (require
+# 'semantic/wisent/comp) -- a real "Cannot open load file" error once cedet/ above is
+# pruned, not assumed). prune.py's own rescue pass (its needs()/plan() only scans
+# emacs-src/lisp for dependencies BETWEEN built-in files, never config/elpa) has no way
+# to know a third-party package needs this, so this gap only surfaces when a package
+# that actually needs it gets installed. Only this ONE file needed adding: tablist's
+# other require, `semantic/wisent/wisent', is already rescued on its own (confirmed in
+# `prune.py --plan`'s own output), via a completely unrelated chain --- org's own
+# Python Babel support (`org/ob-python') already needs CEDET's Python parser, which
+# pulls in the wisent parser *runtime*; only the wisent grammar *compiler* (`comp.el',
+# used for `tablist-filter''s on-the-fly filter-expression grammar) was still missing.
+!cedet/semantic/wisent/comp.el

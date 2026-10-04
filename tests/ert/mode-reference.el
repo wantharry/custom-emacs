@@ -92,4 +92,32 @@ the content was written."
       (my/mode-reference--hide)
       (kill-buffer my/mode-reference-buffer-name))))
 
+(ert-deftest mode-reference/c-c-h-toggles-the-panel-on-and-off ()
+  ;; WHAT/WHY: user request --- a key to turn this always-on-by-default panel off (and
+  ;; back on) once comfortable without it. `my/mode-reference-mode' is a real `define-
+  ;; minor-mode' (`:global t'), so calling it with no argument --- exactly what
+  ;; `global-set-key' binding the bare command to `C-c H' does --- already toggles it;
+  ;; this just confirms the key really reaches it and that toggling genuinely
+  ;; shows/hides the real window, not just flips the variable. Restores the mode to
+  ;; whatever it was before (on, by default) so later tests in the same `--batch'
+  ;; process still see the panel enabled, matching every other test file's assumption.
+  (should (eq (key-binding (kbd "C-c H")) 'my/mode-reference-mode))
+  (let ((was-on my/mode-reference-mode))
+    (unwind-protect
+        (test-with-temp-dir dir
+          (dired dir)
+          (unless was-on (my/mode-reference-mode 1))
+          (my/mode-reference--update)
+          (should (get-buffer-window my/mode-reference-buffer-name t))
+          (call-interactively 'my/mode-reference-mode)
+          (should-not my/mode-reference-mode)
+          (should-not (get-buffer-window my/mode-reference-buffer-name t))
+          (call-interactively 'my/mode-reference-mode)
+          (should my/mode-reference-mode)
+          (my/mode-reference--update)
+          (should (get-buffer-window my/mode-reference-buffer-name t)))
+      (unless (eq (and my/mode-reference-mode t) (and was-on t))
+        (my/mode-reference-mode (if was-on 1 -1)))
+      (ignore-errors (kill-buffer my/mode-reference-buffer-name)))))
+
 ;;; mode-reference.el ends here

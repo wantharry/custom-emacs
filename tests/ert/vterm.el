@@ -28,14 +28,25 @@
   ;; exists).
   (vterm-need
     (unless (require 'vterm-module nil t)
-      ;; `require' first, THEN `let'-bind: `vterm-always-compile-module' only becomes a
-      ;; real dynamic (`defcustom') variable once `vterm.el' itself has loaded --- doing
-      ;; the `let' first, in this very file's own `lexical-binding: t', makes `defcustom'
-      ;; collide with an already-lexical variable of the same name (confirmed the hard
-      ;; way, as a real "Defining as dynamic an already lexical var" error).
+      ;; A real, found-the-hard-way-TWICE ordering requirement: `(require 'vterm)'
+      ;; itself (not just `vterm-module-compile') checks `vterm-always-compile-module'
+      ;; at its own top level and, if nil, calls `y-or-n-p' to ask interactively ---
+      ;; which errors immediately ("Error reading from stdin") in a real `--batch'
+      ;; process with no terminal attached. It has to be set BEFORE the `require', not
+      ;; wrapped around a later call to `vterm-module-compile' alone (confirmed the
+      ;; hard way: a `--batch' run that reached `vterm-module-compile' just fine still
+      ;; failed, because the prompt had already fired during `require' itself). It also
+      ;; has to be a top-level `setq', not a `let': in this very file's own
+      ;; `lexical-binding: t', `let'-binding it BEFORE `vterm-always-compile-module'
+      ;; exists as a real special variable (`vterm.el''s own `defcustom', which only
+      ;; runs once `require' actually loads the file) collides with it as an
+      ;; already-lexical variable of the same name instead (confirmed directly, a real
+      ;; "Defining as dynamic an already lexical var" error) --- a plain top-level
+      ;; `setq', with no enclosing `let', does not create that lexical binding in the
+      ;; first place.
+      (setq vterm-always-compile-module t)
       (require 'vterm)
-      (let ((vterm-always-compile-module t))
-        (vterm-module-compile)))
+      (vterm-module-compile))
     (should (require 'vterm-module nil t))))
 
 ;;; vterm.el ends here

@@ -128,6 +128,26 @@ class WindowsBundle(unittest.TestCase):
                                  "personal history must not be in a bundle")
                 self.assertFalse(base.startswith("config/backups/") or base.startswith("config/fastfind/"))
 
+    def test_no_machine_specific_native_build_artifacts_are_shipped(self):
+        # A real bug, found the hard way (a real Windows machine, a real CMake error
+        # naming this project's own Linux build path): `vterm'/`pdf-tools' compile a
+        # native module/helper from C the first time they are actually USED, never at
+        # `./build.sh packages' time -- if that compile ever happened directly on the
+        # machine building this bundle (not through this build script), the result is a
+        # real, machine-specific `build/' directory (`CMakeCache.txt' and all) baking in
+        # THAT machine's own absolute path, which a careless `cp -r' of `config/elpa'
+        # would ship straight into the bundle. `tools/dist-windows.sh' now strips any
+        # directory containing a `CMakeCache.txt' before staging (`pdf-tools' own
+        # `build/server/epdfinfo.c' is real, legitimate SOURCE, not a CMake project, and
+        # is correctly left alone) -- this guards the shipped result stays that way.
+        for n in self.names:
+            base = n[len(TOP):] if n.startswith(TOP) else n
+            with self.subTest(file=base):
+                self.assertFalse(base.endswith("CMakeCache.txt"),
+                                 f"{base}: a real, machine-specific CMake build tree must not be in a bundle")
+                self.assertFalse(base.startswith("config/elpa/") and re.search(r"\.(so|o)$", base),
+                                 f"{base}: a locally-compiled native module must not be pre-built into a bundle")
+
     def test_packages_are_compiled_for_the_bundled_emacs_not_the_build_here(self):
         # .elc files carry the version of the Emacs that made them; ours is 32, the bundle runs 31
         for n in self.names:
@@ -211,6 +231,19 @@ class LinuxBundle(unittest.TestCase):
                                  {"recentf.eld", "recents.eld", "history", "custom.el", "places", "session"},
                                  "personal history must not be in a bundle")
                 self.assertFalse(n.startswith("config/backups/") or n.startswith("config/fastfind/"))
+
+    def test_no_machine_specific_native_build_artifacts_are_shipped(self):
+        # See WindowsBundle's own, longer comment on this exact same check: a real bug,
+        # found the hard way on a real Windows machine, but the same root cause (a
+        # locally-compiled `vterm'/`pdf-tools' native module/helper, baking in this
+        # machine's own absolute build path) would break identically here the moment
+        # this bundle is unzipped to a different path than this one.
+        for n in self.names:
+            with self.subTest(file=n):
+                self.assertFalse(n.endswith("CMakeCache.txt"),
+                                 f"{n}: a real, machine-specific CMake build tree must not be in a bundle")
+                self.assertFalse(n.startswith("config/elpa/") and re.search(r"\.(so|o)$", n),
+                                 f"{n}: a locally-compiled native module must not be pre-built into a bundle")
 
     def test_the_zip_has_a_sane_size_and_no_junk(self):
         size = os.path.getsize(LINUX_ZIP)

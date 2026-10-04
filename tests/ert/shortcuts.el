@@ -17,7 +17,8 @@
                     my/treemacs my/treemacs-reveal
                     embark-act embark-dwim embark-bindings
                     avy-goto-char-timer symbol-overlay-put ace-window
-                    helpful-callable helpful-variable helpful-key helpful-symbol)))
+                    helpful-callable helpful-variable helpful-key helpful-symbol
+                    docker kubernetes-overview)))
     (dolist (topic my/shortcuts-list)
       (dolist (row (cdr topic))
         (cl-destructuring-bind (key command _desc) row
@@ -92,6 +93,26 @@
   (should (eq (lookup-key treemacs-mode-map "R") 'treemacs-rename-file))
   (should (eq (lookup-key treemacs-mode-map "g") 'treemacs-refresh))
   (should (eq (lookup-key treemacs-mode-map "r") 'treemacs-refresh)))
+
+(ert-deftest shortcuts/docker-facts-are-real ()
+  (skip-unless (locate-library "docker"))
+  (require 'docker-core)
+  ;; The top-level menu's own suffix keys --- the same `transient-get-suffix' approach
+  ;; `shortcuts/magit-facts-are-real' above uses, since `docker' (like Magit) is itself
+  ;; a `transient-define-prefix', not a plain keymap.
+  (dolist (spec '(("c" docker-containers) ("i" docker-images)
+                  ("v" docker-volumes) ("n" docker-networks)))
+    (should (eq (plist-get (cdr (transient-get-suffix 'docker (nth 0 spec))) :command)
+                (nth 1 spec)))))
+
+(ert-deftest shortcuts/kubernetes-facts-are-real ()
+  (skip-unless (locate-library "kubernetes"))
+  (require 'kubernetes-modes)
+  (should (eq (lookup-key kubernetes-mode-map (kbd "RET")) 'kubernetes-navigate))
+  (should (eq (lookup-key kubernetes-mode-map "l") 'kubernetes-logs))
+  (should (eq (lookup-key kubernetes-mode-map "d") 'kubernetes-describe))
+  (should (eq (lookup-key kubernetes-mode-map "g") 'kubernetes-refresh))
+  (should (eq (lookup-key kubernetes-mode-map "q") 'quit-window)))
 
 (ert-deftest shortcuts/gptel-send-key-is-real ()
   (skip-unless (locate-library "gptel"))

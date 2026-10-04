@@ -78,6 +78,25 @@
       ("RET on an item" . "show it")
       ("o" . "mark that item read")
       ("g / G" . "update this feed / every feed")))
+    ;; WHAT/WHY: user request, after asking what exists in this family --- both share
+    ;; the Magit-style transient-popup idea, applied to containers/a Kubernetes cluster
+    ;; instead of git. `docker''s own menu (opened by the single `docker' command, the
+    ;; `transient-define-prefix' in `docker-core.el') covers containers/images/volumes/
+    ;; networks/contexts all from one place, the same way `magit-status' is the one
+    ;; door into Magit; `kubernetes' needs a running cluster/`kubectl' to show anything
+    ;; real, same as Magit needs a real git repo.
+    ("Docker (this config)" "C-c K d"
+     "q (transient's own stock close key, like any other transient menu)"
+     (("c" . "containers submenu (list, start/stop/rm, logs, exec, shell)")
+      ("i" . "images submenu (list, pull, build, rm)")
+      ("v" . "volumes submenu")
+      ("n" . "networks submenu")))
+    ("Kubernetes (this config)" "C-c K k"
+     "q"
+     (("RET" . "navigate into the resource at point")
+      ("l" . "logs for the resource at point")
+      ("d" . "describe the resource at point")
+      ("g" . "refresh")))
     ("Git repos (this config)" "C-c f p"
      "q"
      (("RET / click" . "open Magit status there")
@@ -209,6 +228,12 @@ by hand.")
      ;; OPEN/CLOSE/COMMANDS fields are prose, not callable commands --- this one entry
      ;; genuinely belongs in both places, and now is.
      ("C-c v" my/toggle-evil "turn vi-style (Evil) keybindings on; C-c v again turns them off"))
+    ;; WHAT/WHY: user request --- a key to turn the always-visible reference panel
+    ;; (config/mode-reference.el) off, for once they're comfortable with Dired/
+    ;; ranger/Treemacs and no longer need it on screen; on by default until then.
+    ;; Same shape as the Evil toggle just above: one key, same command both ways.
+    ("Reference panel (this config)"
+     ("C-c H" my/mode-reference-mode "toggle the always-visible command-reference panel on the right (shown by default; Dired/Org/ranger/Treemacs)"))
     ("Session (crash-safe auto-save and restore)"
      ("C-c w s" my/session-save "save the session (open buffers, window layout) now")
      ("C-c w r" my/session-reset "discard it: back to the plain start screen next time")
