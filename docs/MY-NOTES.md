@@ -19,7 +19,7 @@ commands and one-line notes, added to as they come up.
 
 | Topic | Note |
 |---|---|
-| Where | a real "Custom" entry in the menu bar itself, one submenu per topic (Finding files, Searching, Git, Project tree, Recent work, LLM chat, Themes, Help, ...) --- every command this config adds, clickable, not just a keyboard reference |
+| Where | a real "Custom" entry in the menu bar itself, one submenu per topic (Finding files, Searching, Git (Magit), Project tree, Recent work, LLM chat, Themes, Help, ...) --- every command this config adds, clickable, not just a keyboard reference |
 | Opening it without a mouse | `F10` (`menu-bar-open`, the real dropdown) or `M-\`` (`tmm-menubar`, a text-mode version that works in a plain terminal/`-nw` session too --- type the highlighted letter to drill down, same letters shown in `c==>Custom` style) |
 | How it's built | generated directly from `my/shortcuts-list` (`config/shortcuts.el`), the exact same data `C-c k` and its tests already keep accurate --- not a second, separately hand-written copy, specifically to avoid repeating the reference panel's own real `F`-is-undefined mistake from earlier this session |
 | Keybindings shown in the menu | real, live, straight from the actual keymap (e.g. "Git status... `C-x g`") --- never typed in by hand, so they can't go stale either |
@@ -234,6 +234,20 @@ color on their own.
 |---|---|
 | "pathspec '...' did not match" | git has no such branch/tag, not a Magit bug --- `b b` to pick an existing one, `b c` to create a new one |
 | Transient switches | keys literally include a `-` (e.g. `-n`, `-A`) --- press `-` then the letter |
+| `magit-dispatch` (`C-c G`) | Magit's own full command menu (status, log, branch, stash, everything) --- was autoloaded in init.el from early on but never actually bound to a key until a real gap report ("also include magit in the menu") caught it |
+
+## Six more packages (Corfu, Yasnippet, expand-region, diff-hl, vterm, pdf-tools)
+
+| Topic | Note |
+|---|---|
+| Corfu (`C-c k`'s own popup, no key to press) | in-buffer completion as you type, driven by whatever `completion-at-point-functions` the buffer already has --- Eglot wires its own in per-buffer automatically, nothing extra to do |
+| `corfu-terminal`/`popon` | tried, then deliberately left back OUT --- this project's Emacs (32.0.50) already has native tty-child-frame support, confirmed by actually watching a real popup render in a real `-nw` session; `corfu.el` itself warns `corfu-terminal` is unneeded on Emacs 31+ |
+| `C-c Y` (`yas-insert-snippet`) | Yasnippet; no snippet collection is bundled on purpose, so this starts empty --- `M-x yas-new-snippet` to write one |
+| TAB and Yasnippet | only ever intercepts TAB when the text right before the cursor is a real snippet trigger (a `:filter`'d conditional keybinding, Emacs's own standard idiom) --- any other TAB press behaves exactly as before |
+| `C-=` / `C-M--` | expand-region: grow/shrink the selection by semantic units (word, then the content inside the nearest pair, then the pair with its parens, then outward again) |
+| diff-hl | live git change markers --- a fringe `\|` in a GUI frame, a margin `+`/`-`/`~` in a `-nw` terminal session (`diff-hl-margin-mode`, needed since the fringe doesn't exist there at all); also marks changed files in Dired itself |
+| `C-c V` (`vterm`) | a real terminal emulator (full curses apps: htop, vim, ssh) --- its native module downloads and builds its own copy of `libvterm` automatically the first time it's used, nothing to install by hand |
+| pdf-tools | wired in, but genuinely blocked on one real system package this build process cannot install for itself: `sudo apt-get install libpoppler-glib-dev`, then restart Emacs --- until then, `.pdf` files keep working exactly as before (no regression either way, see init.el's own comment) |
 
 ## Dist bundles / GitHub Actions
 

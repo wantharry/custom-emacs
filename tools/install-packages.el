@@ -14,7 +14,8 @@
 (defconst my/packages '(evil magit treemacs consult gptel
                         vertico orderless marginalia embark embark-consult
                         avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes
-                        casual csv-mode)
+                        casual csv-mode
+                        corfu yasnippet expand-region diff-hl vterm pdf-tools)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -22,7 +23,21 @@ they stay installed even if Treemacs ever stops needing them itself.
 `transient' (what `casual' and Magit are both built on) is NOT listed here --- it is
 built into Emacs itself now, confirmed directly (`emacs-src/lisp/transient.el'), the
 same way `which-key' turned out to be. `csv-mode' is `casual''s own real dependency (its
-`casual-dired-sort-by.el' module uses it), not something this config needs on its own.")
+`casual-dired-sort-by.el' module uses it), not something this config needs on its own.
+`corfu-terminal' (a real NonGNU ELPA package, Corfu's own documented fix for its popup
+being a child frame that does not exist in older terminal Emacs) was tried and then
+deliberately left back out again --- confirmed directly, by actually watching a real
+completion popup render in a real `-nw' terminal session without it: this project's
+own Emacs (32.0.50) already has native tty-child-frame support, and Corfu's own source
+(`corfu.el') detects exactly this and warns `corfu-terminal' is not needed at all on
+Emacs 31+, so installing it here would only add a package and a startup warning for no
+real benefit. `vterm' and `pdf-tools' each need a native helper compiled from C at
+first real use (`vterm-module.so' via `cmake', `epdfinfo' via `make') --- `vterm'
+confirmed to vendor/fetch its own copy of `libvterm' automatically when no system copy
+is found (confirmed directly in its own `CMakeLists.txt'), so nothing extra was needed
+for it; `pdf-tools' genuinely needs one real system package (`libpoppler-glib-dev')
+this build process cannot install for itself (confirmed missing here, see init.el's own
+comment on `pdf-loader-install' for how that gap is handled without a regression).")
 
 (let ((missing (seq-remove #'package-installed-p my/packages)))
   (if (null missing)

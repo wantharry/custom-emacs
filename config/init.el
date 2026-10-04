@@ -399,6 +399,27 @@ key sequence can never make a file editable."
       read-file-name-completion-ignore-case t)
 (global-completion-preview-mode 1)      ; inline suggestions as you type
 
+;; `corfu' is the IN-BUFFER counterpart to `vertico' above: a popup of completion
+;; candidates while editing code (a variable/function name, a snippet trigger, ...),
+;; driven by whatever `completion-at-point-functions' the current buffer already has
+;; --- Eglot sets those up per-buffer entirely on its own, confirmed directly, so this
+;; needs no LSP-specific wiring here. Eager, like `vertico', not autoloaded like most
+;; packages below: `global-corfu-mode' is a minor mode that has to already be active in
+;; a buffer for its first completable keystroke to be caught, the same reasoning
+;; `vertico-mode' above is eager for.
+;; Its popup is a child frame --- on an OLDER Emacs that would need the separate
+;; `corfu-terminal' package to show anything at all in a `-nw' terminal session (no
+;; graphical child frames there). Confirmed directly, by watching a real completion
+;; popup actually render in a real terminal session on this project's own Emacs
+;; (32.0.50): it already has native tty-child-frame support, and Corfu's own source
+;; detects this and warns `corfu-terminal' is not needed at all on Emacs 31+ --- so it
+;; is deliberately not installed here (see tools/install-packages.el's own comment).
+(when (locate-library "corfu")
+  (require 'corfu)
+  (setq corfu-auto t
+        corfu-cycle t)
+  (global-corfu-mode 1))
+
 (defun my/install-package (pkg)
   "Install PKG from ELPA into `my/elpa-dir'.  Loads package.el on demand."
   (require 'package)
@@ -768,6 +789,105 @@ installed, offer to install it from NonGNU ELPA."
   (autoload 'symbol-overlay-put "symbol-overlay" "Highlight every occurrence of the symbol at point." t))
 (global-set-key (kbd "M-i") (if (locate-library "symbol-overlay") #'symbol-overlay-put #'tab-to-tab-stop))
 
+;; `yasnippet' expands a short trigger word into a larger template on TAB. Eager, like
+;; `vertico'/`corfu' above, not autoloaded like most of this section: `yas-global-mode'
+;; has to already be active in a buffer for its own TAB handling
+;; (`yas-minor-mode-map') to exist there at all. Nothing to lose by turning it on
+;; everywhere --- confirmed directly in its own current source (NOT the older,
+;; now-`make-obsolete-variable'd `yas-fallback-behavior', an easy thing to find first
+;; and assume is still how this works): TAB is bound to a `menu-item' with a `:filter'
+;; (`yas-maybe-expand-abbrev-key-filter', calling `yas--templates-for-key-at-point'),
+;; Emacs's own standard conditional-keybinding idiom --- when no snippet matches the
+;; text before point, the filter returns nil and Emacs's own key lookup falls straight
+;; through to whatever TAB is bound to elsewhere (e.g. `indent-for-tab-command'),
+;; unchanged, exactly as if this keymap entry were not even there. No snippet
+;; collection (e.g. `yasnippet-snippets') is installed --- this adds exactly the one
+;; package that was asked for; `M-x yas-new-snippet' writes one by hand, `C-c Y' lists
+;; whatever exists.
+(when (locate-library "yasnippet")
+  (require 'yasnippet)
+  (yas-global-mode 1))
+(defun my/yasnippet-missing ()
+  (interactive)
+  (message "Yasnippet is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-c Y") (if (locate-library "yasnippet") #'yas-insert-snippet #'my/yasnippet-missing))
+
+;; `expand-region' grows the selection by semantic units each time it's pressed ---
+;; word, then symbol, then string/sexp, then statement, then function, and so on ---
+;; and `er/contract-region' shrinks it back one step if it goes too far. Lazily
+;; autoloaded, like `avy'/`ace-window' above: just two commands, no mode to enable.
+;; `C-=' and `C-M--' are the package's own suggested bindings, both confirmed free in
+;; stock Emacs (`key-binding' returned nil for either beforehand).
+(when (locate-library "expand-region")
+  (autoload 'er/expand-region "expand-region" "Expand the selection by semantic units." t)
+  (autoload 'er/contract-region "expand-region" "Shrink the selection back one step." t))
+(defun my/expand-region-missing ()
+  (interactive)
+  (message "expand-region is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-=") (if (locate-library "expand-region") #'er/expand-region #'my/expand-region-missing))
+(global-set-key (kbd "C-M--") (if (locate-library "expand-region") #'er/contract-region #'my/expand-region-missing))
+
+;; `diff-hl' marks every changed/added/removed line against the last git commit, live,
+;; in the fringe --- and in Dired, a colored marker per changed file
+;; (`diff-hl-dired-mode'), fitting right alongside this session's other Dired work.
+;; Eager, like the other always-on indicators above: nothing to defer loading until,
+;; it has to be watching from the first buffer that gets visited.
+;; `diff-hl-margin-mode' is diff-hl's own documented terminal fallback --- confirmed
+;; directly in its own source (`(when (window-system) ...)' guards its fringe code):
+;; the default fringe indicators do not exist at all in a `-nw' terminal session, the
+;; same real gap `corfu-terminal' above exists to close for Corfu.
+(when (locate-library "diff-hl")
+  (require 'diff-hl)
+  (global-diff-hl-mode 1)
+  (add-hook 'dired-mode-hook #'diff-hl-dired-mode)
+  (unless (display-graphic-p)
+    (require 'diff-hl-margin)
+    (diff-hl-margin-mode 1)))
+
+;; `vterm' is a real terminal emulator in a buffer (full curses app support --- htop,
+;; vim, an ssh session --- unlike the built-in `shell'/`term', which only handle plain
+;; line-based programs). Its one real cost: a native module (`vterm-module.so')
+;; compiled from C at first real use, via `cmake' --- confirmed directly in its own
+;; `CMakeLists.txt': it looks for a system `libvterm' first and, since none is
+;; installed on this machine, downloads and builds its own copy automatically, so
+;; nothing extra had to be installed by hand for this one (contrast `pdf-tools' below).
+;; `C-c V' opens one in the current directory --- `C-c v' is already `my/toggle-evil'
+;; here, the same lower/upper-case pairing this file already uses for unrelated-but-
+;; similar features (`C-c m'/`C-c M', dictation/live dictation).
+(when (locate-library "vterm")
+  (autoload 'vterm "vterm" "Open a real terminal emulator in a new buffer." t))
+(defun my/vterm-missing ()
+  (interactive)
+  (message "vterm is not installed (or still building its native module).  Run ./build.sh packages"))
+(global-set-key (kbd "C-c V") (if (locate-library "vterm") #'vterm #'my/vterm-missing))
+
+;; `pdf-tools' replaces the built-in `doc-view-mode' (a PDF shown only as a stack of
+;; pre-rendered page IMAGES) with real searchable/selectable text and much faster
+;; rendering. Like `vterm' above, it needs a native helper program (`epdfinfo', built
+;; from C) --- but unlike `vterm', that build needs a real SYSTEM library's development
+;; headers (`poppler-glib'), confirmed NOT present on this machine (`pkg-config --exists
+;; poppler-glib' fails), and genuinely not something this build process can fetch on
+;; its own the way `vterm' fetches `libvterm': it needs a real `apt-get install
+;; libpoppler-glib-dev', which needs a password this process does not have.
+;; `pdf-loader-install' is `pdf-tools''s own documented lazy entry point --- it builds
+;; `epdfinfo' the FIRST time a real PDF is opened, not at package-install time, and
+;; (passing NO-ERROR-P) fails silently rather than signaling an error if that build
+;; fails.  Still gated here, the same way `magit-delta' above is gated on the external
+;; `delta' binary existing: checked once at startup, so until that one system package
+;; is installed by hand, nothing about how `.pdf' files already opened changes ---
+;; `pdf-loader-install' is never even called while the dependency is missing, so
+;; whatever handled `.pdf' files before this (`doc-view-mode-maybe' in a GUI frame with
+;; `gs'/`pdftoppm' installed; a real, found-while-testing-this fact: it falls back to
+;; plain `fundamental-mode' in a `-nw' terminal session regardless, since its own
+;; `doc-view-mode-p' requires `(display-graphic-p)') still does, unchanged. Once that
+;; one `apt-get install' is run and Emacs restarted, this picks it up with no other
+;; change needed.
+(when (and (locate-library "pdf-tools")
+           (executable-find "pkg-config")
+           (zerop (call-process "pkg-config" nil nil nil "--exists" "poppler-glib")))
+  (require 'pdf-loader)
+  (pdf-loader-install t nil t))
+
 ;;; Start screen ---------------------------------------------------------------
 
 ;; What Emacs shows when started without a file: the last 5 files, folders and projects,
@@ -920,6 +1040,14 @@ installed, offer to install it from NonGNU ELPA."
 ;; `C-c a a'/`C-c a m'/`C-c a c' further down this file for gptel.
 (global-set-key (kbd "C-x g") (if (locate-library "magit") #'magit-status #'my/magit-missing))
 (global-set-key (kbd "C-c g") (if (locate-library "magit") #'magit-file-dispatch #'my/magit-missing))
+;; WHAT/WHY: a real gap, found while adding Magit to the Custom menu (`my/shortcuts-
+;; list', below) --- `magit-dispatch' (Magit's own top-level command hub: status, log,
+;; branch, stash, everything, not just the one file `C-c g' covers) was already
+;; autoloaded above but never actually bound to a key, so it could not have shown up in
+;; either `C-c k' or the Custom menu no matter what was added to the list; `C-c G'
+;; pairs with the existing lowercase `C-c g', the same upper/lowercase convention this
+;; file already uses elsewhere (`C-c v'/`C-c V', `C-c m'/`C-c M').
+(global-set-key (kbd "C-c G") (if (locate-library "magit") #'magit-dispatch #'my/magit-missing))
 
 ;; WHAT: render Magit's diffs through `delta' (https://github.com/dandavison/delta) for
 ;; syntax-highlighted, more readable hunks, instead of Magit's own plain diff faces.

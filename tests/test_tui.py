@@ -445,6 +445,64 @@ class TerminalEmacs(unittest.TestCase):
         line = next(l for l in raw.splitlines() if "class" in l)
         self.assertRegex(line, "\x1b\\[[0-9;]*m", "highlighted code should carry color escapes")
 
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "config", "elpa")) and
+                         any(d.startswith("corfu-") for d in os.listdir(os.path.join(ROOT, "config", "elpa"))),
+                         "Corfu is not installed (./build.sh packages)")
+    def test_corfu_shows_a_completion_popup_while_typing(self):
+        # The real thing worth testing here, not just "is the mode on": Corfu's default
+        # popup is a child frame, which does not exist at all in an OLDER terminal Emacs
+        # session (no graphical child frames there) --- `corfu-terminal' exists
+        # upstream just for that gap. This project's own Emacs (32.0.50) has native
+        # tty-child-frame support instead (confirmed directly, by this very test); see
+        # tools/install-packages.el's own comment for why `corfu-terminal' is
+        # deliberately not installed here.
+        f = self.make_file("a.el", ";; scratch\n")
+        self.start(f)
+        self.wait_for("scratch")
+        self.keys("C-c", "e", "e")
+        self.wait_for("Editing ON")
+        self.text("emacs-vers")
+        # Wait for a SECOND, longer candidate specifically --- `global-completion-
+        # preview-mode' (already on elsewhere in this config) shows an inline ghost
+        # completion of the top match within the typed text itself almost immediately,
+        # before Corfu's own separate popup, listing every match, has rendered; waiting
+        # on that shorter string alone would pass on the preview, not the real popup.
+        scr = self.wait_for("customize-package-emacs-version-alist", timeout=5)
+        self.assertIn("emacs-version", scr)
+
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "config", "elpa")) and
+                         any(d.startswith("vterm-") for d in os.listdir(os.path.join(ROOT, "config", "elpa"))),
+                         "vterm is not installed (./build.sh packages)")
+    def test_vterm_opens_a_real_shell_and_runs_a_command(self):
+        # `vterm' is a real terminal emulator (a real pty, a real shell), unlike the
+        # built-in `shell'/`term' --- the real thing worth testing is that a real
+        # command actually runs and its real output comes back, not just that the
+        # buffer opened.
+        self.start(self.tmp)
+        self.wait_for("Dired")                            # opening a directory starts Dired
+        self.keys("C-c", "V")
+        self.wait_for("vterm", timeout=20)                # first use compiles the native module
+        self.wait_for(re.compile(r"[$%#]\s*$"), timeout=15)  # a real shell prompt
+        self.text("echo hello-from-vterm-test")
+        self.keys("Enter")
+        self.wait_for("hello-from-vterm-test")
+
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "config", "elpa")) and
+                         any(d.startswith("diff-hl-") for d in os.listdir(os.path.join(ROOT, "config", "elpa"))),
+                         "diff-hl is not installed (./build.sh packages)")
+    def test_diff_hl_margin_shows_a_change_indicator(self):
+        # The real thing worth testing here: `diff-hl''s DEFAULT indicators use the
+        # fringe, which does not exist at all in a `-nw' terminal session (confirmed
+        # directly in its own source); `diff-hl-margin-mode' is its own documented
+        # terminal fallback, turned on here specifically for this (see init.el's own
+        # comment) --- without it, this feature would be silently invisible in exactly
+        # this environment.
+        repo, path = self.make_git_repo()
+        self.start(path)
+        scr = self.wait_for("two")
+        line = next(l for l in scr.splitlines() if "two" in l)
+        self.assertTrue(line.lstrip().startswith("+"), f"a change marker should sit in the margin: {line!r}")
+
     def test_quitting_exits_cleanly(self):
         f = self.make_file("a.txt", "hello\n")
         self.start(f)

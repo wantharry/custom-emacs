@@ -133,6 +133,18 @@ by hand.")
      ("C-c f g" my/ff-find-file-global "the same over the whole disk")
      ("C-c f a" my/ff-find-file-global-async "the same, but never blocks Emacs (Consult/fd)")
      ("C-c f r" my/ff-reindex "rebuild the whole-disk file index"))
+    ;; WHAT/WHY: a real gap, found by the user --- plain Dired itself (stock Emacs, not
+    ;; something this config wrote) was never in this list at all, only reachable
+    ;; indirectly through other topics' own sub-options (the start screen's `d', git
+    ;; repos' `d'). Added directly, matching existing precedent for a useful stock
+    ;; command sitting alongside custom ones in the same list (`consult-theme' under
+    ;; "Themes" below is the same situation) --- `dired-jump' specifically, not just
+    ;; `dired', since it opens the CURRENT file's own directory with the cursor already
+    ;; on that file, the more immediately useful of the two for "I'm here, show me the
+    ;; folder" rather than "prompt me for some directory."
+    ("Dired"
+     ("C-x C-j" dired-jump "open Dired on the current file's directory, cursor on that file")
+     ("C-x d" dired "open Dired, prompting for a directory"))
     ("Searching"
      ("C-c s l" consult-line "search this buffer, with a live preview")
      ("C-c s g" consult-ripgrep "search project text (ripgrep), with a live preview")
@@ -144,9 +156,16 @@ by hand.")
      ("C-." embark-act "menu of actions for the thing at point, or the current candidate")
      ("C-;" embark-dwim "run the default action directly, no menu")
      ("C-h B" embark-bindings "list every action available right now"))
-    ("Git"
+    ;; WHAT/WHY: a real gap, found right after the Custom menu's own creation --- this
+    ;; topic's own menu label was just "Git", and it listed only `magit-status'/`magit-
+    ;; file-dispatch', not Magit itself by name, nor its own top-level command hub
+    ;; (`magit-dispatch', autoloaded in init.el but never actually bound to a key until
+    ;; now --- see the `C-c G' comment there). Renamed and the gap filled, same as the
+    ;; Evil/Dired fixes earlier this session.
+    ("Git (Magit)"
      ("C-x g" magit-status "Git status, stage and commit with single keys")
      ("C-c g" magit-file-dispatch "Git commands for this file")
+     ("C-c G" magit-dispatch "Magit's own full command menu: status, log, branch, stash, everything")
      ("C-c f p" my/find-git-repos "list every git repository on this computer (indexed, instant)"))
     ("Project tree"
      ("C-c t" my/treemacs "show or hide the project file tree")

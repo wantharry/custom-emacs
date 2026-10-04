@@ -161,6 +161,8 @@ lines. `C-u` is `universal-argument`; `M-0` to `M-9` are `digit-argument`.
 | `C-_` | `undo` | undo (works in terminals too) |
 | `C-x u` | `undo` | undo |
 | `C-?` | `undo-redo` | redo an undo |
+| `C-=` | `er/expand-region` | **this config:** grow the selection by semantic units each press (word, then symbol, then string/sexp, then statement, ...) |
+| `C-M--` | `er/contract-region` | **this config:** shrink it back one step |
 
 Killing with `C-k` twice in a row accumulates into one clipboard entry.
 
@@ -175,7 +177,7 @@ Killing with `C-k` twice in a row accumulates into one clipboard entry.
 | `M-\` | `delete-horizontal-space` | remove spaces around the cursor |
 | `M-SPC` | `cycle-spacing` | collapse spaces to one, then none, then restore |
 | `M-^` | `delete-indentation` | join this line to the previous one |
-| `TAB` | `indent-for-tab-command` | indent the line (or complete) |
+| `TAB` | `indent-for-tab-command` | indent the line (or complete) --- **this config:** also expands a Yasnippet snippet first if the text right before the cursor is a known trigger; otherwise falls straight through to this, unchanged |
 | `C-M-\` | `indent-region` | indent the selection |
 | `C-t` | `transpose-chars` | swap two characters |
 | `M-t` | `transpose-words` | swap two words |
@@ -189,6 +191,7 @@ Killing with `C-k` twice in a row accumulates into one clipboard entry.
 | `C-x C-;` | `comment-line` | comment or uncomment the current line |
 | `C-q` | `quoted-insert` | insert the next key literally |
 | `C-x 8 RET` | `insert-char` | insert a Unicode character by name |
+| `C-c Y` | `yas-insert-snippet` | **this config:** insert one of your own Yasnippet snippets by name (none bundled; `M-x yas-new-snippet` writes one) |
 
 ## Rectangles, registers, bookmarks, macros
 
@@ -277,6 +280,8 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c T` | `my/treemacs-reveal` | **this config:** show the tree and move to the current file in it |
 | `C-x g` | `magit-status` | **this config:** Git status, stage and commit with single keys ([MAGIT.md](MAGIT.md)) |
 | `C-c g` | `magit-file-dispatch` | **this config:** Git commands for this file |
+| `C-c G` | `magit-dispatch` | **this config:** Magit's own full command menu --- status, log, branch, stash, everything, not just this one file |
+| `C-c V` | `vterm` | **this config:** open a real terminal emulator (full curses app support --- htop, vim, an ssh session) in a new buffer |
 | `C-c s l` | `consult-line` | **this config:** search this buffer, with a live preview ([SEARCHING.md](SEARCHING.md#10-consult-one-search-box-for-several-of-the-above)) |
 | `C-c s g` | `consult-ripgrep` | **this config:** search project text (ripgrep), with a live preview |
 | `C-c s f` | `consult-fd` | **this config:** find a project file by name (fd) --- no live preview, unlike `C-c s l`/`s g` above: Consult's own design, since a filename match has no location to jump to and preview |

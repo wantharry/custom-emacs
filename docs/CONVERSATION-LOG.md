@@ -1811,6 +1811,126 @@ confirming they generically picked up the new topic without needing their own
 update); 684 tests, 661 pass, 0 regressions across the full offline suite --- same 1
 pre-existing `dictate` flake, same stale-dist diffs.
 
+### Follow-up, same day: Dired itself was also missing
+
+User: "Also I don't see dired." Another real, pre-existing gap: plain Dired (stock
+Emacs, not something this config wrote) was never in `my/shortcuts-list' at all ---
+only reachable indirectly through other topics' own sub-options (the start screen's
+`d', git repos' `d'), never as its own entry.
+
+Added a new "Dired" topic with two real, already-bound stock commands: `C-x C-j'
+(`dired-jump', opens the CURRENT file's own directory with the cursor already on that
+file) and `C-x d' (`dired', prompts for a directory) --- `dired-jump' listed first as
+the more immediately useful of the two for "I'm here, show me the folder" rather than
+"prompt me for some directory." Mixing a stock command into this list matches existing
+precedent, not a new exception --- `consult-theme' under "Themes" is already the same
+situation, a useful command worth surfacing here regardless of who wrote it.
+
+Confirmed directly, not assumed: shows up in both the real Custom menu keymap (`17'
+topics now) and `C-c k''s own flat list, the same single-fix-covers-both-places result
+as the Evil follow-up just above, for the same underlying reason (both are generated
+from/render `my/shortcuts-list').
+
+19/19 `tests/ert/shortcuts.el`; 684 tests, 661 pass, 0 regressions across the full
+offline suite --- same 1 pre-existing `dictate` flake, same stale-dist diffs.
+
+### Follow-up, same day: Magit was also missing its own full command hub from the menu
+
+User: "Also include magit in the menu," mid-way through the next batch of work below.
+A real, found-right-then gap: `magit-dispatch' (Magit's own top-level transient ---
+status, log, branch, stash, everything, not just one file) had been autoloaded in
+`init.el' since early in this project but never actually bound to a key, so no amount
+of editing `my/shortcuts-list' could have surfaced it either in the Custom menu or
+`C-c k'. Bound it to `C-c G' (pairing with the existing lowercase `C-c g', the same
+upper/lowercase convention already used for `C-c v'/`C-c V' and `C-c m'/`C-c M'),
+renamed the "Git" topic to "Git (Magit)" for a clearer label, and added the new row.
+
+### Six more packages: Corfu, Yasnippet, expand-region, diff-hl, vterm, pdf-tools
+
+User: "Yes look into it I am thinking to implement all 6, test commit push, zip it" ---
+following up on 6 packages surveyed (via real `locate-library' checks) and recommended
+the previous turn as popular gaps in this config. Verified all 6 directly against the
+real MELPA archive JSON before touching any code (the same discipline `casual' got
+earlier this session), not from memory; all confirmed real, current, and actively
+maintained (most with a 2026 release). Installed into `tools/install-packages.el''s
+`my/packages' and wired into `init.el' one at a time, each following this project's
+own `(locate-library ...)'-guarded, "nothing loads until used unless it genuinely has
+to" pattern --- `corfu'/`yasnippet'/`diff-hl' are eager (minor modes that must already
+be active in a buffer, the same reasoning `vertico' is eager for); `expand-region'/
+`vterm' are lazily autoloaded, like `avy'/`ace-window'.
+
+Real research findings, each one checked for real rather than assumed, several
+changing the actual implementation from the first guess:
+
+- **Corfu's terminal support was tried, then deliberately removed again.** The
+  upstream recipe for a popup in a `-nw' session is a separate package,
+  `corfu-terminal' (confirmed on NonGNU ELPA, not MELPA --- an easy miss on the first
+  archive-contents lookup, which assumed the same simple format `gnu'/`melpa' use and
+  came back empty). Installed it, then watched a real completion popup actually render
+  in a real `-nw' terminal session (tmux) --- and `corfu.el' itself printed its own
+  warning: "`corfu-terminal' is not needed on Emacs 31." This project's Emacs
+  (32.0.50) already has native tty-child-frame support. Removed `corfu-terminal'/
+  `popon' again rather than ship a package and a startup warning for no real benefit.
+- **Yasnippet's TAB fallback mechanism was initially described wrong, then fixed
+  before shipping.** The obvious thing to find in its source first is
+  `yas-fallback-behavior' --- but it is `make-obsolete-variable'd; the real, current
+  mechanism is a `menu-item' keymap entry with a `:filter' function
+  (`yas-maybe-expand-abbrev-key-filter', calling `yas--templates-for-key-at-point'),
+  Emacs's own standard conditional-keybinding idiom: when no snippet matches, the
+  filter returns nil and Emacs's own key lookup falls straight through to whatever TAB
+  already did, as if the entry were not even there. Corrected the `init.el' comment
+  before committing, not after a bug report --- confirmed directly against the real
+  installed source instead of trusting the first grep hit.
+- **expand-region's real step sequence surprised a test, not a guess.** Growing from a
+  word inside `(bar baz)' goes word -> "bar baz" (inside the pair) -> "(bar baz)" (the
+  pair with its parens) --- three steps, not two; a first draft of the test assumed
+  two and failed for real, fixed by actually running the expansion and reading what
+  came back at each step rather than assuming the shape.
+- **diff-hl needs its own terminal fallback for the same reason Corfu nearly did.**
+  Its default indicators use the fringe, confirmed directly in its own source
+  (`(when (window-system) ...)' guards that code) --- invisible in a `-nw' session.
+  `diff-hl-margin-mode' is diff-hl's own documented fix (ships in the same package,
+  not a separate install); turned on whenever `(display-graphic-p)' is nil, the same
+  condition Corfu's removed terminal package would have used. Confirmed visually in a
+  real terminal: a `+' character in the margin, left of a real uncommitted line.
+- **vterm's native module needs nothing installed by hand; pdf-tools's does, and
+  cannot get it.** Both need a C helper compiled at first real use. `vterm'
+  (confirmed directly in its own `CMakeLists.txt') looks for a system `libvterm'
+  first and, finding none on this machine, downloads and builds its own vendored copy
+  automatically --- a real compile was run end to end to confirm this, not assumed, and
+  a real shell opened in a real terminal afterward (`echo hello-from-vterm' and its
+  real output back). `pdf-tools' needs one real system package, `libpoppler-glib-dev'
+  (confirmed missing via `pkg-config --exists poppler-glib'), that this build process
+  genuinely cannot fetch for itself the way `vterm' fetches `libvterm' --- it needs a
+  real `apt-get install', and this process has no passwordless `sudo'. Rather than
+  skip the package or ship something broken, wired it in gated on that exact same
+  `pkg-config' check (the same pattern `magit-delta' already uses, gated on the
+  external `delta' binary) --- so it stays a no-op, no regression, until that one
+  system package is installed by hand and Emacs restarted, at which point it picks up
+  automatically with no other change needed. **User action still needed: `sudo
+  apt-get install libpoppler-glib-dev` to actually get real PDF viewing** (this
+  session couldn't run it directly).
+- **A real, pre-existing fact about `doc-view-mode', found while testing pdf-tools's
+  own gate, not caused by it:** `doc-view-mode-p' (stock Emacs) requires
+  `(display-graphic-p)', so `.pdf' files already fell back to plain `fundamental-mode'
+  in a `-nw' terminal session before any of this --- independent of whether
+  `gs'/`pdftoppm' are installed. A first draft of the no-regression test assumed the
+  old baseline was always `doc-view-mode' and failed for real against this; fixed to
+  check against the actual pre-existing baseline instead.
+
+6 new ERT files (`tests/ert/corfu.el', `snippets.el', `expand-region.el', `diff-hl.el',
+`vterm.el', `pdf-tools.el', 18 tests total, all passing), plus 3 new real-terminal
+tests in `tests/test_tui.py' for the genuinely rendering-specific claims above (the
+Corfu popup actually drawn, a real vterm shell actually running a command, diff-hl's
+margin marker actually visible) --- all passing, all skip cleanly if the matching
+package isn't installed. `tests/ert/keybindings.el' extended with the same "skip if
+not installed" exemption Magit/Treemacs already had, for the 3 newly-bound keys.
+702 tests, 679 pass, 0 regressions across the full offline suite, plus 29/29 real
+terminal tests (`--gui`) --- same 1 pre-existing `dictate' flake, same stale-dist
+diffs. `docs/KEYBOARD.md' gets 5 new rows (`C-=`/`C-M--`, `C-c Y`, `C-c G`, `C-c V`,
+plus a note on TAB's own row); `docs/MY-NOTES.md' gets a new section for all 6
+packages plus a Magit row.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -1831,14 +1951,25 @@ pre-existing `dictate` flake, same stale-dist diffs.
   activation itself is a SEPARATE decision, not part of this "training wheels" framing
   --- don't assume it should also be reverted unless asked separately.
 - The reference-panel content rebuild (`805a060`), the panel's scroll-position fix
-  (`ac7d9d7`), and the new "Custom" menu-bar menu (`dec97de`) are all committed,
-  pushed, and each got its own verified, handed-over Windows zip rebuild right after.
-- **New this session, on top of `dec97de`, NOT YET COMMITTED**: Evil added to
-  `my/shortcuts-list` (the "Evil, vi keys" topic, fixing both the Custom menu and
-  `C-c k`'s own flat list at once) --- see the entry just above for the full account.
-  `git status` will show `config/shortcuts.el` and this file modified until explicitly
-  asked to commit. The Windows zip in Downloads matches `dec97de`, NOT this follow-up
-  --- its Custom menu is missing Evil; rebuild before handing over another one. The
+  (`ac7d9d7`), the new "Custom" menu-bar menu (`dec97de`), and Evil added to
+  `my/shortcuts-list` (`28dabde`) are all committed, pushed, and each got its own
+  verified, handed-over Windows zip rebuild right after.
+- **New this session, on top of `28dabde`, NOT YET COMMITTED**: all bundled into one
+  upcoming commit together, per the user's own explicit "test commit push, zip it" ---
+  (1) a "Dired" topic added to `my/shortcuts-list` (`dired-jump`/`dired`, fixing the
+  Custom menu/`C-c k` at once, same pattern as the Evil fix); (2) `magit-dispatch`
+  bound to `C-c G` and the "Git" topic renamed "Git (Magit)"; (3) all 6 new packages
+  (Corfu, Yasnippet, expand-region, diff-hl, vterm, pdf-tools) --- see the two entries
+  just above for the full account of both. `git status` will show `config/init.el`,
+  `config/shortcuts.el`, `tools/install-packages.el`, `tests/ert/keybindings.el`,
+  `tests/test_tui.py`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, this file, and 6 new
+  `tests/ert/*.el` files, until explicitly asked to commit. The Windows zip in
+  Downloads matches `28dabde`, NOT any of this --- its Custom menu is still missing
+  Dired and Magit's full menu, and none of the 6 new packages are in it at all;
+  rebuild before handing over another one. **Real, open, user-actionable item: `sudo
+  apt-get install libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to
+  actually do anything** --- this session could not run it (no passwordless `sudo`);
+  until then it is a harmless no-op, not a regression (see the entry above). The
   unresolved GUI-screenshot/X11 environment problem noted above is also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist

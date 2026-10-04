@@ -23,11 +23,22 @@
                    (setq map (match-string 1 line)))
                   ((and (not (equal map "none"))
                         (string-match "\\`| `\\([^`]+\\)` | `\\([^` ]+\\)` |" line))
-                   ;; rows about Magit are only checked where Magit is installed
+                   ;; rows about an optional package are only checked where that package
+                   ;; is installed --- same reasoning as Magit/Treemacs above, extended
+                   ;; to the newest batch (expand-region, Yasnippet, vterm): each binds
+                   ;; `my/xxx-missing' instead of the real command when not installed,
+                   ;; which would otherwise make this check fail on a machine that ran
+                   ;; `./build.sh packages' without network access.
                    (unless (and (or (and (string-match-p "\\`\\(?:magit\\|with-editor\\)" (match-string 2 line))
                                              (not (locate-library "magit")))
                                         (and (string-match-p "\\`treemacs" (match-string 2 line))
-                                             (not (locate-library "treemacs")))))
+                                             (not (locate-library "treemacs")))
+                                        (and (string-match-p "\\`er/" (match-string 2 line))
+                                             (not (locate-library "expand-region")))
+                                        (and (string-match-p "\\`yas-" (match-string 2 line))
+                                             (not (locate-library "yasnippet")))
+                                        (and (string-match-p "\\`vterm\\'" (match-string 2 line))
+                                             (not (locate-library "vterm")))))
                      (push (list map (match-string 1 line) (match-string 2 line)
                                  (format "%s:%d" doc n))
                            rows))))))))
