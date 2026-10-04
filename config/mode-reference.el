@@ -130,8 +130,17 @@ between Dired and Org only rewrites the buffer when the content actually needs t
 change, not on every single update.")
 
 (defun my/mode-reference--relevant-mode ()
-  "The major mode (a symbol) that currently warrants showing the panel, or nil."
-  (cond ((derived-mode-p 'dired-mode) 'dired-mode)
+  "The major mode (a symbol) that currently warrants showing the panel, or nil.
+A `ranger' session is deliberately excluded --- confirmed directly in a real terminal
+session, not assumed: `ranger-mode' is `(define-derived-mode ranger-mode dired-mode
+...)' (confirmed in its own source), so `dired-mode-hook' genuinely fires for it and
+`derived-mode-p 'dired-mode' is also true there; without this check first, the panel
+would claim the one side-window slot `ranger''s OWN Miller-columns preview pane needs,
+breaking its layout instead of coexisting with it the way it does next to Casual's
+menu --- `ranger' is meant to be a genuinely separate app, by explicit user request,
+not another Dired-adjacent feature layered in."
+  (cond ((derived-mode-p 'ranger-mode) nil)
+        ((derived-mode-p 'dired-mode) 'dired-mode)
         ((derived-mode-p 'org-mode) 'org-mode)))
 
 (defun my/mode-reference--text-for (mode)

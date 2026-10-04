@@ -424,6 +424,10 @@ land on the current file in its directory. In Dired the buffer *is* the file lis
 You **mark** files, then run an operation on the marked ones (or on the file under the
 cursor if none are marked).
 
+**this config:** `C-c R` (`ranger`) opens a completely separate ranger-style file
+manager instead --- a Miller-columns layout (parent directory, current listing, a live
+preview pane) --- without changing how plain Dired above behaves at all; `q` closes it.
+
 ### Get around and open
 
 <!-- keymap: dired-mode-map -->

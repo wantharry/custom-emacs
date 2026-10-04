@@ -249,6 +249,14 @@ color on their own.
 | `C-c V` (`vterm`) | a real terminal emulator (full curses apps: htop, vim, ssh) --- its native module downloads and builds its own copy of `libvterm` automatically the first time it's used, nothing to install by hand |
 | pdf-tools | wired in, but genuinely blocked on one real system package this build process cannot install for itself: `sudo apt-get install libpoppler-glib-dev`, then restart Emacs --- until then, `.pdf` files keep working exactly as before (no regression either way, see init.el's own comment) |
 
+## A ranger-style file manager (`C-c R`), genuinely separate from Dired
+
+| Topic | Note |
+|---|---|
+| `C-c R` (`ranger`) | opens a real Miller-columns file manager (parent dir, listing, live preview) --- explicitly kept separate from plain Dired, per a real user request, not a default |
+| Why `ranger`, not `dirvish` | `dirvish` (tried first) only works at all with its own GLOBAL `dirvish-override-dired-mode` turned on, which would make plain `dired`/`C-x d` ALSO become Dirvish sessions --- confirmed directly by calling its standalone `dirvish` command without that mode on and getting a perfectly plain Dired buffer back, nothing Dirvish-specific at all; `ranger-mode` is a real, self-contained derived mode instead, no global switch needed |
+| Two real "mingling" bugs found and fixed before this shipped | (1) the always-visible reference panel (built earlier this session) would claim the exact side-window slot ranger's own preview pane needs, breaking its layout --- fixed by excluding `ranger-mode` in `my/mode-reference--relevant-mode`; (2) `ranger.el` itself installs `C-p` → `deer-from-dired` into the SHARED `dired-mode-map` (its own default `ranger-key`) the first time ANY Dired buffer opens after it's loaded, silently breaking plain `previous-line` in Dired everywhere --- fixed by pre-setting `ranger-key` to nil in init.el before the library ever loads |
+
 ## Dist bundles / GitHub Actions
 
 | Topic | Note |

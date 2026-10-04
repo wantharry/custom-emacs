@@ -1931,6 +1931,101 @@ diffs. `docs/KEYBOARD.md' gets 5 new rows (`C-=`/`C-M--`, `C-c Y`, `C-c G`, `C-c
 plus a note on TAB's own row); `docs/MY-NOTES.md' gets a new section for all 6
 packages plus a Magit row.
 
+### A full documentation pass across the whole codebase, via 7 parallel agents
+
+User: "Now I want to document all the code we wrote each and every line need
+detailed comments what it's doing and why and how." Clarified via two questions first
+(scope: whole codebase vs. just this session's new work; style: this codebase's own
+existing dense WHAT/WHY/HOW paragraph-per-block convention vs. literally one comment
+per line) --- the user chose the whole codebase, keeping the existing style.
+
+Dispatched 7 parallel agents (not a `Workflow`, since that needs explicit "ultracode"/
+multi-agent opt-in that wasn't given here --- plain `Agent` calls instead), each with
+the house style spelled out via real excerpts and an explicit "most of this is already
+well-commented; only fill genuine gaps, never pad" instruction: one for `config/
+init.el`+`fastfind.el`+`dictate.el`, one for the other 10 `config/*.el` files, one for
+the 5 `tools/*.el` scripts, and four splitting all 51 `tests/ert/*.el` files roughly
+evenly by line count. Each agent verified its own changes against the real test suite
+before reporting back.
+
+Result: 53 comments added across 28 files total, comment-only (confirmed by every
+agent's own `git diff` check --- no code/assertion line touched anywhere). The honest,
+consistent finding across every single agent: most of this codebase, especially
+`config/*.el`, was ALREADY densely commented from earlier sessions --- several files
+(`fastfind.el`, 7 of the 10 remaining config files, `tests/ert/shortcuts.el`, `tests/
+ert/mode-reference.el`) got zero or near-zero additions, not because of laziness but
+because there were genuinely no remaining gaps once the agents actually read them.
+Where gaps WERE found and fixed, they were grounded in the real source/docs, not
+invented --- e.g. a Yasnippet-adjacent test gap filled by citing docs/EGLOT.md, a
+pruning test gap filled by citing docs/PRUNING.md's own "what went wrong the first
+time" section.
+
+702 tests, 679 pass, 0 regressions (same pre-existing `dictate` flake, same stale-dist
+diffs) --- re-run after all 7 agents finished, confirming no agent's comment-only
+edits broke anything. Committed as `9742ece` (comment-only, --no-verify for the same
+documented stale-bundle exception), pushed, Windows zip rebuilt and verified 10/10,
++2,517 bytes (just the added comment text).
+
+### A ranger-style file manager, kept genuinely separate from Dired --- two real bugs found and fixed before it shipped
+
+User: "Is there terminal ranger kind of way in eMacs?" then, after being told about
+`dirvish` and `ranger.el` as real, MELPA-verified options and asked which to try:
+"Yes" (deferring to the recommendation, Dirvish, the more popular one) --- then,
+mid-implementation: "I want to keep the dired as it is want to install dirvish as
+separate app not mingled with existing dired." That one sentence changed the whole
+approach, and turned out to matter a lot.
+
+`dirvish` was installed first and wired up (`C-c R`), but turned out, confirmed
+directly rather than assumed, to be architecturally incompatible with "genuinely
+separate": its own session-tracking (the `:dv' buffer prop everything else keys off)
+is ONLY ever set by advice `dirvish-override-dired-mode' installs on `dired-noselect'
+--- meaning its standalone `dirvish' entry command does nothing at all (confirmed:
+calling it directly produced a perfectly plain Dired buffer, no Miller columns, no
+session) unless that GLOBAL override mode is also turned on, which would then apply
+to plain `dired'/`C-x d' too, the opposite of what was asked for. Abandoned for this
+specific requirement, not a quality judgment --- `ranger.el` (the real, actively-
+maintained fork at `punassuming/ranger.el`, confirmed via the GitHub API after a
+redirect from the original now-inactive repo) was substituted instead: its
+`ranger-mode` is a real, self-contained `(define-derived-mode ranger-mode dired-mode
+...)`, needing no global switch to produce a real Miller-columns layout, confirmed
+directly in a live terminal session (parent directory, listing, and a live preview
+pane, all three panes actually rendering).
+
+Two real "mingling" bugs found and fixed, both only visible by actually running it in
+a real terminal, not from reading source alone:
+
+1. The always-visible reference panel (built earlier this session, hooked to
+   `dired-mode-hook`) claimed the exact side-window slot `ranger`'s own preview pane
+   needs, visibly breaking its 3-pane layout down to 2 --- `ranger-mode' is still
+   `dired-mode' underneath (confirmed: `(derived-mode-p 'dired-mode)` is true there
+   too), so the existing exclusion pattern from the Casual/reference-panel work
+   earlier this session applied directly: `my/mode-reference--relevant-mode' now
+   checks `(derived-mode-p 'ranger-mode)' first and excludes it.
+2. A much sneakier one: `ranger.el' has a top-level, `;;;###autoload'-tagged `(when
+   ranger-key (add-hook 'dired-mode-hook ...))' that installs its own `C-p' binding
+   (its default `ranger-key') into the SHARED, GLOBAL `dired-mode-map' --- silently
+   breaking plain `previous-line' in EVERY Dired buffer, not just ranger's own, the
+   first time any Dired buffer opened after that form ran. A plain, early `(setq
+   ranger-key nil)` in init.el was tried first and was NOT enough: opening a directory
+   straight from the command line still hit a real `wrong-type-argument arrayp nil`
+   error, confirmed (not assumed) to be because that exact form runs from the
+   auto-generated `ranger-autoloads.el`, not `ranger.el` itself (`(featurep 'ranger)`
+   was nil when the error happened, `(featurep 'ranger-autoloads)` was t) --- loaded by
+   something not fully traced down (this build's own async native-compilation queue
+   is the leading suspect), in a way the plain `setq`'s startup-time position could not
+   reliably race against. Fixed at the one point guaranteed to run right after,
+   regardless of what triggers the load or when: `with-eval-after-load` on `ranger-
+   autoloads` itself, undoing the hook immediately.
+
+New `tests/ert/ranger.el` (7 tests, including one that deliberately runs in a fresh
+subprocess to reproduce the exact `ranger-autoloads`-only loading path, the same
+isolation trick `tests/ert/completion.el`'s own `embark-is-lazy-not-loaded-until-used'
+already uses, for the same reason: another test in the same file may have already
+`require`d `ranger` for real by then). 709 tests, 686 pass, 0 regressions, plus 29/29
+real terminal tests --- same pre-existing `dictate` flake, same stale-dist diffs.
+`docs/KEYBOARD.md` and `docs/MY-NOTES.md` both updated with the real account of why
+`dirvish` was rejected and what `ranger` needed to actually stay separate.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -1954,23 +2049,27 @@ packages plus a Magit row.
   (`ac7d9d7`), the new "Custom" menu-bar menu (`dec97de`), and Evil added to
   `my/shortcuts-list` (`28dabde`) are all committed, pushed, and each got its own
   verified, handed-over Windows zip rebuild right after.
-- **New this session, on top of `28dabde`, NOT YET COMMITTED**: all bundled into one
-  upcoming commit together, per the user's own explicit "test commit push, zip it" ---
-  (1) a "Dired" topic added to `my/shortcuts-list` (`dired-jump`/`dired`, fixing the
-  Custom menu/`C-c k` at once, same pattern as the Evil fix); (2) `magit-dispatch`
-  bound to `C-c G` and the "Git" topic renamed "Git (Magit)"; (3) all 6 new packages
-  (Corfu, Yasnippet, expand-region, diff-hl, vterm, pdf-tools) --- see the two entries
-  just above for the full account of both. `git status` will show `config/init.el`,
-  `config/shortcuts.el`, `tools/install-packages.el`, `tests/ert/keybindings.el`,
-  `tests/test_tui.py`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, this file, and 6 new
-  `tests/ert/*.el` files, until explicitly asked to commit. The Windows zip in
-  Downloads matches `28dabde`, NOT any of this --- its Custom menu is still missing
-  Dired and Magit's full menu, and none of the 6 new packages are in it at all;
-  rebuild before handing over another one. **Real, open, user-actionable item: `sudo
-  apt-get install libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to
-  actually do anything** --- this session could not run it (no passwordless `sudo`);
-  until then it is a harmless no-op, not a regression (see the entry above). The
-  unresolved GUI-screenshot/X11 environment problem noted above is also still open.
+- The "Dired" topic in `my/shortcuts-list`, `magit-dispatch` bound to `C-c G` (the
+  "Git" topic renamed "Git (Magit)"), and all 6 packages from that batch (Corfu,
+  Yasnippet, expand-region, diff-hl, vterm, pdf-tools) are committed and pushed
+  (`b9275de`), with a matching Windows zip rebuilt, verified 10/10, and handed over.
+  The full-codebase documentation pass (53 comments, 28 files, comment-only) is also
+  committed and pushed (`9742ece`), with its own small Windows zip rebuild (+2,517
+  bytes) handed over after.
+- **New this session, on top of `9742ece`, NOT YET COMMITTED**: the ranger-style file
+  manager (`C-c R`) --- see the entry just above for the full account, including the
+  two real mingling bugs found and fixed (the reference panel's window-slot conflict,
+  and `ranger.el`'s own `C-p` rebinding via `ranger-autoloads`). `git status` will show
+  `config/init.el`, `config/mode-reference.el`, `config/shortcuts.el`, `tools/
+  install-packages.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, this file, and the new
+  `tests/ert/ranger.el`, until explicitly asked to commit. The Windows zip in Downloads
+  matches `9742ece`, NOT this --- `ranger` is not in it at all yet; rebuild before
+  handing over another one.
+- **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
+  libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
+  anything --- this session could not run it (no passwordless `sudo`); until then it is
+  a harmless no-op, not a regression. The unresolved GUI-screenshot/X11 environment
+  problem noted above is also still open.
 - The 55-theme `C-c c` expansion and the follow-up cursor-visibility/warning-
   suppression/gptel-model fixes are committed and pushed to `origin/main`. Both dist
   bundles are now caught up too (since this same session, not an older stale state):

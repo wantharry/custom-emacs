@@ -911,6 +911,64 @@ installed, offer to install it from NonGNU ELPA."
   (require 'pdf-loader)
   (pdf-loader-install t nil t))
 
+;; `ranger' is a real ranger-style file manager (Miller columns: parent directory,
+;; current listing, and a live preview of whatever file the cursor is on). User
+;; request, explicit: keep plain Dired (and everything already built on it this
+;; session --- Casual's `C-o' menu, the always-visible reference panel, `diff-hl-
+;; dired-mode') completely as-is, and add this as a genuinely SEPARATE thing to opt
+;; into, not a replacement.
+;; `dirvish' (a newer, more popular alternative) was tried FIRST and abandoned for
+;; this specific requirement --- a real, found-the-hard-way architectural fact, not a
+;; preference: Dirvish's own session tracking (the `:dv' buffer prop everything else
+;; keys off, confirmed directly by tracing its source) is only ever set by advice on
+;; `dired-noselect' that `dirvish-override-dired-mode' installs --- meaning Dirvish's
+;; own standalone `dirvish' command does genuinely nothing (confirmed directly: calling
+;; it produced a perfectly plain Dired buffer, no Miller columns at all) unless that
+;; GLOBAL override mode is also turned on, which would then apply to plain `dired'/
+;; `C-x d'/`dired-jump' too --- the exact opposite of "separate, not mingled."
+;; `ranger-mode' has no such requirement: confirmed directly in its own source, it is
+;; a real, self-contained `(define-derived-mode ranger-mode dired-mode ...)', and its
+;; own `ranger' entry command (bound below) needs no global mode turned on anywhere to
+;; build its Miller-columns layout --- verified for real in a terminal session, not
+;; assumed. `ranger-override-dired' (the equivalent all-dired-becomes-ranger option)
+;; defaults to nil and is deliberately left that way here.
+;; Because `ranger-mode' is still *derived from* `dired-mode', `dired-mode-hook' does
+;; still fire for it (so `diff-hl-dired-mode' above still activates there too, harmless
+;; --- just margin markers); the one real exception, confirmed directly in a real
+;; terminal session, is the reference panel, which claimed the exact side-window slot
+;; `ranger''s OWN preview pane needs, visibly breaking its layout --- `my/mode-
+;; reference--relevant-mode' (mode-reference.el) now excludes `ranger-mode' first, so
+;; this stays genuinely separate the way it was asked to be.
+;; A real, found-the-hard-way second mingling risk, beyond the reference-panel one
+;; above: `ranger.el' has a TOP-LEVEL `(when ranger-key (add-hook 'dired-mode-hook
+;; (lambda () (define-key dired-mode-map ranger-key 'deer-from-dired))))' --- confirmed
+;; directly: `ranger-key' defaults to `C-p', which is `previous-line' everywhere else,
+;; so the first real Dired buffer opened after this form runs silently breaks `C-p' in
+;; `dired-mode-map' --- the SHARED, GLOBAL keymap every Dired buffer uses, plain or
+;; not. A plain, early `(setq ranger-key nil)' was tried first and was NOT enough ---
+;; a real, surprising fact confirmed the hard way, by opening a directory straight
+;; from the command line and watching it error: that exact top-level form is tagged
+;; `;;;###autoload', so it lives and runs from `ranger-autoloads.el', not `ranger.el'
+;; itself (confirmed directly: `(featurep 'ranger)' was nil when the error happened,
+;; `(featurep 'ranger-autoloads)' was t) --- something (not traced down to a single
+;; cause; possibly this build's own async native-compilation queue, which runs
+;; packages' code in a separate process to compile them) triggers that autoloads file
+;; to load in a way this file's own startup-time `setq' cannot reliably race against.
+;; Fixed at the one point that IS guaranteed to run right after, regardless of what
+;; triggered the load or when: `with-eval-after-load' on `ranger-autoloads' itself,
+;; undoing the hook the instant it finishes loading, before any real Dired buffer gets
+;; the chance to run it.
+(setq ranger-key nil)
+(with-eval-after-load 'ranger-autoloads
+  (remove-hook 'dired-mode-hook 'ranger-set-dired-key)
+  (setq ranger-key nil))
+(when (locate-library "ranger")
+  (autoload 'ranger "ranger" "Open a ranger-style file manager (Miller columns, a live preview pane)." t))
+(defun my/ranger-missing ()
+  (interactive)
+  (message "ranger is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-c R") (if (locate-library "ranger") #'ranger #'my/ranger-missing))
+
 ;;; Start screen ---------------------------------------------------------------
 
 ;; What Emacs shows when started without a file: the last 5 files, folders and projects,

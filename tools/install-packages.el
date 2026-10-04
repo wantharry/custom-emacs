@@ -19,7 +19,8 @@
                         vertico orderless marginalia embark embark-consult
                         avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes
                         casual csv-mode
-                        corfu yasnippet expand-region diff-hl vterm pdf-tools)
+                        corfu yasnippet expand-region diff-hl vterm pdf-tools
+                        ranger)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -41,7 +42,18 @@ confirmed to vendor/fetch its own copy of `libvterm' automatically when no syste
 is found (confirmed directly in its own `CMakeLists.txt'), so nothing extra was needed
 for it; `pdf-tools' genuinely needs one real system package (`libpoppler-glib-dev')
 this build process cannot install for itself (confirmed missing here, see init.el's own
-comment on `pdf-loader-install' for how that gap is handled without a regression).")
+comment on `pdf-loader-install' for how that gap is handled without a regression).
+`compat' (`consult''s own declared dependency, confirmed in `consult-pkg.el' ---
+found while looking into a DIFFERENT package, `dirvish', that also declared it, then
+turned out not to be the right fit; see `ranger' below) is deliberately NOT listed
+here --- tried first, then checked directly with `locate-library' rather than
+assumed: it is already bundled INTO this Emacs build itself (`lisp/emacs-lisp/
+compat.elc'), so `package-installed-p' already reports it present with nothing in
+`config/elpa' at all, and adding it here would just install a second, redundant copy.
+`ranger' is a real ranger-style file manager, bound to its own separate key (`C-c R',
+see init.el's own, much longer comment for the full account of why `dirvish' was
+tried and rejected first) rather than replacing plain Dired --- a real, explicit user
+requirement, not a default choice.")
 
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete

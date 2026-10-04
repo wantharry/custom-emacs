@@ -145,6 +145,13 @@ by hand.")
     ("Dired"
      ("C-x C-j" dired-jump "open Dired on the current file's directory, cursor on that file")
      ("C-x d" dired "open Dired, prompting for a directory"))
+    ;; WHAT/WHY: user request --- a ranger-style file manager (Miller columns: parent
+    ;; directory, current listing, a live preview pane), explicitly kept separate from
+    ;; plain Dired above rather than replacing it (`ranger-override-dired' stays nil;
+    ;; see init.el's own comment for the real reason `dirvish', tried first, could not
+    ;; offer that separation at all).
+    ("File manager (ranger)"
+     ("C-c R" ranger "a ranger-style file manager: parent directory, listing, live preview"))
     ("Searching"
      ("C-c s l" consult-line "search this buffer, with a live preview")
      ("C-c s g" consult-ripgrep "search project text (ripgrep), with a live preview")
@@ -156,6 +163,18 @@ by hand.")
      ("C-." embark-act "menu of actions for the thing at point, or the current candidate")
      ("C-;" embark-dwim "run the default action directly, no menu")
      ("C-h B" embark-bindings "list every action available right now"))
+    ;; WHAT/WHY: a real gap, found the same way Evil/Dired were earlier this session ---
+    ;; `yas-insert-snippet'/`er/expand-region'/`er/contract-region'/`vterm' were all
+    ;; bound to real keys in init.el back when the 6-package batch shipped, but never
+    ;; added to THIS list, so none of them ever showed up in the Custom menu or `C-c k'
+    ;; despite being fully wired up and working.
+    ("Snippets"
+     ("C-c Y" yas-insert-snippet "insert one of your own Yasnippet snippets by name (none bundled; M-x yas-new-snippet to write one)"))
+    ("Selection"
+     ("C-=" er/expand-region "grow the selection by semantic units (word, then symbol, string, statement, ...)")
+     ("C-M--" er/contract-region "shrink it back one step"))
+    ("Terminal"
+     ("C-c V" vterm "a real terminal emulator (full curses apps: htop, vim, ssh) in a new buffer"))
     ;; WHAT/WHY: a real gap, found right after the Custom menu's own creation --- this
     ;; topic's own menu label was just "Git", and it listed only `magit-status'/`magit-
     ;; file-dispatch', not Magit itself by name, nor its own top-level command hub
