@@ -13,7 +13,7 @@
   (let (rows)
     ;; A <!-- keymap: none --> marker switches checking off until the next marker, for
     ;; tables that are not "key, command" (for example keys pressed after a chord).
-    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md" "docs/START-SCREEN.md" "docs/MAGIT.md" "docs/TREEMACS.md" "docs/SEARCHING.md" "docs/EGLOT.md" "docs/SEARCH-OPTIONS.md"))
+    (dolist (doc '("docs/KEYBOARD.md" "docs/TYPING.md" "docs/NAVIGATING-CODE.md" "docs/START-SCREEN.md" "docs/MAGIT.md" "docs/TREEMACS.md" "docs/SEARCHING.md" "docs/EGLOT.md" "docs/SEARCH-OPTIONS.md" "docs/DISK-USAGE.md"))
       (with-temp-buffer
         (insert-file-contents (expand-file-name doc test-root))
         (let ((map "global") (n 0))
@@ -44,7 +44,15 @@
                                         (and (string-match-p "\\`docker\\'" (match-string 2 line))
                                              (not (locate-library "docker")))
                                         (and (string-match-p "\\`kubernetes-overview\\'" (match-string 2 line))
-                                             (not (locate-library "kubernetes")))))
+                                             (not (locate-library "kubernetes")))
+                                        (and (string-match-p "\\`mc/" (match-string 2 line))
+                                             (not (locate-library "multiple-cursors")))
+                                        (and (string-match-p "\\`devdocs-lookup\\'" (match-string 2 line))
+                                             (not (locate-library "devdocs")))
+                                        (and (string-match-p "\\`my/disk-usage\\'" (match-string 2 line))
+                                             (not (executable-find "dua")))
+                                        (and (string-match-p "\\`dired-du-mode\\'" (match-string 2 line))
+                                             (not (locate-library "dired-du")))))
                      (push (list map (match-string 1 line) (match-string 2 line)
                                  (format "%s:%d" doc n))
                            rows))))))))
@@ -132,6 +140,10 @@ would see them."
 (ert-deftest keys/ranger-keys-match-the-guide ()
   (when (locate-library "ranger") (require 'ranger))
   (should-not (kb--mismatches "ranger-mode-map")))
+
+(ert-deftest keys/disk-usage-keys-match-the-guide ()
+  (require 'disk-usage (expand-file-name "disk-usage" user-emacs-directory))
+  (should-not (kb--mismatches "my/disk-usage-mode-map")))
 
 (ert-deftest keys/dired-keys-match-the-guide ()
   (should-not (kb--mismatches "dired-mode-map")))

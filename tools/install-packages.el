@@ -21,7 +21,9 @@
                         casual csv-mode
                         corfu yasnippet expand-region diff-hl vterm pdf-tools
                         ranger
-                        docker dockerfile-mode kubernetes)
+                        docker dockerfile-mode kubernetes
+                        multiple-cursors verb devdocs
+                        dired-du)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -73,7 +75,28 @@ package this project has ever installed that hard-requires part of CEDET/Semanti
 (`semantic/wisent/comp.el', for `tablist-filter''s on-the-fly filter-expression
 grammar) at its own top level, confirmed directly by actually trying to `require' it
 and getting a real \"Cannot open load file\" error --- `prune.list' (project root) has
-the full account of the fix, a single explicit keep added there.")
+the full account of the fix, a single explicit keep added there.
+`multiple-cursors' edits several places at once (same pattern, different locations)
+--- user request, after being offered a short menu of candidates in each of a few
+categories and choosing this one from \"Editing enhancements\". `verb' is a real HTTP
+client inside Emacs (write and send requests from a plain text buffer, read the
+response inline) --- the user's own words, asking for \"postman in eMacs\"; genuinely
+useful now alongside `docker'/`kubernetes' above, for talking to whatever a container
+exposes. `devdocs' browses real, offline copies of language/library documentation
+(each doc set downloaded on first use, not bundled here) --- both chosen from the same
+menu as `multiple-cursors'.
+`dired-du' (GNU ELPA) is a real, user-requested WizTree-style tool --- user's own
+words: \"Wiztree there is app in windows which is very fast how to make that in
+eMacs.\" It shows recursive directory sizes right inside Dired itself, the closest
+existing package to that idea, with no extra install needed. The genuinely fast half
+of the request (WizTree's own trick is reading the NTFS Master File Table directly,
+not something portable Elisp can do) is `config/disk-usage.el' instead --- a small,
+custom tabulated-list browser built on top of `dua' (a real, actively maintained Rust
+disk-usage scanner, parallel by default, with its own prebuilt Windows/Linux
+binaries --- confirmed directly against its GitHub releases) --- not an ELPA package
+at all, so it is not listed in `my/packages' here; see that file's own header comment
+for why, and `tools/dist-windows.sh' for how the Windows binary is bundled the same
+way `rg'/`fd'/`delta' already are.")
 
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete
@@ -125,5 +148,36 @@ repository with `package-vc-install'.  Each entry is (NAME . URL).")
       ;; "Wrong type argument: stringp" the moment a fresh clone is actually attempted.
       (package-vc-install (cdr entry) nil nil (car entry))
       (message "Installed %s (via VC)" (car entry)))))
+
+;; WHAT/WHY: a real build failure on the user's own Windows machine, not assumed ---
+;; `vterm''s own `CMakeLists.txt' runs a plain `make' to build its vendored `libvterm'
+;; dependency, which (confirmed directly in `libvterm''s own Makefile: `all: $(LIBRARY)
+;; $(BINFILES)') also tries to build its `bin/' CLI tools (`unterm', `vterm-ctrl', ...)
+;; by default --- Unix-only (`vterm-ctrl.c' needs `<termios.h>', not present on
+;; Windows/MinGW) and never used by `vterm-module.so' itself, which only ever links
+;; against `.libs/libvterm.a'. HOW: patched directly in the installed `CMakeLists.txt'
+;; --- idempotent (checks the target is not already there before adding it), since this
+;; runs on every invocation, not only a fresh install, so it also fixes an already-
+;; installed copy from before this fix existed. Asking `make' for just the `libvterm.la'
+;; target instead of the default `all' skips the broken `bin/' tools entirely; harmless
+;; on Linux too (`termios.h' exists there, so this was never broken, just mildly
+;; wasteful: those CLI tools are never used by Emacs either way).
+(let ((cmakelists (car (file-expand-wildcards (expand-file-name "vterm-*/CMakeLists.txt" package-user-dir)))))
+  (when (and cmakelists (file-exists-p cmakelists))
+    (with-temp-buffer
+      (insert-file-contents cmakelists)
+      (goto-char (point-min))
+      (if (search-forward "BUILD_COMMAND ${LIBVTERM_BUILD_COMMAND} libvterm.la " nil t)
+          (message "%s already patched to build just libvterm.la" cmakelists)
+        (goto-char (point-min))
+        (if (not (re-search-forward "BUILD_COMMAND \\${LIBVTERM_BUILD_COMMAND} " nil t))
+            (message "WARNING: %s has no BUILD_COMMAND to patch (vterm's own CMakeLists.txt may have changed)" cmakelists)
+          ;; FIXEDCASE=t: without it, `replace-match' "smart-cases" the replacement to
+          ;; match the matched text's own case (confirmed the hard way: the matched
+          ;; text is all upper-case `LIBVTERM_BUILD_COMMAND', so without this it silently
+          ;; turned `libvterm.la' into `LIBVTERM.LA' --- not a real make target at all).
+          (replace-match "BUILD_COMMAND ${LIBVTERM_BUILD_COMMAND} libvterm.la " t t)
+          (write-region (point-min) (point-max) cmakelists)
+          (message "Patched %s: build just libvterm.la, not its Unix-only bin/ tools" cmakelists))))))
 
 ;;; install-packages.el ends here

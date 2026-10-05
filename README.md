@@ -97,6 +97,7 @@ research-emacs/
 | [docs/SEARCHING.md](docs/SEARCHING.md) | Finding anything: files (the fast finder, recent, tree, Dired), text (in a file, a project, a folder), code by meaning, help. Every key checked, with measured speeds and screenshots |
 | [docs/EGLOT.md](docs/EGLOT.md) | Code intelligence from a language server: start it, definitions, references, implementations, diagnostics, rename; how the Windows bundle runs Java with nothing installed |
 | [docs/TREEMACS.md](docs/TREEMACS.md) | The file tree sidebar (`C-c t`): keys, how it fits with the finder and Dired, and how it works with the read-only lock |
+| [docs/DISK-USAGE.md](docs/DISK-USAGE.md) | A WizTree-style disk usage browser (`C-c W`) powered by `dua`, plus recursive sizes right inside Dired (`dired-du-mode`, the same key) |
 | [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
 | [docs/NAVIGATING-CODE.md](docs/NAVIGATING-CODE.md) | Find a file in a project, search across it, and in Java click a method to see its definition, implementations and references (measured on a real server) |
 | [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |

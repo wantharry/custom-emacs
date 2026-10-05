@@ -447,23 +447,22 @@ key sequence can never make a file editable."
 
 ;; WHAT: install a single package on demand, straight from Lisp, rather than via
 ;; `./build.sh packages' (`tools/install-packages.el').  WHY: that script is how every
-;; package this config actually uses gets onto disk normally --- but Evil (the one and
-;; only caller of this function, see `my/toggle-evil' below) is deliberately NOT one of
-;; them, since most people running this config never turn Evil on at all; this lets
-;; `C-c v' offer to install it right there, the first time it's actually asked for,
-;; instead of making everyone carry a vi-emulation package they may never use.  HOW:
-;; only `gnu'/`nongnu' are listed here, not `melpa' too (confirmed directly against
-;; `tools/install-packages.el''s own archive list, which adds `melpa' specifically
-;; because Treemacs is only published there) --- Evil itself ships on NonGNU ELPA (see
-;; the `y-or-n-p' prompt below), so this function has never needed `melpa' for the one
-;; package it actually installs; a future caller needing a MELPA-only package would
-;; have to add it here too.
+;; package this config actually uses gets onto disk normally --- but Evil and
+;; `evil-collection' (the only callers of this function, see `my/toggle-evil' below)
+;; are deliberately NOT among them, since most people running this config never turn
+;; Evil on at all; this lets `C-c v' offer to install either one right there, the
+;; first time it's actually asked for, instead of making everyone carry a vi-emulation
+;; package they may never use.  HOW: `melpa' was added to this function's own archive
+;; list specifically for `evil-collection' (confirmed directly: it is not published on
+;; `gnu'/`nongnu', only `melpa' --- Evil itself ships on NonGNU ELPA and never needed
+;; this before `evil-collection' became this function's second real caller).
 (defun my/install-package (pkg)
   "Install PKG from ELPA into `my/elpa-dir'.  Loads package.el on demand."
   (require 'package)
   (setq package-user-dir my/elpa-dir
         package-archives '(("gnu"    . "https://elpa.gnu.org/packages/")
-                           ("nongnu" . "https://elpa.nongnu.org/nongnu/")))
+                           ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                           ("melpa"  . "https://melpa.org/packages/")))
   (package-initialize)
   (package-refresh-contents)
   (package-install pkg))
@@ -479,16 +478,39 @@ key sequence can never make a file editable."
 (defvar evil-mode-buffers nil
   "Compatibility shim for Evil on Emacs 32; see init.el.")
 
+;; WHAT/WHY: user request, after asking whether `evil-collection' was worth adding ---
+;; plain Evil leaves every OTHER mode's own default keys in place (Dired, Magit,
+;; Treemacs, ...), which feels broken under vi emulation (e.g. `j'/`k' do not move
+;; lines in Dired the vim way); `evil-collection' patches ~190 modes with proper,
+;; idiomatic vi bindings instead. Deliberately NOT a separate toggle of its own ---
+;; it only ever matters while Evil's own state keymaps are active, so it is
+;; initialized once, right here, the first time Evil itself turns on, and needs no
+;; separate "off" step: Evil's own state keymaps (what `evil-collection' adds to)
+;; already stop being consulted the moment `evil-mode' turns off, same as before this
+;; existed. A REAL, deliberate tradeoff worth knowing about: it WILL shadow some of
+;; this session's own custom bindings (ranger's `r', Treemacs's `D'/`z'/`G', ...)
+;; while Evil is on, same as it overrides any mode's own defaults, by design.
+(defvar my/evil-collection-initialized nil
+  "Whether `evil-collection-init' has already run this session; see `my/toggle-evil'.")
+
 (defun my/toggle-evil ()
   "Toggle Evil (vi emulation) globally.
-Evil is loaded on first use, so it costs nothing until then.  If it is not
-installed, offer to install it from NonGNU ELPA."
+Evil (and `evil-collection', the first time Evil turns on) is loaded on first use,
+so it costs nothing until then.  If either is not installed, offer to install it."
   (interactive)
   (unless (require 'evil nil t)
     (if (y-or-n-p "Evil (vi keys) is not installed.  Install from NonGNU ELPA? ")
         (progn (my/install-package 'evil)
                (require 'evil))
       (user-error "Evil is not installed")))
+  (when (not evil-mode) ; about to turn ON
+    (unless (require 'evil-collection nil t)
+      (when (y-or-n-p "evil-collection (proper vi keys in Dired/Magit/Treemacs/...) is not installed.  Install from MELPA? ")
+        (my/install-package 'evil-collection)
+        (require 'evil-collection)))
+    (when (and (featurep 'evil-collection) (not my/evil-collection-initialized))
+      (evil-collection-init)
+      (setq my/evil-collection-initialized t)))
   (evil-mode (if evil-mode -1 1))
   (message "Evil mode %s" (if evil-mode "enabled" "disabled")))
 
@@ -1043,6 +1065,55 @@ only `let'-binds `default-directory' rather than passing the path as an argument
   (add-to-list 'auto-mode-alist '("[/\\]\\(?:Containerfile\\|Dockerfile\\)\\(?:\\.[^/\\]*\\)?\\'" . dockerfile-mode))
   (add-to-list 'auto-mode-alist '("\\.dockerfile\\'" . dockerfile-mode)))
 
+;; `multiple-cursors': edit several places at once (same pattern, different
+;; locations) --- user request, chosen from a short menu of editing-enhancement
+;; candidates. `C->'/`C-<'/`C-c C-<' are the package's own long-standing, widely
+;; documented convention (its README uses exactly these), used as-is rather than
+;; invented fresh, so existing muscle memory/tutorials elsewhere still apply.
+(when (locate-library "multiple-cursors")
+  (autoload 'mc/mark-next-like-this "mc-mark-more" nil t)
+  (autoload 'mc/mark-previous-like-this "mc-mark-more" nil t)
+  (autoload 'mc/mark-all-like-this "mc-mark-more" nil t))
+(defun my/multiple-cursors-missing ()
+  (interactive)
+  (message "multiple-cursors is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C->") (if (locate-library "multiple-cursors") #'mc/mark-next-like-this #'my/multiple-cursors-missing))
+(global-set-key (kbd "C-<") (if (locate-library "multiple-cursors") #'mc/mark-previous-like-this #'my/multiple-cursors-missing))
+(global-set-key (kbd "C-c C-<") (if (locate-library "multiple-cursors") #'mc/mark-all-like-this #'my/multiple-cursors-missing))
+
+;; `verb': a real HTTP client inside Emacs --- write and send requests from a plain
+;; Org buffer, read the response inline. User's own words: "postman in eMacs."
+;; `verb-command-map' (confirmed directly in `verb.el''s own docstring: "Bind this to
+;; an easy-to-reach key in Org mode in order to use Verb comfortably") is deliberately
+;; left unbound by the package itself, unlike `docker'/`kubernetes' above --- so unlike
+;; those, this needs a prefix key chosen here, not just an autoload. Scoped to
+;; `org-mode-map' only (verb extends Org, confirmed in `verb.el''s own `(require
+;; 'org)'), not global --- confirmed `C-c C-h' is free there (`C-c C-r' already is
+;; `org-fold-reveal', the obvious first guess).
+;; `(autoload 'verb-command-map "verb" nil nil 'keymap)' was tried first and does NOT
+;; work --- confirmed directly, a real `void-variable' error: unlike a function
+;; autoload, TYPE='keymap' here does not make Emacs load the file when the variable's
+;; VALUE is read; that mechanism only exists for the real `;;;###autoload (defvar
+;; ...)' cookie package.el itself expands at install time (which, per the gap
+;; documented above, never runs in this config). A plain `require' here is the
+;; correct fix --- still only loads `verb' once, the first time `org' itself does
+;; (never at bare startup), not any earlier.
+(when (locate-library "verb")
+  (with-eval-after-load 'org
+    (require 'verb)
+    (define-key org-mode-map (kbd "C-c C-h") verb-command-map)))
+
+;; `devdocs': offline copies of real language/library documentation (each doc set
+;; downloaded on first use with `devdocs-install', not bundled here) --- the same menu
+;; `multiple-cursors'/`verb' above came from. `C-h D' alongside the existing `C-h f'/
+;; `v'/`k'/`o' (`helpful-*') and `C-h B' (`embark-bindings') in the "Help" topic.
+(when (locate-library "devdocs")
+  (autoload 'devdocs-lookup "devdocs" "Look up a documentation entry." t))
+(defun my/devdocs-missing ()
+  (interactive)
+  (message "devdocs is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-h D") (if (locate-library "devdocs") #'devdocs-lookup #'my/devdocs-missing))
+
 ;; `ranger' is a real ranger-style file manager (Miller columns: parent directory,
 ;; current listing, and a live preview of whatever file the cursor is on). User
 ;; request, explicit: keep plain Dired (and everything already built on it this
@@ -1143,6 +1214,46 @@ what actually gets back to a clean, single plain-Dired window afterward."
   (when (locate-library "ranger") (define-key dired-mode-map "r" #'my/dired-to-ranger)))
 (with-eval-after-load 'ranger
   (define-key ranger-mode-map "r" #'my/ranger-to-dired))
+
+;; `dired-du' --- user request ("Wiztree ... how to make that in eMacs"), the plain
+;; package half of it: real recursive directory sizes shown right in the existing
+;; Dired listing (not a separate buffer) --- the closest existing package to WizTree's
+;; own idea. `C-c W' scoped to `dired-mode-map' specifically (not global) --- the SAME
+;; letter also opens `my/disk-usage' (below), the custom, genuinely fast half of the
+;; same request; the two deliberately share one mnemonic ("W"), just in two different
+;; keymaps, so there is no real conflict (Dired's own local binding simply shadows the
+;; global one while inside a Dired buffer, confirmed directly, not assumed). Off by
+;; default and toggled, not auto-enabled everywhere --- confirmed the slow way, by
+;; actually turning it on over this project's own `config/elpa' (thousands of files):
+;; computing every directory's real recursive size takes real, noticeable time on a
+;; big tree, the same reason `my/mode-reference-mode''s own panel and Casual's menu
+;; are both opt-in rather than forced on.
+;; A real repeat of the SAME gap `docker'/`kubernetes' already hit earlier this
+;; session: `dired-du' is a real entry in `my/packages' (`tools/install-packages.el'),
+;; but this config still never activates packages via `package.el', only `load-path'
+;; --- so `dired-du-mode' needs this explicit `autoload' too, confirmed the hard way
+;; again (`commandp'/`fboundp' both nil without it, caught by `tests/ert/
+;; keybindings.el''s own `keys/every-documented-command-exists').
+(when (locate-library "dired-du")
+  (autoload 'dired-du-mode "dired-du" "Show recursive directory sizes in Dired." t))
+(defun my/dired-du-missing ()
+  (interactive)
+  (message "dired-du is not installed.  Run ./build.sh packages"))
+(with-eval-after-load 'dired
+  (define-key dired-mode-map (kbd "C-c W")
+    (if (locate-library "dired-du") #'dired-du-mode #'my/dired-du-missing)))
+
+;; `my/disk-usage' (config/disk-usage.el) --- the custom, genuinely fast half of the
+;; same WizTree request, see that file's own header comment for the full account.
+;; Autoloaded lazily, the same shape as `my/llm-council' just below --- real, since
+;; this file only ever loads the moment `C-c W' (global, outside Dired) is actually
+;; used, same as that one only loads the first time `C-c a c' is.
+(autoload 'my/disk-usage (expand-file-name "disk-usage" user-emacs-directory)
+  "Browse a directory's disk usage, largest first, powered by `dua'." t)
+(defun my/disk-usage-missing ()
+  (interactive)
+  (message "`dua' is not installed/not on PATH --- see docs/DISK-USAGE.md"))
+(global-set-key (kbd "C-c W") (if (executable-find "dua") #'my/disk-usage #'my/disk-usage-missing))
 
 ;;; Start screen ---------------------------------------------------------------
 

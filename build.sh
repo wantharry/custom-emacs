@@ -61,7 +61,7 @@ screenshots() {
   local out="${1:?usage: build.sh screenshots OUTDIR FILE...}"; shift
   local emacs; emacs="$(pick_emacs)"
   local dir; dir="$(mktemp -d)"
-  cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$dir/"
+  cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$ROOT/config/disk-usage.el" "$dir/"
   for d in elpa tree-sitter; do [ -d "$ROOT/config/$d" ] && ln -s "$ROOT/config/$d" "$dir/$d"; done
   SHOT_DIR="$out" SHOT_FILES="$(IFS=:; echo "$*")" "$emacs" --init-directory="$dir" -l "$dir/early-init.el" -l "$dir/init.el" -l "$ROOT/tools/gui-screenshot.el" >/dev/null 2>&1
   ls "$out"/*.png

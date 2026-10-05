@@ -55,7 +55,7 @@ for f in "$STAGE"/lib/gdk-pixbuf/loaders/*.so; do "$PATCHELF" --set-rpath '$ORIG
 for f in "${BINS[@]}"; do "$PATCHELF" --set-rpath '$ORIGIN/../../lib' "$f"; done
 
 echo "== settings, packages, grammars (no personal history)"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
 cp -a "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"      # download state, not needed
 # A real, found-the-hard-way bug this guards against (see tools/dist-windows.sh's own,

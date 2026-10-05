@@ -27,3 +27,4 @@ __pycache__/
 # Claude Code's own local session state, not project content
 /.claude/
 !/config/mode-reference.el
+!/config/disk-usage.el

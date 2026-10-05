@@ -1,8 +1,8 @@
 /* Emacs.exe: the one-click launcher for the portable Windows bundle.
  *
- * Finds the folder it lives in, puts the bundled Git, ripgrep, fd and delta first on
- * PATH, points Emacs at the bundled settings (config\), and starts it without a console
- * window.
+ * Finds the folder it lives in, puts the bundled Git, ripgrep, fd, delta and dua first
+ * on PATH, points Emacs at the bundled settings (config\), and starts it without a
+ * console window.
  * Any files or options given to Emacs.exe are passed on to Emacs.
  *
  * Built by tools/dist-windows.sh with zig cc (a cross compiler): no Windows needed.
@@ -32,14 +32,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
   *slash = 0;                       /* self is now the folder holding Emacs.exe */
   wcscpy(home, self);
 
-  /* PATH: bundled Git (for Magit), ripgrep/fd (fast search) and delta (nicer Magit
-   * diffs, magit-delta-mode) come first. */
+  /* PATH: bundled Git (for Magit), ripgrep/fd (fast search), delta (nicer Magit
+   * diffs, magit-delta-mode) and dua (my/disk-usage, config/disk-usage.el) come
+   * first. */
   wchar_t oldpath[32768];
   DWORD len = GetEnvironmentVariableW(L"PATH", oldpath, 32768);
   if (len == 0 || len >= 32768) oldpath[0] = 0;
   wchar_t newpath[32768 + 1024];
-  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\tools\\fd;%s\\tools\\delta;%s\\emacs\\bin;%s",
-           self, self, self, self, self, self, oldpath);
+  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\tools\\fd;%s\\tools\\delta;%s\\tools\\dua;%s\\emacs\\bin;%s",
+           self, self, self, self, self, self, self, oldpath);
   SetEnvironmentVariableW(L"PATH", newpath);
   SetEnvironmentVariableW(L"CUSTOM_EMACS_PORTABLE", L"1");
   SetEnvironmentVariableW(L"CUSTOM_EMACS_HOME", self);   /* where tools\\jdtls is found */

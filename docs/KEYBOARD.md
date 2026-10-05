@@ -312,6 +312,11 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c H` | `my/mode-reference-mode` | **this config:** turn the always-visible command-reference panel on the right (Dired/Org/ranger/Treemacs) off, or back on --- shown by default; `C-c H` again toggles it back |
 | `C-c K d` | `docker` | **this config:** a Magit-style transient menu of Docker containers/images/volumes/networks (needs a real `docker` binary on PATH to do anything once opened) |
 | `C-c K k` | `kubernetes-overview` | **this config:** a buffer listing a Kubernetes cluster's resources (needs `kubectl` configured against a real cluster) |
+| `C->` | `mc/mark-next-like-this` | **this config:** mark the next occurrence of the current selection/word, add a cursor there --- `multiple-cursors`'s own long-standing key convention |
+| `C-<` | `mc/mark-previous-like-this` | **this config:** the same, backwards |
+| `C-c C-<` | `mc/mark-all-like-this` | **this config:** mark every occurrence at once |
+| `C-h D` | `devdocs-lookup` | **this config:** look up a symbol in a real, offline copy of a language/library's own docs (each doc set downloaded on first use with `devdocs-install`) |
+| `C-c W` | `my/disk-usage` | **this config:** a WizTree-style, drill-down disk usage browser, largest first, powered by `dua` ([DISK-USAGE.md](DISK-USAGE.md)) --- `C-c W` inside Dired instead toggles `dired-du-mode` (the same key, a different, locally-scoped binding) |
 | `C-x ^` | `enlarge-window` | taller |
 | `C-x }` | `enlarge-window-horizontally` | wider |
 | `C-x {` | `shrink-window-horizontally` | narrower |
@@ -459,6 +464,7 @@ preview pane) --- without changing how plain Dired above behaves at all; `q` clo
 | `w` | `dired-copy-filename-as-kill` | copy the file name (`0 w` full path) |
 | `=` | `dired-diff` | diff this file against another |
 | `r` | `my/dired-to-ranger` | **this config:** open `ranger` on this same directory |
+| `C-c W` | `dired-du-mode` | **this config:** toggle real recursive directory sizes on/off in THIS Dired buffer ([DISK-USAGE.md](DISK-USAGE.md)) --- off by default, noticeably slower to compute on a big tree |
 
 ### Mark and unmark
 

@@ -1,6 +1,10 @@
 ;;; evil.el --- the optional Evil (vi keys) toggle  -*- lexical-binding: t; -*-
 ;; harness: config
-;; Needs Evil installed in config/elpa (./build.sh packages).
+;; Needs Evil installed in config/elpa (./build.sh packages).  The `evil-collection'
+;; tests near the end of this file additionally skip unless THAT is also installed
+;; --- neither is installed by `./build.sh packages' (both are on-demand only, see
+;; `my/toggle-evil''s own comment), so a machine that has never actually accepted
+;; either install prompt for real will skip those tests rather than fail.
 
 (defmacro evil-test-with-clean-state (&rest body)
   "Run BODY, then make sure Evil is switched off again."
@@ -128,5 +132,88 @@
                  (should (buffer-local-value 'evil-local-mode a))
                  (should-not (buffer-local-value 'evil-local-mode b)))
         (kill-buffer a) (kill-buffer b)))))
+
+;;; `evil-collection': initialized once, the first time Evil itself turns on.
+
+(ert-deftest evil/evil-collection-initializes-when-evil-turns-on ()
+  (evil-test-with-clean-state
+    (skip-unless (locate-library "evil-collection"))
+    (let ((my/evil-collection-initialized nil))
+      (test-in-buffer #'text-mode "hello"
+        (my/toggle-evil)
+        (should evil-mode)
+        (should (featurep 'evil-collection))
+        (should my/evil-collection-initialized)))))
+
+(ert-deftest evil/evil-collection-only-initializes-once ()
+  (evil-test-with-clean-state
+    (skip-unless (locate-library "evil-collection"))
+    (require 'evil-collection)
+    (let ((my/evil-collection-initialized nil) (calls 0))
+      (cl-letf (((symbol-function 'evil-collection-init)
+                 (lambda (&rest _) (setq calls (1+ calls)))))
+        (test-in-buffer #'text-mode "hello"
+          (my/toggle-evil) ; on: initializes
+          (my/toggle-evil) ; off
+          (my/toggle-evil) ; on again: should NOT re-initialize
+          (should (= calls 1)))))))
+
+(ert-deftest evil/evil-collection-declined-still-leaves-evil-on ()
+  ;; A real, deliberate design choice, pinned down here: evil-collection is a nice-to-
+  ;; have, not a requirement --- declining its install prompt must not block Evil
+  ;; itself from turning on, unlike declining Evil's OWN install prompt (see
+  ;; `evil-missing/declining-the-install-signals-user-error'), which is a hard stop.
+  (evil-test-with-clean-state
+    (let ((my/evil-collection-initialized nil)
+          ;; Captured BEFORE the override below takes effect --- a reference to
+          ;; `#'require'/`#'featurep' taken INSIDE the override's own dynamic extent
+          ;; would just resolve back to itself (infinite recursion), not the real
+          ;; function. `featurep' needs mocking too, not just `require': an earlier
+          ;; test in this same batch process may have already loaded the real
+          ;; `evil-collection' for real, which leaves it permanently in `features'
+          ;; for the rest of the process --- without this, `my/toggle-evil''s own
+          ;; `(featurep 'evil-collection)' check would see it as present regardless
+          ;; of what this mocked `require' call returns.
+          (real-require (symbol-function 'require))
+          (real-featurep (symbol-function 'featurep)))
+      (cl-letf (((symbol-function 'require)
+                 (lambda (feature &optional filename noerror)
+                   (if (eq feature 'evil-collection) nil
+                     (funcall real-require feature filename noerror))))
+                ((symbol-function 'featurep)
+                 (lambda (feature &optional subfeature)
+                   (if (eq feature 'evil-collection) nil
+                     (funcall real-featurep feature subfeature))))
+                ((symbol-function 'y-or-n-p) (lambda (&rest _) nil)))
+        (test-in-buffer #'text-mode "hello"
+          (my/toggle-evil)
+          (should evil-mode)
+          (should-not my/evil-collection-initialized))))))
+
+(ert-deftest evil/evil-collection-missing-accepting-install-calls-the-installer ()
+  (evil-test-with-clean-state
+    (let ((my/evil-collection-initialized nil) asked
+          ;; Same reasoning as `evil/evil-collection-declined-still-leaves-evil-on'
+          ;; just above --- `featurep' needs mocking too, not just `require'.
+          (real-require (symbol-function 'require))
+          (real-featurep (symbol-function 'featurep)))
+      (cl-letf (((symbol-function 'require)
+                 (lambda (feature &optional filename noerror)
+                   (if (eq feature 'evil-collection) nil
+                     (funcall real-require feature filename noerror))))
+                ((symbol-function 'featurep)
+                 (lambda (feature &optional subfeature)
+                   (if (eq feature 'evil-collection) nil
+                     (funcall real-featurep feature subfeature))))
+                ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+                ((symbol-function 'my/install-package) (lambda (p) (push p asked))))
+        (test-in-buffer #'text-mode "hello"
+          (my/toggle-evil)
+          (should evil-mode)
+          (should (equal asked '(evil-collection)))
+          ;; `my/install-package' is mocked to not really install anything, so the
+          ;; second `require' right after it (real, not mocked away like the first
+          ;; one was) still fails to find it --- correctly leaves it uninitialized.
+          (should-not my/evil-collection-initialized))))))
 
 ;;; evil.el ends here

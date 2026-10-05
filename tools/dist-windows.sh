@@ -6,7 +6,7 @@
 #
 # What goes in the zip: Emacs.exe (a launcher), the official GNU Emacs 31 for Windows (with all its
 # libraries), your settings (config/), Evil and Magit compiled for that Emacs, tree-sitter grammars
-# for Java and Rust, ripgrep, fd, delta, and a portable Git (MinGit).  See docs/DISTRIBUTION.md.
+# for Java and Rust, ripgrep, fd, delta, dua, and a portable Git (MinGit).  See docs/DISTRIBUTION.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"; CACHE="$DIST/cache"
@@ -17,6 +17,7 @@ EMACS_URL=https://ftp.gnu.org/gnu/emacs/windows/emacs-31
 RG_VERSION="${RG_VERSION:-14.1.1}"
 FD_VERSION="${FD_VERSION:-10.5.0}"
 DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
+DUA_VERSION="${DUA_VERSION:-2.45.1}"   # my/disk-usage's own backend, config/disk-usage.el
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
                                                 # (needs a JDK 21+ on PATH or JAVA_HOME; none is bundled)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
@@ -70,6 +71,21 @@ if [ -n "$DELTA_SHA" ]; then
 else
   echo "   (could not fetch a published checksum for delta-win.zip; proceeding without one)"
 fi
+DUA_ASSET="dua-v$DUA_VERSION-x86_64-pc-windows-msvc.zip"
+fetch "https://github.com/Byron/dua-cli/releases/download/v$DUA_VERSION/$DUA_ASSET" dua-win.zip
+DUA_SHA="$(curl -fsSL "https://api.github.com/repos/Byron/dua-cli/releases/tags/v$DUA_VERSION" | python3 -c "
+import json, sys
+name = sys.argv[1]
+for a in json.load(sys.stdin)['assets']:
+    if a['name'] == name:
+        print(a['digest'].split(':')[1]); break
+" "$DUA_ASSET")"
+if [ -n "$DUA_SHA" ]; then
+  [ "$(sha256sum "$CACHE/dua-win.zip" | cut -d' ' -f1)" = "$DUA_SHA" ] || { echo "CHECKSUM MISMATCH for dua-win.zip" >&2; exit 1; }
+  echo "   dua-win.zip matches the checksum published by GitHub"
+else
+  echo "   (could not fetch a published checksum for dua-win.zip; proceeding without one)"
+fi
 
 echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
@@ -115,11 +131,12 @@ unzip -q "$CACHE/MinGit-64.zip" -d "$STAGE/tools/git"
 unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
 unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
 unzip -q -j "$CACHE/delta-win.zip" "*/delta.exe" -d "$STAGE/tools/delta"
+unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
 # the language server: only the Windows part (it is started with whatever `java' the user has on
 # PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
 # layout as the git repository, so no code needs to know it is running from a bundle
 cp "$ROOT/README.md" "$STAGE/README.md"
@@ -152,7 +169,24 @@ rm -rf "$WT"; mkdir -p "$WT"
 cp -r "$STAGE/emacs" "$WT/emacs"; cp -r "$STAGE/config/elpa" "$WT/elpa"
 WELPA="$(wslpath -m "$WT/elpa")"
 # the packages need each other on the load path while compiling (Magit needs llama, etc.)
-"$WT/emacs/bin/emacs.exe" --batch --eval "(progn (setq byte-compile-warnings nil) (dolist (d (directory-files \"$WELPA\" t \"\\\\\`[^.]\")) (when (file-directory-p d) (add-to-list 'load-path d))) (byte-recompile-directory \"$WELPA\" 0 t))" 2>&1 | tail -1
+# `(provide 'vterm-module)' --- a real, found-the-hard-way fix for a compile FAILURE
+# (not a warning; the whole run previously still reported success at 1 file short):
+# `evil-collection-vterm.el' does `(require 'vterm nil t)' at its own top level, which
+# finds the real `vterm.el' on `load-path' and loads it for real (NOERROR only
+# suppresses a file-not-found, not errors from code THAT file then runs) --- and
+# `vterm.el' itself, unconditionally, checks whether `vterm-module' is already
+# provided and if not either prompts via `y-or-n-p' (`vterm-always-compile-module'
+# nil, the default) or actually tries to compile the native module right then
+# (confirmed: setting that variable instead would NOT have been the right fix here,
+# since the module genuinely cannot compile on Windows anyway --- see `tests/ert/
+# vterm.el''s own comment on the general shape of this bug, a real case of it
+# recurring somewhere new). Either way, `y-or-n-p' itself fails immediately in this
+# real `--batch' process with no stdin ("Error reading from stdin"). Pretending the
+# feature is already provided skips vterm.el's whole check with neither problem ---
+# harmless for byte-compilation specifically, which only needs `vterm.el''s plain
+# Lisp definitions and `declare-function' forms to satisfy the compiler, never an
+# actually-working native module.
+"$WT/emacs/bin/emacs.exe" --batch --eval "(progn (provide 'vterm-module) (setq byte-compile-warnings nil) (dolist (d (directory-files \"$WELPA\" t \"\\\\\`[^.]\")) (when (file-directory-p d) (add-to-list 'load-path d))) (byte-recompile-directory \"$WELPA\" 0 t))" 2>&1 | tail -1
 n=$(find "$WT/elpa" -name '*.elc' | wc -l)
 [ "$n" -gt 40 ] || { echo "only $n files compiled; expected more" >&2; exit 1; }
 rm -rf "$STAGE/config/elpa"; cp -a "$WT/elpa" "$STAGE/config/elpa"; rm -rf "$WT"
@@ -181,9 +215,11 @@ Java: the language server (jdtls) is included, but not a JDK --- install one you
 Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
 Magit diffs are rendered with delta (bundled) via magit-delta-mode, on by default.
+C-c W browses real disk usage (biggest first) using the bundled dua.
 Press C-c d for every guide in one buffer (README.md and docs\\*.md), built the moment Emacs starts.
 GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2
-(tools\\git\\LICENSE.txt), ripgrep under MIT/Unlicense, and delta under MIT. Full guide: DISTRIBUTION.md.
+(tools\\git\\LICENSE.txt), ripgrep under MIT/Unlicense, delta under MIT, and dua under MIT.
+Full guide: DISTRIBUTION.md.
 EOF
 cp "$ROOT/docs/DISTRIBUTION.md" "$STAGE/DISTRIBUTION.md" 2>/dev/null || true
 

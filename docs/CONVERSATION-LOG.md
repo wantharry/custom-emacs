@@ -2380,6 +2380,227 @@ show `config/init.el', `config/shortcuts.el', `docs/KEYBOARD.md', `prune.list',
 `tests/ert/keybindings.el', plus the still-uncommitted CMakeCache.txt fix from the
 entry above, until explicitly asked to commit.
 
+### Follow-up, same day: a real Windows vterm troubleshooting session with the user, a real own mistake and recovery, Helix declined, three new tools, and evil-collection
+
+The user actually tried the fixed Windows zip for real and worked through the vterm
+native-module compile with it, live, one real error at a time --- each one a genuine
+toolchain gap, not assumed: (1) `libtool not found` --- `libtool` is a plain POSIX
+shell script even in its Windows-targeted form (confirmed directly: `#!/bin/sh`,
+`file` identifies it as a shell script, not a binary), so fixed by installing real
+MSYS2 (already present on the user's machine at `C:\msys64`, confirmed before trying
+to reinstall it) and adding `C:\msys64\usr\bin` (for `sh.exe'/`libtool`) to the user's
+PATH; (2) `cc: command not found` --- WinLibs's MinGW-w64 ships `gcc.exe` but no plain
+`cc.exe` alias, which libvterm's own vendored Makefile defaults to; fixed by copying
+`gcc.exe` to `cc.exe` in the same directory, the same pattern as the earlier
+`mingw32-make.exe' -> `make.exe' fix; (3) `termios.h` missing while building
+libvterm's own bundled CLI tools (`unterm`, `vterm-ctrl`) --- confirmed directly in
+`libvterm`'s own Makefile (`all: $(LIBRARY) $(BINFILES)`) that the default target
+builds those Unix-only tools too, never used by `vterm-module.so` itself; fixed by
+patching `vterm`'s `CMakeLists.txt` to ask `make` for just the `libvterm.la` target.
+This last fix was made DURABLE in `tools/install-packages.el` itself (a new patch
+step, idempotent, applied to any already-installed copy too) rather than left as a
+one-off hand-edit on the user's machine --- the kind of fix that would otherwise
+silently vanish the next time `vterm` gets reinstalled anywhere.
+
+**Then a real, serious mistake, caught and corrected.** Trying to add
+`C:\msys64\usr\bin` to the user's PATH via PowerShell, a quoting bug (`'$new'` in
+single quotes, which PowerShell does not interpolate) set the User PATH to the
+literal 5-character string `$new`, wiping out the user's entire real PATH (VS Code,
+npm, MiKTeX, the WinLibs toolchain, everything). A follow-up attempt to fix it was
+correctly blocked by a safety check before any further silent retry; stopped
+immediately, told the user exactly what broke and the exact restore command, and
+only ran it once the user explicitly said "can you run now since you are on windows
+now." Restored to the exact original value (captured before the mistake) plus the
+intended `C:\msys64\usr\bin` addition --- confirmed by reading the registry value
+back afterward. **Worth remembering for any future PowerShell `-Command` string run
+through this bridge: interpolate variables with double quotes or build the string in
+Lisp/bash first, never reference a variable inside PowerShell single quotes.**
+
+With all three toolchain gaps fixed, the REAL remaining error (`vterm-module.c`
+itself failing on the exact same `termios.h`) turned out to be architectural, not
+fixable by any more tooling --- confirmed directly in `vterm-module.c`'s own source:
+it unconditionally `#include`s `<termios.h>`/`<unistd.h>` and calls real POSIX
+`tcgetattr()` on the pty file descriptor, with zero `#ifdef _WIN32` branches
+anywhere in the module, and the Lisp side has no Windows handling either. `emacs-
+libvterm` genuinely does not support native Windows at all; `C-c V` stays Linux-only,
+documented as a real, known limitation rather than something still being chased.
+
+User asked about a real "postman in eMacs" and other tool ideas; offered a short
+categorized menu (debugging, git, editing, other) and installed what was chosen:
+`multiple-cursors` (`C->`/`C-<`/`C-c C-<`, its own long-documented key convention),
+`verb` (a real HTTP client extending Org --- `verb-command-map` bound to `C-c C-h` in
+`org-mode-map` specifically, confirmed `C-c C-r` there is already `org-fold-reveal`),
+and `devdocs` (`C-h D`, alongside the existing `helpful-*' "Help" topic keys). A real
+bug found while wiring `verb` in: `(autoload 'verb-command-map "verb" nil nil
+'keymap)` does NOT work the way a function autoload does --- confirmed directly, a
+real `void-variable` error; TYPE='keymap' in a function's autoload spec is not the
+same mechanism as package.el's own `;;;###autoload (defvar ...)` cookie expansion
+(which never runs in this config anyway, the same gap documented for `docker'/
+`kubernetes' above) --- fixed with a plain `require' inside `with-eval-after-load
+'org', still only loading `verb' the first time `org' itself does.
+
+Separately asked about Helix (the modal editor) --- a real package exists on MELPA
+(`helix', "a minor mode emulating Helix keybindings"), but declined once the real
+tradeoff was named (it would compete with the already-installed Evil for the same
+keys); not installed.
+
+Then asked whether `evil-collection` was worth adding alongside Evil --- recommended
+yes, IF Evil is actually used regularly (without it, Dired/Magit/Treemacs/etc. keep
+their own non-vi keys even under Evil's normal state), with the real tradeoff named
+up front (it WILL shadow some of this session's own custom keys --- ranger's `r',
+Treemacs's `D'/`z'/`G' --- while Evil is on). Wired into `my/toggle-evil' itself
+rather than a separate toggle, since it only ever matters while Evil's own state
+keymaps are active: initializes once, the first time Evil turns on, tracked via a new
+`my/evil-collection-initialized' flag so it is not redundantly re-run on every
+subsequent toggle. `evil-collection' (like Evil itself) is deliberately on-demand
+only, never added to `tools/install-packages.el''s main list --- `my/install-package'
+needed `melpa' added to its own archive list for this, the first real caller besides
+Evil itself that needed it (confirmed: `evil-collection' is MELPA-only). 6 new tests
+in `tests/ert/evil.el' cover the real integration (initializes once, survives
+on/off/on cycles) and the install-prompt control flow (`cl-letf'-mocked, matching
+`evil-missing.el''s own existing pattern) --- declining must still leave Evil itself
+on, only Evil's OWN missing-install path is a hard stop.
+
+Installing `evil-collection' for real then surfaced a SECOND real compile failure,
+this time in `tools/dist-windows.sh''s own package-compile step (not a test): among
+`evil-collection''s ~190 per-mode files, `evil-collection-vterm.el' does `(require
+'vterm nil t)' at its own top level --- NOERROR only suppresses a file-not-found, not
+an error from code the file then actually runs, and `vterm.el' itself unconditionally
+checks whether `vterm-module' is already provided, prompting via `y-or-n-p' if not
+(the exact same class of bug `tests/ert/vterm.el' was fixed for earlier this session,
+recurring somewhere new) --- which fails immediately in the real `--batch' process
+this compile step runs in. Setting `vterm-always-compile-module' would NOT have been
+the right fix here (it would have tried a REAL, pointless, doomed-per-the-finding-
+above compile of the native module during a Windows dist build); instead, `(provide
+'vterm-module)' is evaluated before the compile loop starts, which makes `vterm.el'
+skip its whole check --- harmless for byte-compilation, which only needs `vterm.el''s
+plain Lisp definitions to satisfy the compiler, never a working native module.
+Confirmed directly: the exact same compile step went from "1058 files compiled, 1
+failed" to "1059 files compiled, 0 failed" with this one line added.
+
+Full regression run: 725 tests, 702 pass, 1 known `dictate' flake, 22 skipped, no new
+regressions. Windows zip rebuilt, verified 11/11 `WindowsBundle', copied to the
+user's Downloads (210,534,571 bytes, +975,361 over the previous handed-over zip).
+**NOT YET COMMITTED** at the point this entry was written; `git status` will show
+`config/init.el`, `config/shortcuts.el`, `docs/KEYBOARD.md`, `tests/ert/evil.el`,
+`tests/ert/keybindings.el`, `tests/ert/shortcuts.el`, `tools/dist-windows.sh`,
+`tools/install-packages.el`, and this file modified until explicitly asked to commit.
+
+### Follow-up, same day: a WizTree-style disk usage browser, real and bundled on all three platforms
+
+User's own words, asking about a Windows app: "Wiztree there is app in windows which
+is very fast how to make that in eMacs can we use that or can we create." Checked
+directly rather than guessed: WizTree's actual speed trick is reading the NTFS Master
+File Table straight, not something portable Elisp (or any portable tool) can
+replicate --- said plainly, up front, before building anything. Asked what exists;
+`dired-du` (GNU ELPA, real recursive sizes right inside Dired) was the closest
+existing package. User asked for both the package AND a custom build, specifically
+wanting "rust whichever is fast that can run in windows Linux and mac" for the custom
+half --- `dua` (https://github.com/Byron/dua-cli) fits exactly: real Rust, parallel by
+default, with genuine prebuilt binaries for all three (confirmed directly against its
+own GitHub releases, including both Windows architectures and Apple Silicon).
+
+Built `config/disk-usage.el`: a `tabulated-list-mode' drill-down browser (`my/disk-
+usage', `C-c W') --- `dua aggregate -f bytes --no-total DIR' with no `--depth' and
+exactly one input directory lists that directory's own immediate children, each
+ALREADY with its own correct recursive size (confirmed by hand before writing any
+code) --- exactly the one building block a drill-down UI needs. `RET'/`f' drills in,
+`^'/`u' goes back up (a real history stack, not `file-name-directory', since this
+buffer only ever moves by drilling in or popping back off exactly that chain), `d'
+hands off to real Dired for anything this browser does not do itself, `g' refreshes.
+`dired-du-mode' (the plain-package half) is toggled with the SAME key, `C-c W', but
+scoped to `dired-mode-map' --- the two deliberately share one mnemonic in two
+different keymaps, no real conflict (Dired's own local binding simply shadows the
+global one).
+
+Tested for real on the user's own Windows machine, at their request: the bundled
+Windows `dua.exe' against the real `C:\' drive (no admin rights) finished a full
+top-level breakdown of ~1.3 TB in **118.6 seconds** --- not WizTree's few-seconds-via-
+MFT speed, a genuinely different, honest comparison stated directly rather than
+oversold, but a real, meaningful speedup over a naive serial walk from `dua''s own
+parallelism, with a few permission-protected system folders correctly skipped rather
+than aborting the whole scan.
+
+Bundled `dua.exe' into the Windows dist zip exactly like `rg'/`fd'/`delta' already are
+(`tools/dist-windows.sh': download+checksum, unzip into `tools/dua', the launcher's
+own PATH updated in `tools/windows-launcher.c'); left un-bundled on Linux, the same
+treatment `fd'/`delta' already get there --- expected already on PATH, or installed
+by hand (`cargo install dua-cli'/distro package/GitHub release). New guide,
+`docs/DISK-USAGE.md', says so plainly, including the honest WizTree-speed caveat and
+the real 118.6-second number.
+
+Two real bugs found and fixed before shipping, both the SAME class already seen twice
+this session: (1) `disk-usage.el''s own test, written first, caught that `my/disk-
+usage--refresh' renames its buffer away from the plain `*Disk Usage*' name on every
+real use --- a test assuming that name stayed fixed failed immediately, fixed by
+tracking `(current-buffer)' right after `switch-to-buffer' instead; (2) `dired-du-
+mode' hit the exact same package-activation gap `docker'/`kubernetes' hit earlier ---
+a real ELPA package in `my/packages', but still needing its OWN explicit `autoload'
+in `init.el', caught by `tests/ert/keybindings.el''s own `keys/every-documented-
+command-exists'. Also found, harmless, left as-is: `dired-du''s own bundled test file
+(`dired-du-tests.el', never loaded by anything) fails to byte-compile on a lexical-
+binding `add-to-list' quirk in ITS OWN code, the same category as `pdf-tools''s own
+unused test files noted elsewhere in this project --- confirmed `dired-du-mode'
+itself loads and works correctly regardless.
+
+New feature registered in the usual 8 places a new `config/*.el' file needs (`build.
+sh', `tools/dist-windows.sh', `tools/dist-linux.sh', `tools/test-windows.sh', `tools/
+doctor.sh', `tests/run-all.sh' twice, `tests/test_dist.py', `tests/test_repo.py'),
+plus a genuinely new one this file had not needed before: `!/config/disk-usage.el'
+in `.gitignore' (the blanket `/config/*' rule silently treats any new config file as
+ignored until explicitly excepted --- caught by `test_our_own_files_are_not_ignored',
+not assumed). README's own guide table and `my/shortcuts-list' (so the auto-generated
+"Custom" menu-bar menu picks it up with no separate step, confirmed directly) both
+updated too.
+
+Short, selective notes on this whole batch (the reference-panel toggle, Docker/
+Kubernetes, multiple-cursors/verb/devdocs, `evil-collection', the real vterm-on-
+Windows finding, and this disk-usage browser) added to `docs/MY-NOTES.md' at the
+user's own explicit request --- "important ones," not everything, matching that
+file's own running-gotchas-log style rather than duplicating this log's own detail.
+
+Full regression run: 732 tests, 709 pass, 1 known `dictate' flake, 22 skipped, no new
+regressions (17/17 `test_repo.py` also passing after the two fixes above). Windows
+zip rebuilt, verified 11/11 `WindowsBundle', copied to the user's Downloads
+(212,701,498 bytes, +2,166,927 --- mostly `dua.exe` plus `evil-collection`'s ~190
+newly-compiled per-mode files from the entry before this one). **NOT YET COMMITTED,
+on top of everything from the entry above** --- `git status` will show
+`config/disk-usage.el` (new), `docs/DISK-USAGE.md` (new), `tests/ert/disk-usage.el`
+(new), `.gitignore`, `README.md`, `config/init.el`, `config/shortcuts.el`, `docs/
+KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/keybindings.el`, `tests/ert/shortcuts.el`,
+`tests/test_dist.py`, `tests/test_repo.py`, `tools/dist-windows.sh`, `tools/
+dist-linux.sh`, `tools/test-windows.sh`, `tools/doctor.sh`, `tools/windows-launcher.c`,
+`tools/install-packages.el`, `build.sh`, plus everything from before, until explicitly
+asked to commit.
+
+### Follow-up, same day: the disk usage browser now caches its scans
+
+User request: "make sure it indexes and save unless something changed so we don't
+have to do it every time." Added a session-only cache (a plain hash table keyed by
+directory, `my/disk-usage--cache`) in front of the real `dua' call --- a directory's
+own real scan is reused as long as its own modification time has not moved on since,
+and is only re-run for real on first use, an actual change, or `g' (which now always
+forces a real re-scan, bypassing the cache entirely, confirmed in its own updated
+header-line text). The real, honest limit stated directly rather than hidden (in
+both `config/disk-usage.el''s own header comment and `docs/DISK-USAGE.md'): a change
+two or more levels DEEPER than a given directory does not move THAT directory's own
+mtime, only its immediate parent's, so a distant ancestor can keep showing a stale
+size until explicitly refreshed with `g'. Not persisted to disk --- restarting Emacs
+starts fresh, a deliberate, smaller scope than full cross-session persistence, not
+asked for explicitly.
+
+New test, `disk-usage/scan-is-cached-until-the-directory-actually-changes`, mocks
+`my/disk-usage--run-dua' itself (counts real scans) to verify the cache GATE
+specifically: same directory twice -> one real scan; `g'/FORCE -> always a fresh one;
+a real file added directly inside the directory (confirmed with an actual `sleep-for
+1' and a real write, not simulated) -> correctly invalidates and re-scans; unchanged
+again after that -> back to reusing the cache. 733 tests total now, 710 pass (run-to-
+run count wobbles by exactly one between the known `dictate' timing flake showing as
+1 fail/2 skipped or 0 fail/3 skipped --- not a new regression, confirmed by re-running
+twice). Windows zip rebuilt, verified 11/11, copied to the user's Downloads
+(212,704,886 bytes, +3,388 --- just the new caching code). Still **NOT YET
+COMMITTED**, on top of everything above.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2435,41 +2656,46 @@ entry above, until explicitly asked to commit.
   findings, the ranger-file-leaves-keymap-behind gotcha, two stale `docs/MY-NOTES.md`
   spots fixed) is committed and pushed along with everything below, once the user
   confirms.
-- **New this session, NOT YET COMMITTED**: a critical bug the user's own real Windows
-  test caught --- every dist zip (Windows confirmed, Linux likewise at risk but never
-  tried bare) was shipping a stale, machine-specific `vterm` native-build tree
-  (`CMakeCache.txt` baking in this Linux machine's own absolute path) left over from
-  an earlier segment's compile-verification testing that was never actually cleaned
-  up despite being reported as such. Fixed in both `tools/dist-windows.sh` and
-  `tools/dist-linux.sh` (strip any `CMakeCache.txt`-containing directory plus stray
-  `.so`/`.dll`/`.o` from `config/elpa` before staging); a new regression test,
-  `test_no_machine_specific_native_build_artifacts_are_shipped`, added to both
-  `WindowsBundle` and `LinuxBundle` in `tests/test_dist.py`, confirmed to fail against
-  the old contaminated zip and pass after the fix. Also fixed a second, genuine
-  `tests/ert/vterm.el` ordering bug this exposed (`(require 'vterm)` itself prompts
-  via `y-or-n-p` in batch mode unless `vterm-always-compile-module` is already `t`
-  via a top-level `setq` BEFORE the `require` --- not a `let`, and not after). Full
-  account in the entry just above. Windows zip rebuilt, verified 11/11, full suite
-  re-run clean (717 tests, 694 pass, known `dictate` flake only), and the fixed zip
-  (209,149,831 bytes, 1,413,958 bytes smaller) already copied over the user's broken
-  one in Downloads --- the user can retry their vterm compile now without waiting for
-  a commit. `git status` will show `tests/ert/vterm.el`, `tests/test_dist.py`,
-  `tools/dist-linux.sh`, `tools/dist-windows.sh`, and this file modified until
-  explicitly asked to commit.
-- The `C-c H` toggle for `my/mode-reference-mode` (the always-visible reference
-  panel, still on by default) and the new `docker`/`kubernetes` packages (`C-c K d'/
-  `C-c K k'), including the two real gaps found while wiring them in (this config
-  never activates packages via `package.el`, only `load-path` --- every optional
-  command needs its own explicit `autoload`; and `tablist` needed one file rescued
-  out of `prune.list`'s CEDET exclusion) are done, verified (720 tests, 697 pass, only
-  the known `dictate` flake, no new regressions), and a matching Windows zip rebuilt,
-  verified 11/11, and already copied to the user's Downloads (209,559,210 bytes). Full
-  account two entries above. **NOT YET COMMITTED, on top of the still-uncommitted
-  CMakeCache.txt fix from the entry before it** --- `git status` will show
-  `config/init.el`, `config/shortcuts.el`, `docs/KEYBOARD.md`, `prune.list`, `tools/
-  install-packages.el`, `tests/ert/mode-reference.el`, `tests/ert/shortcuts.el`,
-  `tests/ert/keybindings.el`, plus everything from the CMakeCache.txt fix, until
-  explicitly asked to commit.
+- The critical dist-zip CMakeCache.txt contamination fix (both dist scripts,
+  `tests/test_dist.py`, the `tests/ert/vterm.el` ordering fix), the `C-c H`
+  reference-panel toggle, and the new `docker`/`kubernetes`/`dockerfile-mode`
+  packages (`C-c K d`/`C-c K k`, the two real package-activation/CEDET-pruning gaps
+  found while wiring them in) are all committed and pushed to `origin/main`
+  (`b492fc7`), with a matching Windows zip rebuilt, verified 11/11, and handed over.
+- A real, live Windows vterm troubleshooting session with the user (three real
+  toolchain gaps fixed --- `libtool`, `cc`, and libvterm's own Unix-only `bin/` tools
+  --- before confirming `vterm` genuinely cannot work on native Windows at all, an
+  architectural fact, not a tooling one), a real mistake made and corrected (a
+  PowerShell quoting bug wiped the user's own Windows User PATH, caught immediately,
+  restored once the user said to), Helix considered and declined, `multiple-cursors`/
+  `verb`/`devdocs` installed, and `evil-collection` wired into `my/toggle-evil` itself
+  are all done and verified. Full account three entries above.
+- **New this session, NOT YET COMMITTED**: a WizTree-style disk usage browser, both
+  halves the user asked for --- `dired-du` (GNU ELPA, recursive sizes right in Dired)
+  and a custom `config/disk-usage.el` (`my/disk-usage`, `C-c W`) powered by `dua`, a
+  real Rust scanner with genuine prebuilt binaries for Windows/Linux/Mac, bundled into
+  the Windows zip the same way `rg`/`fd`/`delta` already are. Tested for real on the
+  user's own Windows `C:\` drive: 118.6 seconds for a full ~1.3 TB breakdown --- a
+  real number, stated honestly alongside the equally real caveat that this is NOT
+  WizTree's own MFT-reading speed. Two real bugs fixed (a test assuming the buffer's
+  name never changes; `dired-du-mode` hitting the same package-activation gap
+  `docker`/`kubernetes` hit earlier, needing its own explicit `autoload`). Short,
+  selective notes on this whole session's batch of new commands added to `docs/
+  MY-NOTES.md` at the user's own request. **Also now caches its scans** (a session-
+  only hash table, keyed by directory, invalidated by that directory's own mtime) ---
+  a later, same-day request ("make sure it indexes and save unless something changed
+  so we don't have to do it every time"); `g' always forces a real re-scan. Full
+  account in the two entries just above. Verified: 733 tests, 710 pass, known
+  `dictate` flake only (its own pass/fail/skip split wobbles by one between runs,
+  confirmed not a new regression), 17/17 `test_repo.py`; Windows zip rebuilt, verified
+  11/11, copied to the user's Downloads (212,704,886 bytes). `git status` will show
+  `config/disk-usage.el` (new), `docs/DISK-USAGE.md` (new), `tests/ert/disk-usage.el`
+  (new), `.gitignore`, `README.md`, `config/init.el`, `config/shortcuts.el`, `docs/
+  KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/evil.el`, `tests/ert/keybindings.el`,
+  `tests/ert/shortcuts.el`, `tests/test_dist.py`, `tests/test_repo.py`, `tools/
+  dist-windows.sh`, `tools/dist-linux.sh`, `tools/test-windows.sh`, `tools/doctor.sh`,
+  `tools/windows-launcher.c`, `tools/install-packages.el`, `build.sh`, and this file,
+  until explicitly asked to commit.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is

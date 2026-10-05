@@ -18,7 +18,9 @@
                     embark-act embark-dwim embark-bindings
                     avy-goto-char-timer symbol-overlay-put ace-window
                     helpful-callable helpful-variable helpful-key helpful-symbol
-                    docker kubernetes-overview)))
+                    docker kubernetes-overview
+                    mc/mark-next-like-this mc/mark-previous-like-this mc/mark-all-like-this
+                    devdocs-lookup my/disk-usage)))
     (dolist (topic my/shortcuts-list)
       (dolist (row (cdr topic))
         (cl-destructuring-bind (key command _desc) row
@@ -113,6 +115,20 @@
   (should (eq (lookup-key kubernetes-mode-map "d") 'kubernetes-describe))
   (should (eq (lookup-key kubernetes-mode-map "g") 'kubernetes-refresh))
   (should (eq (lookup-key kubernetes-mode-map "q") 'quit-window)))
+
+(ert-deftest shortcuts/verb-facts-are-real ()
+  (skip-unless (locate-library "verb"))
+  (require 'org)
+  (require 'verb)
+  ;; The real binding this config adds (`init.el', scoped to `org-mode-map') ---
+  ;; checked directly here rather than via `every-listed-key-really-runs-the-command-
+  ;; it-claims' above, since that test's plain `key-binding' would not see a key
+  ;; scoped to one major mode's own keymap.
+  (should (eq (lookup-key org-mode-map (kbd "C-c C-h")) verb-command-map))
+  (should (eq (lookup-key verb-command-map (kbd "C-s")) 'verb-send-request-on-point-other-window))
+  (should (eq (lookup-key verb-command-map (kbd "C-r")) 'verb-send-request-on-point-display))
+  (should (eq (lookup-key verb-command-map (kbd "C-f")) 'verb-send-request-on-point))
+  (should (eq (lookup-key verb-command-map (kbd "C-k")) 'verb-kill-all-response-buffers)))
 
 (ert-deftest shortcuts/gptel-send-key-is-real ()
   (skip-unless (locate-library "gptel"))

@@ -97,6 +97,20 @@
       ("l" . "logs for the resource at point")
       ("d" . "describe the resource at point")
       ("g" . "refresh")))
+    ;; WHAT/WHY: user request ("postman in eMacs") --- a real HTTP client, requests
+    ;; written and sent from a plain Org buffer, response shown inline. Listed here
+    ;; (prose, like Magit/Treemacs above) rather than in `my/shortcuts-list' ---
+    ;; unlike every other entry there, `verb-command-map' is scoped to `org-mode-map'
+    ;; only (confirmed: `verb.el' is an Org extension), so a plain global `key-
+    ;; binding' check (what that list's own test uses) would not find it outside an
+    ;; actual Org buffer; `shortcuts/verb-facts-are-real' below checks the real
+    ;; keymap directly instead.
+    ("HTTP requests (verb)" "In any Org buffer: M-x verb-mode, then C-c C-h <key>"
+     "no dedicated key: kill-buffer / C-x k, same as any other buffer"
+     (("C-c C-h C-s" . "send the request at point, in another window, and switch to it")
+      ("C-c C-h C-r" . "the same, without switching to it")
+      ("C-c C-h C-f" . "the same, in the current window")
+      ("C-c C-h C-k" . "close every response buffer")))
     ("Git repos (this config)" "C-c f p"
      "q"
      (("RET / click" . "open Magit status there")
@@ -192,8 +206,27 @@ by hand.")
     ("Selection"
      ("C-=" er/expand-region "grow the selection by semantic units (word, then symbol, string, statement, ...)")
      ("C-M--" er/contract-region "shrink it back one step"))
+    ;; WHAT/WHY: user request, chosen from a short menu of editing-enhancement
+    ;; candidates --- edit several places at once (same pattern, different
+    ;; locations), pairs naturally with `er/expand-region' just above. The keys are
+    ;; `multiple-cursors''s own long-standing, widely documented convention (its
+    ;; README uses exactly these), not invented fresh.
+    ("Multiple cursors"
+     ("C->" mc/mark-next-like-this "mark the next occurrence of the current selection/word, add a cursor there")
+     ("C-<" mc/mark-previous-like-this "the same, backwards")
+     ("C-c C-<" mc/mark-all-like-this "mark every occurrence at once"))
     ("Terminal"
      ("C-c V" vterm "a real terminal emulator (full curses apps: htop, vim, ssh) in a new buffer"))
+    ;; WHAT/WHY: the same real gap this file's own "Evil, vi keys"/"Dired" entries
+    ;; were added to fix earlier --- `my/dictate'/`my/dictate-live' were already real,
+    ;; working, bound commands (and already documented in `my/shortcuts-packages', the
+    ;; "world" section further down), but were never also in THIS list, the one the
+    ;; Custom menu and `C-c k''s own flat topic list are both generated from ---
+    ;; confirmed directly, found by the user asking "is dictate in the drop-down
+    ;; menu," checked, and it genuinely was not.
+    ("Dictation"
+     ("C-c m" my/dictate "start recording; C-c m again stops it, transcribes, and inserts the result")
+     ("C-c M" my/dictate-live "the same, but live: text appears every few seconds while you speak"))
     ;; WHAT/WHY: a real gap, found right after the Custom menu's own creation --- this
     ;; topic's own menu label was just "Git", and it listed only `magit-status'/`magit-
     ;; file-dispatch', not Magit itself by name, nor its own top-level command hub
@@ -208,6 +241,14 @@ by hand.")
     ("Project tree"
      ("C-c t" my/treemacs "show or hide the project file tree")
      ("C-c T" my/treemacs-reveal "show the tree and move to the current file in it"))
+    ;; WHAT/WHY: user request ("Wiztree ... how to make that in eMacs") --- a WizTree-
+    ;; style drill-down disk usage browser, powered by `dua' (see docs/DISK-USAGE.md
+    ;; for the real honest account of why this is fast but not MFT-fast). The SAME
+    ;; key inside Dired instead toggles `dired-du-mode' (scoped to `dired-mode-map',
+    ;; not global --- not listed here for that reason, the same precedent `r'/`my/
+    ;; dired-to-ranger' already set: this list only ever holds genuinely global keys).
+    ("Disk usage"
+     ("C-c W" my/disk-usage "a WizTree-style, drill-down disk usage browser, largest first"))
     ("Recent work"
      ("C-c h" my/start "the start screen: recent files, folders and projects")
      ("C-c r" recentf-open "open a recent file"))
@@ -267,7 +308,8 @@ by hand.")
      ("C-h f" helpful-callable "describe a command or function, richly")
      ("C-h v" helpful-variable "describe a setting, richly")
      ("C-h k" helpful-key "describe a key's command, richly")
-     ("C-h o" helpful-symbol "describe anything, richly")))
+     ("C-h o" helpful-symbol "describe anything, richly")
+     ("C-h D" devdocs-lookup "look up a symbol in a real, offline copy of a language/library's own docs (each doc set downloaded on first use)")))
   "This configuration's own keybindings, grouped by topic, as (TOPIC (KEY COMMAND
 DESCRIPTION) ...).  COMMAND is only used to check the key still really runs it (see
 tests/ert/shortcuts.el); the buffer itself shows only KEY and DESCRIPTION.  Kept in

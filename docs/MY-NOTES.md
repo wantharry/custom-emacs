@@ -295,3 +295,19 @@ repeating the real `C-p' mingling bug above.
 |---|---|
 | Fresh unzipped bundle | no `recentf`/`recents` history shipped --- always starts clean |
 | `.github/workflows/release.yml` | Linux only (Windows dist needs WSL/`cmd.exe`) --- triggers on a pushed version tag (`v*`) |
+
+## Reference panel toggle, Docker/Kubernetes, and a batch of smaller tools
+
+| Topic | Note |
+|---|---|
+| `C-c H` | turns the always-visible reference panel (Dired/Org/ranger/Treemacs) off, or back on --- shown by default |
+| `C-c K d` | Docker: one transient menu for containers/images/volumes/networks (needs a real `docker` on PATH) |
+| `C-c K k` | Kubernetes: `kubernetes-overview`, a buffer listing a cluster's resources (needs `kubectl` configured) |
+| `C->` / `C-<` / `C-c C-<` | multiple-cursors: mark next/previous/all occurrences like this, then just type |
+| `C-c C-h` (inside an Org buffer with `verb-mode` on) | `verb`, a real HTTP client --- "postman in eMacs." `C-c C-h C-s` sends the request at point |
+| `C-h D` | `devdocs-lookup` --- offline language/library docs, each set downloaded on first use |
+| `C-c v` (Evil toggle) | now also offers to install/initialize `evil-collection` the first time Evil turns on --- real vi keys in Dired/Magit/Treemacs/etc., not just plain Emacs's own bindings under Evil's normal state |
+| `vterm` on Windows | genuinely does NOT work, full stop --- not a missing-tool problem, confirmed by reading `vterm-module.c` itself: it unconditionally uses real POSIX `termios`/pty calls with zero Windows code path anywhere. `libtool`/`cc`/libvterm's own Unix-only `bin/` tools were all real, fixable gaps found first (MSYS2 for `libtool`, copy `gcc.exe` to `cc.exe`, and vterm's `CMakeLists.txt` now asks for just the `libvterm.la` target) --- but the module itself still can't build. `C-c V` stays Linux-only |
+| `C-c W` | a WizTree-style disk usage browser (`my/disk-usage`, powered by `dua` --- real, parallel, fast, but NOT WizTree's own MFT-reading trick; ~2 minutes for a full ~1.3 TB Windows `C:\`, confirmed for real) --- `RET`/`f` drills in, `^`/`u` goes back up, `d` opens Dired there |
+| `C-c W` inside Dired | a different thing, same key: toggles `dired-du-mode` --- recursive sizes right in the listing. Off by default, noticeably slower on a big tree |
+| This config's own package-activation gap | bit twice now (`docker`/`kubernetes`, then `dired-du`): `package.el` is only ever used to DOWNLOAD packages here, never to activate them --- every single optional command needs its own explicit `(autoload ...)` in `init.el`, or it is just plain not `fboundp` at all, confirmed the hard way both times by `tests/ert/keybindings.el`'s own `keys/every-documented-command-exists` |
