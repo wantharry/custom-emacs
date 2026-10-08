@@ -2836,28 +2836,27 @@ Windows zip rebuilt, verified 11/11, and handed over.
   this is committed and pushed to `origin/main` (`fdc658e`), with a matching Windows
   zip rebuilt, verified 11/11, and handed over (`tsoding-setup.html` stays untracked
   on purpose --- out of scope for this repo).
-- **New this session, NOT YET COMMITTED**: the rest of tsoding/rexim's own
-  keybindings, read directly from every file his `.emacs` actually loads (not a
-  guess from memory) and ported where they were real, free, and generic --- `C-,`
-  (`my/duplicate-line`), `C-c M-q` (`my/unfill-paragraph`), `C-x C-g` (`find-file-
-  at-point`, built in), `C-c C-j` inside Emacs Lisp buffers only (`eval-print-last-
-  sexp`), three more `multiple-cursors` conventions (`C-S-c C-S-c` -> `mc/edit-
-  lines`, `C-"`/`C-:` -> `mc/skip-to-next-like-this`/`mc/skip-to-previous-like-
-  this`), and a new small package `move-text` (MELPA) bound to `M-p`/`M-n`. Several
-  of his other bindings deliberately NOT copied, each for a real checked reason
-  (clashed with something already here, or tied to his own personal org-agenda
-  workflow) --- full list in `docs/MY-NOTES.md`'s own new section and the matching
-  `### Follow-up` entry above. One real bug found and fixed: the Custom-menu
-  generator keys each item by its description text, not its key or command, so a
-  copy-pasted duplicate description ("the same, backwards", reused across two
-  different `multiple-cursors` rows in the same topic) silently collided in the
-  generated keymap --- caught immediately by `tests/ert/shortcuts.el`'s own
-  `custom-menu-items-run-the-real-commands`. New test file `tests/ert/editing-
-  extras.el` (8 tests). Full regression: 764 tests, 741 pass, known `dictate` flake
-  only, 22 skipped --- clean. `git status` will show `config/init.el`, `config/
-  shortcuts.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `docs/CONVERSATION-LOG.md`,
-  `tools/install-packages.el`, `tests/ert/keybindings.el`, `tests/ert/editing-
-  extras.el` (new), until explicitly asked to commit.
+- The rest of tsoding/rexim's own keybindings, read directly from every file his
+  `.emacs` actually loads (not a guess from memory) and ported where they were
+  real, free, and generic --- `C-,` (`my/duplicate-line`), `C-c M-q` (`my/unfill-
+  paragraph`), `C-x C-g` (`find-file-at-point`, built in), `C-c C-j` inside Emacs
+  Lisp buffers only (`eval-print-last-sexp`), three more `multiple-cursors`
+  conventions (`C-S-c C-S-c` -> `mc/edit-lines`, `C-"`/`C-:` -> `mc/skip-to-next-
+  like-this`/`mc/skip-to-previous-like-this`), and a new small package `move-text`
+  (MELPA) bound to `M-p`/`M-n`. Several of his other bindings deliberately NOT
+  copied, each for a real checked reason (clashed with something already here, or
+  tied to his own personal org-agenda workflow) --- full list in `docs/MY-NOTES.md`'s
+  own new section and the matching `### Follow-up` entry above. One real bug found
+  and fixed: the Custom-menu generator keys each item by its description text, not
+  its key or command, so a copy-pasted duplicate description ("the same,
+  backwards", reused across two different `multiple-cursors` rows in the same
+  topic) silently collided in the generated keymap --- caught immediately by
+  `tests/ert/shortcuts.el`'s own `custom-menu-items-run-the-real-commands`. New
+  test file `tests/ert/editing-extras.el` (8 tests). Full regression: 764 tests,
+  741 pass, known `dictate` flake only, 22 skipped --- clean. Committed and pushed
+  to `origin/main` (`cbd1593`), with a matching Windows zip rebuilt, verified
+  11/11, copied to the user's Downloads (212,727,288 bytes, delta +12,833), and
+  handed over.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is
