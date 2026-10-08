@@ -187,6 +187,9 @@ Killing with `C-k` twice in a row accumulates into one clipboard entry.
 | `M-l` | `downcase-word` | lowercase the word |
 | `M-c` | `capitalize-word` | Capitalize the word |
 | `M-q` | `fill-paragraph` | re-wrap the paragraph to the fill column (80) |
+| `C-c M-q` | `my/unfill-paragraph` | **this config:** the inverse --- join every line of the paragraph into one |
+| `C-,` | `my/duplicate-line` | **this config:** duplicate the current line |
+| `C-x C-g` | `find-file-at-point` | open the file name/path under the cursor directly |
 | `M-;` | `comment-dwim` | comment or uncomment the line or selection |
 | `C-x C-;` | `comment-line` | comment or uncomment the current line |
 | `C-q` | `quoted-insert` | insert the next key literally |
@@ -315,6 +318,11 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C->` | `mc/mark-next-like-this` | **this config:** mark the next occurrence of the current selection/word, add a cursor there --- `multiple-cursors`'s own long-standing key convention |
 | `C-<` | `mc/mark-previous-like-this` | **this config:** the same, backwards |
 | `C-c C-<` | `mc/mark-all-like-this` | **this config:** mark every occurrence at once |
+| `C-S-c C-S-c` | `mc/edit-lines` | **this config:** place a cursor on every selected line at once, instead of one match at a time |
+| `C-"` | `mc/skip-to-next-like-this` | **this config:** skip the current match without placing a cursor on it |
+| `C-:` | `mc/skip-to-previous-like-this` | **this config:** the same, backwards |
+| `M-p` | `move-text-up` | **this config:** shift the current line (or selection) up, bodily |
+| `M-n` | `move-text-down` | **this config:** the same, downward |
 | `C-h D` | `devdocs-lookup` | **this config:** look up a symbol in a real, offline copy of a language/library's own docs (each doc set downloaded on first use with `devdocs-install`) |
 | `C-c W` | `my/disk-usage` | **this config:** a WizTree-style, drill-down disk usage browser, largest first, powered by `dua` ([DISK-USAGE.md](DISK-USAGE.md)) --- `C-c W` inside Dired instead toggles `dired-du-mode` (the same key, a different, locally-scoped binding) |
 | `C-x ^` | `enlarge-window` | taller |
@@ -424,6 +432,7 @@ cursor, so you can change how Emacs behaves and see it at once:
 | Key | Command | What it does |
 |---|---|---|
 | `C-M-x` | `eval-defun` | evaluate the function around the cursor |
+| `C-c C-j` | `eval-print-last-sexp` | **this config:** evaluate the expression before the cursor and insert its result right there |
 
 `M-x eglot` starts the language-server client for the current buffer (needs a language
 server installed). It has no key by default.

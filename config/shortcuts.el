@@ -214,7 +214,17 @@ by hand.")
     ("Multiple cursors"
      ("C->" mc/mark-next-like-this "mark the next occurrence of the current selection/word, add a cursor there")
      ("C-<" mc/mark-previous-like-this "the same, backwards")
-     ("C-c C-<" mc/mark-all-like-this "mark every occurrence at once"))
+     ("C-c C-<" mc/mark-all-like-this "mark every occurrence at once")
+     ("C-S-c C-S-c" mc/edit-lines "place a cursor on every selected line at once")
+     ("C-\"" mc/skip-to-next-like-this "skip the current match without placing a cursor on it")
+     ("C-:" mc/skip-to-previous-like-this "skip the current match without placing a cursor on it, backwards"))
+    ("Move text"
+     ("M-p" move-text-up "shift the current line (or selection) up, bodily")
+     ("M-n" move-text-down "the same, downward"))
+    ("Editing extras (from tsoding/rexim's dotfiles)"
+     ("C-," my/duplicate-line "duplicate the current line")
+     ("C-c M-q" my/unfill-paragraph "join a paragraph's lines into one, undoing M-q")
+     ("C-x C-g" find-file-at-point "open the file name/path under the cursor directly"))
     ("Terminal"
      ("C-c V" vterm "a real terminal emulator (full curses apps: htop, vim, ssh) in a new buffer"))
     ;; WHAT/WHY: the same real gap this file's own "Evil, vi keys"/"Dired" entries

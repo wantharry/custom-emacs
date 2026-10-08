@@ -47,6 +47,8 @@
                                              (not (locate-library "kubernetes")))
                                         (and (string-match-p "\\`mc/" (match-string 2 line))
                                              (not (locate-library "multiple-cursors")))
+                                        (and (string-match-p "\\`move-text-" (match-string 2 line))
+                                             (not (locate-library "move-text")))
                                         (and (string-match-p "\\`devdocs-lookup\\'" (match-string 2 line))
                                              (not (locate-library "devdocs")))
                                         (and (string-match-p "\\`my/disk-usage\\'" (match-string 2 line))

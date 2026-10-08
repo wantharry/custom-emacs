@@ -1158,6 +1158,60 @@ only `let'-binds `default-directory' rather than passing the path as an argument
 (global-set-key (kbd "C-=") (if (locate-library "expand-region") #'er/expand-region #'my/expand-region-missing))
 (global-set-key (kbd "C-M--") (if (locate-library "expand-region") #'er/contract-region #'my/expand-region-missing))
 
+;;; Editing extras found reading tsoding/rexim's own dotfiles -----------------
+;; WHAT/WHY: the rest of what came out of reading github.com/rexim/dotfiles --- his
+;; `.emacs'/`.emacs.rc/misc-rc.el' key-for-key, where the key was actually free in
+;; this config (`key-binding' checked for each one before adding it) and the command
+;; was either already built into Emacs or small enough to keep inline, the same way
+;; `rc/duplicate-line'/`rc/unfill-paragraph' are inline in his own `misc-rc.el'
+;; rather than pulled from a package. Deliberately left OUT: `M-x' -> `smex' (this
+;; config already has the newer Vertico/Orderless for that), his `C-c m s'/`C-c m l'
+;; (Magit) and `C-c c' (org-capture) (both keys already taken here --- dictation and
+;; the theme picker --- and Magit status/log are already reachable some other way,
+;; `C-x g'/`C-c G'), his `C-c h ...' (Helm; `C-c h' is already `my/start' here, and
+;; Vertico/Consult already cover the same ground Helm would), `C-x a'/`C-c i m'
+;; (org-agenda and imenu; `C-x a' is stock Emacs's own `abbrev-map' here, and imenu
+;; is already bound at the stock `M-g i'), and his whole org-cliplink/agenda-folder
+;; workflow (`C-c C-x j', `C-x p w'/`i'/`t') --- tied to his own `~/Documents/Agenda'
+;; setup, not a generic keybinding this config has any use for.
+
+;; `rc/duplicate-line' in his own `misc-rc.el', verbatim logic, renamed to match this
+;; file's own `my/' prefix convention.
+(defun my/duplicate-line ()
+  "Duplicate the current line, leaving the cursor at the same column on the copy."
+  (interactive)
+  (let ((column (- (point) (line-beginning-position)))
+        (line (let ((s (thing-at-point 'line t)))
+                (if s (string-remove-suffix "\n" s) ""))))
+    (move-end-of-line 1)
+    (newline)
+    (insert line)
+    (move-beginning-of-line 1)
+    (forward-char column)))
+(global-set-key (kbd "C-,") #'my/duplicate-line)
+
+;; `rc/unfill-paragraph', same idea: the inverse of the stock `M-q'
+;; (`fill-paragraph') just above, via the same `most-positive-fixnum' trick his own
+;; version uses (a `fill-column' wide enough that `fill-paragraph' never wraps).
+(defun my/unfill-paragraph ()
+  "Join every line of the current paragraph into one, undoing `fill-paragraph'."
+  (interactive)
+  (let ((fill-column most-positive-fixnum))
+    (fill-paragraph nil)))
+(global-set-key (kbd "C-c M-q") #'my/unfill-paragraph)
+
+;; `find-file-at-point' (`ffap', built into Emacs, confirmed `fboundp' with no extra
+;; `require') --- open whatever file name/path is under the cursor directly, instead
+;; of `find-file' prompting from scratch. Confirmed free in stock Emacs first.
+(global-set-key (kbd "C-x C-g") #'find-file-at-point)
+
+;; His own `(add-hook 'emacs-lisp-mode-hook (lambda () (local-set-key (kbd "C-c C-j")
+;; 'eval-print-last-sexp)))' --- local to Emacs Lisp buffers only, so it cannot clash
+;; with anything global; `eval-print-last-sexp' is already built in (it is `lisp-
+;; interaction-mode''s own default `C-j', just not `emacs-lisp-mode''s).
+(add-hook 'emacs-lisp-mode-hook
+          (lambda () (local-set-key (kbd "C-c C-j") #'eval-print-last-sexp)))
+
 ;; `diff-hl' marks every changed/added/removed line against the last git commit, live,
 ;; in the fringe --- and in Dired, a colored marker per changed file
 ;; (`diff-hl-dired-mode'), fitting right alongside this session's other Dired work.
@@ -1276,13 +1330,39 @@ only `let'-binds `default-directory' rather than passing the path as an argument
 (when (locate-library "multiple-cursors")
   (autoload 'mc/mark-next-like-this "mc-mark-more" nil t)
   (autoload 'mc/mark-previous-like-this "mc-mark-more" nil t)
-  (autoload 'mc/mark-all-like-this "mc-mark-more" nil t))
+  (autoload 'mc/mark-all-like-this "mc-mark-more" nil t)
+  ;; WHAT/WHY: the other two multiple-cursors conventions found while reading
+  ;; tsoding/rexim's own dotfiles (github.com/rexim/dotfiles, `.emacs') --- `C-S-c
+  ;; C-S-c' (place a cursor on every selected line at once, instead of one match at a
+  ;; time) and `C-"'/`C-:' (skip the current match without placing a cursor on it, in
+  ;; either direction) --- his own key choices, kept as-is rather than invented fresh,
+  ;; same reasoning as `C->'/`C-<'/`C-c C-<' just above.
+  (autoload 'mc/edit-lines "mc-edit-lines" nil t)
+  (autoload 'mc/skip-to-next-like-this "mc-mark-more" nil t)
+  (autoload 'mc/skip-to-previous-like-this "mc-mark-more" nil t))
 (defun my/multiple-cursors-missing ()
   (interactive)
   (message "multiple-cursors is not installed.  Run ./build.sh packages"))
 (global-set-key (kbd "C->") (if (locate-library "multiple-cursors") #'mc/mark-next-like-this #'my/multiple-cursors-missing))
 (global-set-key (kbd "C-<") (if (locate-library "multiple-cursors") #'mc/mark-previous-like-this #'my/multiple-cursors-missing))
 (global-set-key (kbd "C-c C-<") (if (locate-library "multiple-cursors") #'mc/mark-all-like-this #'my/multiple-cursors-missing))
+(global-set-key (kbd "C-S-c C-S-c") (if (locate-library "multiple-cursors") #'mc/edit-lines #'my/multiple-cursors-missing))
+(global-set-key (kbd "C-\"") (if (locate-library "multiple-cursors") #'mc/skip-to-next-like-this #'my/multiple-cursors-missing))
+(global-set-key (kbd "C-:") (if (locate-library "multiple-cursors") #'mc/skip-to-previous-like-this #'my/multiple-cursors-missing))
+
+;; `move-text': shift the current line (or selection) up/down bodily --- another real
+;; binding found reading tsoding/rexim's own `.emacs' (github.com/rexim/dotfiles),
+;; bound to the same `M-p'/`M-n' he uses, unbound in stock Emacs or anywhere else in
+;; this config (confirmed with `key-binding' before adding it). Same explicit-
+;; activation/missing-fallback pattern as `multiple-cursors' just above.
+(when (locate-library "move-text")
+  (autoload 'move-text-up "move-text" nil t)
+  (autoload 'move-text-down "move-text" nil t))
+(defun my/move-text-missing ()
+  (interactive)
+  (message "move-text is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "M-p") (if (locate-library "move-text") #'move-text-up #'my/move-text-missing))
+(global-set-key (kbd "M-n") (if (locate-library "move-text") #'move-text-down #'my/move-text-missing))
 
 ;; `verb': a real HTTP client inside Emacs --- write and send requests from a plain
 ;; Org buffer, read the response inline. User's own words: "postman in eMacs."

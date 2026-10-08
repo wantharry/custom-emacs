@@ -2656,9 +2656,66 @@ Full regression: 756 tests, 733 pass, known `dictate` flake only, no new
 regressions. Windows zip rebuilt, verified 11/11, copied to the user's Downloads
 (212,714,455 bytes). Fonts are NOT bundled in the Windows zip (same reasoning as
 `dua` on Linux --- a plain OS resource, not something this project installs for
-you). **NOT YET COMMITTED** --- `git status` will show `config/init.el`, `config/
-shortcuts.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/fonts.el` (new),
-`tests/ert/line-numbers.el` (new), and this file, until explicitly asked to commit.
+you). Committed and pushed to `origin/main` (`fdc658e`), with the matching Windows
+zip handed over. (`tsoding-setup.html`, a separate comparison doc, stays untracked
+on purpose --- out of scope for this repo.)
+
+### Follow-up, same day: the rest of tsoding/rexim's own keybindings, read directly from his dotfiles and ported where they were real, free, and generic
+
+User request, after being shown a summarized table of his bindings in chat: "copy
+all the key bindings which are written." Read every file his `.emacs` actually
+loads, for real (`gh api repos/rexim/dotfiles/contents/...` against each one, not a
+guess from memory) --- `.emacs` itself, `.emacs.rc/{rc,misc-rc,org-mode-rc,
+autocommit-rc}.el`, `.vimrc`, `.nexrc` --- then checked every one of his keys
+against this config's own `key-binding` before deciding what to port, the same
+diligence as every other feature this session.
+
+Added: `C-,` (`my/duplicate-line`, his own `rc/duplicate-line` logic verbatim,
+renamed to this file's `my/` convention), `C-c M-q` (`my/unfill-paragraph`, the
+inverse of the stock `M-q`), `C-x C-g` (`find-file-at-point`, already built into
+Emacs), `C-c C-j` inside Emacs Lisp buffers only (`eval-print-last-sexp`, mode-
+local so it cannot clash with anything global), three more `multiple-cursors`
+conventions he also uses (`C-S-c C-S-c` -> `mc/edit-lines`, `C-"`/`C-:` ->
+`mc/skip-to-next-like-this`/`mc/skip-to-previous-like-this`, alongside the
+`C->`/`C-<`/`C-c C-<` already here), and a new small package, `move-text`
+(MELPA), bound to his own `M-p`/`M-n` for `move-text-up`/`move-text-down`.
+
+Deliberately left out, each for a real, checked reason rather than guessed:
+`M-x` -> `smex` (this config's Vertico/Orderless already covers fuzzy `M-x`,
+better); his `C-c m s`/`C-c m l` for Magit status/log (`C-c m` is already
+dictation here, and both are already reachable via `C-x g`/`C-c G`); his whole
+Helm block (`C-c h` is already `my/start`; Vertico/Consult already cover the same
+ground Helm would); `C-x a` for org-agenda (`C-x a` is stock Emacs's own
+`abbrev-map` in this build, confirmed via `key-binding`) and `C-c i m` for imenu
+(already bound at the stock `M-g i`); `C-c c` for org-capture (`C-c c` is already
+the theme picker here); and his whole org-cliplink/personal-agenda-folder workflow
+(`C-c C-x j`, `C-x p w`/`i`/`t`) --- tied to his own `~/Documents/Agenda`, not a
+generic binding this project has any use for. His `.vimrc`/`.nexrc` bindings
+(`gf`, `<leader>D`) are plain Vim, not applicable here (this config has no Evil
+leader-key setup).
+
+One real bug found and fixed before this shipped: `my/custom-menu--spec' (the
+Custom-menu generator) keys each menu item by `(intern DESC)` --- the row's
+description text, not its key or command --- so two rows in the SAME topic with
+an identical description string silently collide in the generated keymap. A
+first draft of `mc/skip-to-previous-like-this`'s row copy-pasted "the same,
+backwards" from `mc/mark-previous-like-this` right above it; `tests/ert/
+shortcuts.el`'s own `custom-menu-items-run-the-real-commands` caught it
+immediately (`eq` against the wrong command). Fixed by giving it its own
+description; a real, useful confirmation that this project's existing test
+coverage catches exactly this class of mistake.
+
+New test file `tests/ert/editing-extras.el` (8 tests): real behavior for
+`my/duplicate-line` (including the no-trailing-newline edge case on the last
+line) and `my/unfill-paragraph`, binding checks for `find-file-at-point` and the
+mode-local `C-c C-j`, and the missing-package fallback messages for both
+`multiple-cursors` and `move-text`. `tests/ert/keybindings.el` extended with a
+`move-text-` exclusion (same pattern already used for `mc/`, `vterm`, etc.) so it
+does not fail on a machine that ran `./build.sh packages` without network access.
+
+Full regression: 764 tests, 741 pass, known `dictate` flake only, 22 skipped ---
+no new regressions. Committed and pushed to `origin/main`, with a matching
+Windows zip rebuilt, verified 11/11, and handed over.
 
 ## Where things stand as of the last entry
 
@@ -2745,30 +2802,29 @@ shortcuts.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/fonts.el` (new
   forces a real re-scan. Plus the Docker/Kubernetes/Evil-collection browser work from
   the same batch. All of this is committed and pushed to `origin/main` (`a4dd050`),
   with a matching Windows zip rebuilt, verified 11/11, and handed over.
-- **New this session, NOT YET COMMITTED**: a 20-font switcher (`C-c F` to pick by
-  number, `C-c }`/`C-c {` to cycle, skipping fonts not actually installed on this
-  machine --- mirrors the existing `my/themes`/`my/cycle-theme` machinery exactly),
-  built after researching tsoding/rexim's own public dotfiles at the user's request
-  (a separate, intentionally-uncommitted `tsoding-setup.html` comparison doc sits at
-  the repo root, out of scope for this config). 15 real font files installed to
-  `~/.local/share/fonts/` this session (Iosevka from its official GitHub release,
-  the rest from Google Fonts), each confirmed via `fc-match`. One real bug found and
-  fixed: `set-face-attribute`'s `:font` argument silently no-ops when font
-  resolution can't succeed right away, with no error --- `:family` is the
-  unconditional, correct argument; found via a real failing test, not assumed.
-  Also added, same batch, after the user clarified a hybrid built-in
-  (`display-line-numbers-current-absolute`) was NOT what they meant ("I see only
-  relative I need another column with regular line numbers" --- they wanted a
-  literal always-visible second column, not just the current line): relative line
-  numbers as the default (`display-line-numbers-type`), plus a custom left-margin-
-  and-overlay-based absolute-number column running alongside Emacs's native
-  relative one (no stock Emacs feature draws two number columns at once; this is a
-  from-scratch minor mode, GUI-only, see `docs/MY-NOTES.md`), and `size-indication-
-  mode` turned on for the `%p` buffer-position indicator the user also asked for.
-  One real bug found and fixed the hard way, via an actual Emacs hang during manual
-  GUI testing (not assumed): `window-end`/`forward-line` can desync at buffer edges
-  (no trailing newline, empty buffer) inside a function that redraws on every
-  keystroke; fixed with a hard iteration cap, computing `window-end` once per
+- A 20-font switcher (`C-c F` to pick by number, `C-c }`/`C-c {` to cycle, skipping
+  fonts not actually installed on this machine --- mirrors the existing `my/themes`/
+  `my/cycle-theme` machinery exactly), built after researching tsoding/rexim's own
+  public dotfiles at the user's request (a separate, intentionally-uncommitted
+  `tsoding-setup.html` comparison doc sits at the repo root, out of scope for this
+  config). 15 real font files installed to `~/.local/share/fonts/` this session
+  (Iosevka from its official GitHub release, the rest from Google Fonts), each
+  confirmed via `fc-match`. One real bug found and fixed: `set-face-attribute`'s
+  `:font` argument silently no-ops when font resolution can't succeed right away,
+  with no error --- `:family` is the unconditional, correct argument; found via a
+  real failing test, not assumed. Also added, same batch, after the user clarified a
+  hybrid built-in (`display-line-numbers-current-absolute`) was NOT what they meant
+  ("I see only relative I need another column with regular line numbers" --- they
+  wanted a literal always-visible second column, not just the current line):
+  relative line numbers as the default (`display-line-numbers-type`), plus a custom
+  left-margin-and-overlay-based absolute-number column running alongside Emacs's
+  native relative one (no stock Emacs feature draws two number columns at once;
+  this is a from-scratch minor mode, GUI-only, see `docs/MY-NOTES.md`), and `size-
+  indication-mode` turned on for the `%p` buffer-position indicator the user also
+  asked for. One real bug found and fixed the hard way, via an actual Emacs hang
+  during manual GUI testing (not assumed): `window-end`/`forward-line` can desync at
+  buffer edges (no trailing newline, empty buffer) inside a function that redraws on
+  every keystroke; fixed with a hard iteration cap, computing `window-end` once per
   update rather than per loop iteration, and dropping the `window-size-change-
   functions` hook entirely (margin changes are themselves a window-size change, so
   hooking that event back onto itself risked a feedback loop). Verified for real via
@@ -2776,18 +2832,32 @@ shortcuts.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/fonts.el` (new
   real `DISPLAY=:0`), both before the hang fix (pipeline timed out, exit 124) and
   after (exit 0, correct PNG, cursor's absolute number bold, margin column and
   native relative column both correct, mode-line showing "All"). Two new test files,
-  `tests/ert/fonts.el` (9 tests) and `tests/ert/line-numbers.el` (10 tests, using
-  this project's own `test-in-buffer` helper rather than `with-temp-buffer`, since
-  the margin/overlay code reads the SELECTED window's own `window-start`/`window-
-  end` --- a real gap found when a first version of these tests silently drew 0
-  overlays against the wrong buffer). Full regression run: 756 tests, 733 pass,
-  known `dictate` flake only, 22 skipped --- clean. Windows zip rebuilt, verified
-  11/11 via `test_dist.WindowsBundle`, copied to the user's Downloads
-  (212,714,455 bytes, delta +5,142 from the previous handed-over zip). `git status`
-  will show `config/init.el`, `config/shortcuts.el`, `docs/KEYBOARD.md`, `docs/
-  MY-NOTES.md`, `tests/ert/fonts.el` (new), `tests/ert/line-numbers.el` (new), and
-  this file, until explicitly asked to commit. (`tsoding-setup.html` stays untracked
-  on purpose --- out of scope for this repo.)
+  `tests/ert/fonts.el` (9 tests) and `tests/ert/line-numbers.el` (10 tests). All of
+  this is committed and pushed to `origin/main` (`fdc658e`), with a matching Windows
+  zip rebuilt, verified 11/11, and handed over (`tsoding-setup.html` stays untracked
+  on purpose --- out of scope for this repo).
+- **New this session, NOT YET COMMITTED**: the rest of tsoding/rexim's own
+  keybindings, read directly from every file his `.emacs` actually loads (not a
+  guess from memory) and ported where they were real, free, and generic --- `C-,`
+  (`my/duplicate-line`), `C-c M-q` (`my/unfill-paragraph`), `C-x C-g` (`find-file-
+  at-point`, built in), `C-c C-j` inside Emacs Lisp buffers only (`eval-print-last-
+  sexp`), three more `multiple-cursors` conventions (`C-S-c C-S-c` -> `mc/edit-
+  lines`, `C-"`/`C-:` -> `mc/skip-to-next-like-this`/`mc/skip-to-previous-like-
+  this`), and a new small package `move-text` (MELPA) bound to `M-p`/`M-n`. Several
+  of his other bindings deliberately NOT copied, each for a real checked reason
+  (clashed with something already here, or tied to his own personal org-agenda
+  workflow) --- full list in `docs/MY-NOTES.md`'s own new section and the matching
+  `### Follow-up` entry above. One real bug found and fixed: the Custom-menu
+  generator keys each item by its description text, not its key or command, so a
+  copy-pasted duplicate description ("the same, backwards", reused across two
+  different `multiple-cursors` rows in the same topic) silently collided in the
+  generated keymap --- caught immediately by `tests/ert/shortcuts.el`'s own
+  `custom-menu-items-run-the-real-commands`. New test file `tests/ert/editing-
+  extras.el` (8 tests). Full regression: 764 tests, 741 pass, known `dictate` flake
+  only, 22 skipped --- clean. `git status` will show `config/init.el`, `config/
+  shortcuts.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `docs/CONVERSATION-LOG.md`,
+  `tools/install-packages.el`, `tests/ert/keybindings.el`, `tests/ert/editing-
+  extras.el` (new), until explicitly asked to commit.
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is
