@@ -25,7 +25,119 @@
 
 (menu-bar-mode 1)
 (column-number-mode 1)
+;; `%p' in the mode line: how far point is through the buffer as a percentage (or
+;; "Top"/"Bot"/"All" at the edges) --- a real, built-in Emacs feature, just off by
+;; default; confirmed directly, `mode-line-percent-position' already holds the right
+;; format spec (`(-3 "%p")'), this is the one line that actually turns it on. User
+;; request, while asking about line numbers.
+(size-indication-mode 1)
 (global-display-line-numbers-mode 1)
+;; Relative, not absolute --- each line shows its DISTANCE from point, not its own
+;; line number, so a numeric-prefix jump (`M-5 C-n' moves down exactly 5 lines, `12dd'
+;; in Evil deletes exactly 12 lines) is a glance at the number already on screen
+;; instead of subtracting two absolute numbers by hand. User request, after the same
+;; setting turned up directly in another Emacs user's own config (tsoding/rexim) during
+;; a side conversation about speed --- a real, one-line win, not specific to his setup.
+(setq-default display-line-numbers-type 'relative)
+
+;; A SECOND column, right next to the native one above, showing each line's real
+;; ABSOLUTE number --- user request, after `display-line-numbers-type' above already
+;; covers the hybrid case (current line absolute, every OTHER line relative, via the
+;; real built-in `display-line-numbers-current-absolute', confirmed directly on by
+;; default) but "I need another column with regular line numbers" asked for both
+;; shown AT ONCE, every line, not just the current one.
+;;
+;; HOW: there is no stock Emacs feature for this --- `display-line-numbers-mode' only
+;; ever draws ONE number per line, computed natively by the C redisplay engine for
+;; speed, with no Lisp hook to make it draw a second one alongside (confirmed by
+;; checking; the old, now-`obsolete/' `linum-mode' could do this via a custom
+;; `linum-format' function, but reintroducing it --- slower by design, which is
+;; exactly why `display-line-numbers-mode' replaced it --- would cost real redisplay
+;; performance on every single buffer just for this one cosmetic column). Built
+;; instead as a small, separate minor mode: a left WINDOW MARGIN (`set-window-
+;; margins', not the buffer's own text) holds the absolute number, redrawn via
+;; overlays only across the currently VISIBLE lines (`window-start'..`window-end'),
+;; recomputed on `post-command-hook'/`window-scroll-functions' --- the same
+;; "only the visible window, not the whole buffer" discipline `display-line-numbers'
+;; itself uses, so scrolling a huge file stays fast. GUI-only (`display-graphic-p'):
+;; `diff-hl-margin-mode' above already documents the real reason a margin is only
+;; ever used as a *terminal* fallback (the fringe does not exist there) --- in a GUI
+;; frame diff-hl stays in the fringe, so there is no real conflict over the margin to
+;; worry about; restricting to GUI sidesteps the question entirely rather than
+;; needing to prove it never collides in `-nw' too.
+(defvar my/absolute-line-numbers-margin-width 5
+  "How wide the left margin `my/absolute-line-numbers-margin-mode' reserves for
+the absolute line number column.")
+
+(defvar-local my/absolute-line-numbers--overlays nil
+  "This buffer's own overlays currently holding `my/absolute-line-numbers-margin-mode''s
+margin text, so the next redraw can remove exactly these and no others.")
+
+(defun my/absolute-line-numbers--clear ()
+  (mapc #'delete-overlay my/absolute-line-numbers--overlays)
+  (setq my/absolute-line-numbers--overlays nil))
+
+(defun my/absolute-line-numbers--update (&rest _)
+  "Redraw the margin for exactly the lines currently visible in the selected
+window --- called from `post-command-hook'/`window-scroll-functions', so this
+runs often; staying confined to the visible range (never the whole buffer) is
+what keeps that cheap. A hard iteration cap (no real window is ever remotely
+this tall) guarantees this returns even if `window-end'/`forward-line' ever
+disagree at a buffer's own edge case (an unterminated last line, an empty
+buffer, ...) --- found the hard way, a real hang during testing with no cap."
+  (when (and my/absolute-line-numbers-margin-mode (window-live-p (selected-window)))
+    (my/absolute-line-numbers--clear)
+    (let ((width my/absolute-line-numbers-margin-width)
+          (end (window-end nil t))
+          (budget 500))
+      (save-excursion
+        (goto-char (window-start))
+        (while (and (< (point) end) (> budget 0) (not (eobp)))
+          (setq budget (1- budget))
+          (let* ((n (line-number-at-pos))
+                 (text (propertize (format (format "%%%dd" (1- width)) n) 'face 'line-number))
+                 (ov (make-overlay (point) (point))))
+            (overlay-put ov 'before-string
+                         (propertize " " 'display (list (list 'margin 'left-margin) text)))
+            (push ov my/absolute-line-numbers--overlays))
+          (forward-line 1))))))
+
+;;;###autoload
+(define-minor-mode my/absolute-line-numbers-margin-mode
+  "A second, ALWAYS-absolute line-number column in the left margin, alongside
+`display-line-numbers-mode''s own (relative, per the setting just above) column.
+GUI only; see this file's own WHAT/WHY/HOW comment just above `my/
+absolute-line-numbers-margin-width'."
+  :lighter nil
+  (if my/absolute-line-numbers-margin-mode
+      (progn
+        (set-window-margins (selected-window) my/absolute-line-numbers-margin-width
+                             (cdr (window-margins (selected-window))))
+        (add-hook 'post-command-hook #'my/absolute-line-numbers--update nil t)
+        (add-hook 'window-scroll-functions #'my/absolute-line-numbers--update nil t)
+        ;; Deliberately NOT `window-size-change-functions' --- found the hard way,
+        ;; a real hang during testing: setting the margin width above is ITSELF a
+        ;; window-size change, so hooking this function to that same event risks a
+        ;; feedback loop (a redraw that triggers another resize-driven redraw).
+        ;; `post-command-hook' already covers a real resize's aftermath --- any
+        ;; command that resizes a window (`C-x }', `C-c u', ...) also runs through
+        ;; the command loop, so this still redraws correctly after one, just not
+        ;; synchronously mid-resize.
+        (my/absolute-line-numbers--update))
+    (set-window-margins (selected-window) nil (cdr (window-margins (selected-window))))
+    (remove-hook 'post-command-hook #'my/absolute-line-numbers--update t)
+    (remove-hook 'window-scroll-functions #'my/absolute-line-numbers--update t)
+    (my/absolute-line-numbers--clear)))
+
+(defun my/absolute-line-numbers--maybe-enable ()
+  (when (and (display-graphic-p) (not (minibufferp)))
+    (my/absolute-line-numbers-margin-mode 1)))
+;;;###autoload
+(define-globalized-minor-mode my/global-absolute-line-numbers-margin-mode
+  my/absolute-line-numbers-margin-mode my/absolute-line-numbers--maybe-enable)
+(when (display-graphic-p)
+  (my/global-absolute-line-numbers-margin-mode 1))
+
 (global-hl-line-mode 1)
 (setq-default indicate-empty-lines t
               fill-column 80)
@@ -164,6 +276,97 @@ own startup defaults, then immediately save that as the session restored next ti
                           "DejaVu Sans Mono" "Menlo" "Consolas"))))
     (when font
       (set-face-attribute 'default nil :font font :height 120))))
+
+;; WHAT/WHY: `C-c c' lets you pick any THEME by character; this is the same idea for
+;; the FONT --- user request, after a side conversation about another Emacs user's own
+;; dotfiles (tsoding/rexim, whose `.emacs' picks Iosevka on Linux) turned into "can we
+;; switch fonts this easily too." 20 real, well-known monospace/programming fonts,
+;; mirroring `my/themes' exactly: `C-c F' + a character picks one by number, `C-c }'/
+;; `C-c {' cycle forward/backward through this same list.
+;;
+;; HOW this genuinely differs from `my/themes': a theme, once in this list, is
+;; GUARANTEED present (it only got there by being a real ELPA/VC package this project
+;; already installs) --- a FONT is a plain operating-system resource this project does
+;; not manage or install for you (the same reason `tools/dist-windows.sh' never
+;; bundles one either), so nothing here can promise any given entry is actually on
+;; your machine. Checked with `find-font' before ever trying to use one, exactly the
+;; same check the startup block just above already relies on --- picking an entry
+;; that is not installed says so plainly, with how to get it, rather than silently
+;; doing nothing or falling back to something you did not ask for. `C-c }'/`C-c {'
+;; skip straight over anything not installed, so cycling never gets stuck showing
+;; the same "not installed" message over and over.
+(defvar my/fonts
+  '((?1 . "JetBrainsMono Nerd Font Mono") ; this config's own current default, see above
+    (?2 . "Iosevka")                      ; tsoding/rexim's own pick on Linux, see WHY above
+    (?3 . "IBM Plex Mono")
+    (?4 . "Source Code Pro")
+    (?5 . "Victor Mono")                  ; cursive italics
+    (?6 . "Inconsolata")
+    (?7 . "Space Mono")
+    (?8 . "Ubuntu Mono")
+    (?9 . "Roboto Mono")
+    (?a . "Anonymous Pro")
+    (?b . "PT Mono")
+    (?c . "Red Hat Mono")
+    (?d . "Martian Mono")
+    (?e . "Noto Sans Mono")
+    (?f . "Fira Code")                    ; ligatures; already in the startup fallback list above
+    (?g . "Cascadia Code")                ; ligatures; Microsoft's, already in the startup list too
+    (?h . "Hack")
+    (?i . "Monaspace Neon")               ; GitHub's 2023 family; one of its 5 widths/styles
+    (?j . "Commit Mono")
+    (?k . "DejaVu Sans Mono"))            ; this config's own ultimate fallback, see above; near-universal on Linux
+  "Character key (e.g. ?1 or ?a) -> font family NAME STRING, for `my/load-font-by-number'.
+Unlike `my/themes', nothing here is guaranteed installed --- see this list's own WHY/HOW
+comment just above. `C-c }'/`C-c {' cycle through this same list by position.")
+
+(defun my/load-font-by-number (n)
+  "Switch the default face to the font bound to N (a character, e.g. ?1) in
+`my/fonts'. Says plainly, rather than silently doing nothing, when that font is
+not actually installed on this machine."
+  (interactive "c")
+  (let ((font (alist-get n my/fonts)))
+    (cond
+     ((not font) (message "No font bound to %c (see my/fonts)" n))
+     ((not (find-font (font-spec :name font)))
+      (message "%s is not installed on this machine --- download it and run `fc-cache -f ~/.local/share/fonts` (Linux) or install it normally (Windows/Mac), then try again" font))
+     ;; `:family', not `:font' --- confirmed directly, the hard way: `:font' takes a
+     ;; full font STRING and silently does nothing at all if it cannot resolve a real
+     ;; matching font right then (no error, no message, the face attribute just stays
+     ;; whatever it already was); `:family' sets the plain family-name attribute
+     ;; unconditionally. `find-font' already gated this branch, so the font IS real by
+     ;; the time this runs; `:family' is simply the more robust of the two ways to
+     ;; apply it.
+     (t (set-face-attribute 'default nil :family font)
+        (message "Font: %s" font)))))
+(global-set-key (kbd "C-c F") #'my/load-font-by-number)
+
+;; WHAT/WHY/HOW: the font equivalent of `my/cycle-theme' --- steps through `my/fonts'
+;; one INSTALLED font at a time (skipping any not installed, so cycling never gets
+;; stuck repeating the same "not installed" message), always starting from whichever
+;; font is actually active right now (`frame-parameter' on the default face), not a
+;; separately tracked position --- the exact same reasoning `my/cycle-theme' uses, see
+;; its own comment. Wraps around at either end.
+(defun my/cycle-font (&optional reverse)
+  "Switch to the next INSTALLED font in `my/fonts' (the previous, if REVERSE is
+non-nil), relative to whichever font is currently active; skips anything not
+installed; wraps around at either end."
+  (interactive "P")
+  (let* ((available (seq-filter (lambda (pair) (find-font (font-spec :name (cdr pair)))) my/fonts))
+         (fonts (mapcar #'cdr available))
+         (current (face-attribute 'default :family nil 'default))
+         (pos (or (seq-position fonts current) -1)))
+    (if (null fonts)
+        (message "No fonts in my/fonts are actually installed on this machine")
+      (let ((next (nth (mod (+ pos (if reverse -1 1)) (length fonts)) fonts)))
+        (set-face-attribute 'default nil :family next) ; `:family', not `:font' --- see `my/load-font-by-number'
+        (message "Font: %s" next)))))
+(defun my/cycle-font-previous ()
+  "Switch to the previous installed font in `my/fonts'; see `my/cycle-font'."
+  (interactive)
+  (my/cycle-font t))
+(global-set-key (kbd "C-c }") #'my/cycle-font)
+(global-set-key (kbd "C-c {") #'my/cycle-font-previous)
 
 ;;; Calendar (M-x calendar / C-c y for a whole year) ---------------------------
 

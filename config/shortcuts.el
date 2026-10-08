@@ -301,6 +301,16 @@ by hand.")
      ("C-c ." my/cycle-theme "switch to the next theme, whatever slot it's in")
      ("C-c ," my/cycle-theme-previous "switch to the previous theme, whatever slot it's in")
      ("C-c C" consult-theme "fuzzy-search any installed theme by name, with live preview"))
+    ;; WHAT/WHY: the font equivalent of "Themes" just above --- user request, after a
+    ;; side conversation about another Emacs user's own dotfiles (tsoding/rexim)
+    ;; turned into "can we switch fonts this easily too." Unlike every theme above,
+    ;; nothing here is guaranteed installed (a font is a plain OS resource, not a
+    ;; package this config installs) --- picking one that is not on this machine says
+    ;; so plainly, see `my/fonts' own comment in init.el.
+    ("Fonts"
+     ("C-c F" my/load-font-by-number "pick a font by character (press C-c F, then 1-9/a-k; 20 real fonts, see my/fonts)")
+     ("C-c }" my/cycle-font "switch to the next INSTALLED font, whatever slot it's in")
+     ("C-c {" my/cycle-font-previous "switch to the previous installed font, whatever slot it's in"))
     ("Frame"
      ("C-c u" my/toggle-frame-chrome "hide/show the menu bar, tool bar and window decorations together")
      ("C-c U" my/reset-to-defaults "put frame and theme back to this config's own defaults, and save it"))

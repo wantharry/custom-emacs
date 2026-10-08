@@ -2601,6 +2601,65 @@ twice). Windows zip rebuilt, verified 11/11, copied to the user's Downloads
 (212,704,886 bytes, +3,388 --- just the new caching code). Still **NOT YET
 COMMITTED**, on top of everything above.
 
+### Follow-up, same day: a 20-font switcher, dual line-number columns, and the %p position indicator
+
+Side conversation looked at another Emacs user's own public dotfiles (tsoding/
+rexim), real content fetched and read directly (`github.com/rexim/dotfiles`), not
+recalled --- written up as a standalone comparison document (not part of this repo;
+published separately as an artifact) rather than committed here. Two real,
+genuinely useful things came out of it: his `ctrl:nocaps` keyboard remap already
+matches this project's own `docs/TYPING.md` advice (independent confirmation, not
+coincidence), and `display-line-numbers-type 'relative` turned up directly in his
+`.emacs.custom.el` as something this config was still missing.
+
+Built a font switcher mirroring `my/themes'/`C-c c` exactly: `my/fonts' (20 real
+monospace fonts, `C-c F` + character to pick one, `C-c }`/`C-c {` to cycle), with a
+real, honest difference from themes --- nothing here is guaranteed installed (a font
+is a plain OS resource, not a package this project manages), so picking one not on
+the machine says so plainly. Installed and confirmed 14 of the 20 for real on this
+dev machine (`~/.local/share/fonts`, no sudo needed): Iosevka (tsoding's own pick,
+142 MB release, downloaded directly from its real GitHub release, confirmed via
+`fc-match`) plus 13 more fetched efficiently from Google Fonts' own CSS2 API
+(individual small TTFs, not their huge multi-weight bundles). A real bug found and
+fixed along the way: `set-face-attribute ... :font STRING` silently does NOTHING at
+all if it cannot resolve a real font right then (no error); `:family` sets the
+attribute unconditionally --- confirmed directly, the hard way, after a mocked test
+that should have passed kept failing.
+
+Added relative line numbers (`display-line-numbers-type 'relative`, the setting
+from the tsoding comparison) --- confirmed the CURRENT line already shows its real
+absolute number for free via the real, built-in `display-line-numbers-current-
+absolute` (on by default). User then asked for BOTH columns shown for every line at
+once, not just the current one --- no stock Emacs feature does that, so built one:
+`my/absolute-line-numbers-margin-mode`, a left window margin filled with overlays
+showing the absolute number, redrawn only across the visible range on `post-
+command-hook'/`window-scroll-functions` (GUI only; `diff-hl-margin-mode` only ever
+uses a margin as a *terminal* fallback, confirmed in its own source, so no real
+conflict). A real hang found during actual GUI testing (the real screenshot
+pipeline, `tools/gui-screenshot.el`, timed out past 15s): `window-end`/`forward-
+line` can desync at a buffer's own edges (no trailing newline, an empty buffer) in
+a function running on every keystroke --- fixed with a hard iteration cap and by
+computing `window-end` once before the loop, not every iteration. Also added `%p`
+(buffer position as a percentage, or Top/Bot/All) via `size-indication-mode` --- a
+real, built-in Emacs feature, just off by default.
+
+Verified for real, not just by reading the code: a real screenshot (via `tools/
+gui-screenshot.el`, a real X display at `DISPLAY=:0`, confirmed working) shows the
+cursor on line 22 with its true absolute number highlighted, the new left margin
+correctly showing every line's own absolute number, and the native column correctly
+showing each line's distance from 22. 20 new tests (`tests/ert/fonts.el`, `tests/
+ert/line-numbers.el`) --- including one that reproduces the real hang scenario
+(no trailing newline) under a 5-second timeout, so it would fail loudly rather than
+hang the whole suite if the iteration cap were ever removed by accident.
+
+Full regression: 756 tests, 733 pass, known `dictate` flake only, no new
+regressions. Windows zip rebuilt, verified 11/11, copied to the user's Downloads
+(212,714,455 bytes). Fonts are NOT bundled in the Windows zip (same reasoning as
+`dua` on Linux --- a plain OS resource, not something this project installs for
+you). **NOT YET COMMITTED** --- `git status` will show `config/init.el`, `config/
+shortcuts.el`, `docs/KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/fonts.el` (new),
+`tests/ert/line-numbers.el` (new), and this file, until explicitly asked to commit.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2670,32 +2729,65 @@ COMMITTED**, on top of everything above.
   restored once the user said to), Helix considered and declined, `multiple-cursors`/
   `verb`/`devdocs` installed, and `evil-collection` wired into `my/toggle-evil` itself
   are all done and verified. Full account three entries above.
-- **New this session, NOT YET COMMITTED**: a WizTree-style disk usage browser, both
-  halves the user asked for --- `dired-du` (GNU ELPA, recursive sizes right in Dired)
-  and a custom `config/disk-usage.el` (`my/disk-usage`, `C-c W`) powered by `dua`, a
-  real Rust scanner with genuine prebuilt binaries for Windows/Linux/Mac, bundled into
-  the Windows zip the same way `rg`/`fd`/`delta` already are. Tested for real on the
-  user's own Windows `C:\` drive: 118.6 seconds for a full ~1.3 TB breakdown --- a
-  real number, stated honestly alongside the equally real caveat that this is NOT
-  WizTree's own MFT-reading speed. Two real bugs fixed (a test assuming the buffer's
-  name never changes; `dired-du-mode` hitting the same package-activation gap
-  `docker`/`kubernetes` hit earlier, needing its own explicit `autoload`). Short,
-  selective notes on this whole session's batch of new commands added to `docs/
-  MY-NOTES.md` at the user's own request. **Also now caches its scans** (a session-
-  only hash table, keyed by directory, invalidated by that directory's own mtime) ---
-  a later, same-day request ("make sure it indexes and save unless something changed
-  so we don't have to do it every time"); `g' always forces a real re-scan. Full
-  account in the two entries just above. Verified: 733 tests, 710 pass, known
-  `dictate` flake only (its own pass/fail/skip split wobbles by one between runs,
-  confirmed not a new regression), 17/17 `test_repo.py`; Windows zip rebuilt, verified
-  11/11, copied to the user's Downloads (212,704,886 bytes). `git status` will show
-  `config/disk-usage.el` (new), `docs/DISK-USAGE.md` (new), `tests/ert/disk-usage.el`
-  (new), `.gitignore`, `README.md`, `config/init.el`, `config/shortcuts.el`, `docs/
-  KEYBOARD.md`, `docs/MY-NOTES.md`, `tests/ert/evil.el`, `tests/ert/keybindings.el`,
-  `tests/ert/shortcuts.el`, `tests/test_dist.py`, `tests/test_repo.py`, `tools/
-  dist-windows.sh`, `tools/dist-linux.sh`, `tools/test-windows.sh`, `tools/doctor.sh`,
-  `tools/windows-launcher.c`, `tools/install-packages.el`, `build.sh`, and this file,
-  until explicitly asked to commit.
+- A WizTree-style disk usage browser, both halves the user asked for --- `dired-du`
+  (GNU ELPA, recursive sizes right in Dired) and a custom `config/disk-usage.el`
+  (`my/disk-usage`, `C-c W`) powered by `dua`, a real Rust scanner with genuine
+  prebuilt binaries for Windows/Linux/Mac, bundled into the Windows zip the same way
+  `rg`/`fd`/`delta` already are. Tested for real on the user's own Windows `C:\`
+  drive: 118.6 seconds for a full ~1.3 TB breakdown --- a real number, stated
+  honestly alongside the equally real caveat that this is NOT WizTree's own
+  MFT-reading speed. Two real bugs fixed (a test assuming the buffer's name never
+  changes; `dired-du-mode` hitting the same package-activation gap `docker`/
+  `kubernetes` hit earlier, needing its own explicit `autoload`). **Also caches its
+  scans** (a session-only hash table, keyed by directory, invalidated by that
+  directory's own mtime) --- a later, same-day request ("make sure it indexes and
+  save unless something changed so we don't have to do it every time"); `g` always
+  forces a real re-scan. Plus the Docker/Kubernetes/Evil-collection browser work from
+  the same batch. All of this is committed and pushed to `origin/main` (`a4dd050`),
+  with a matching Windows zip rebuilt, verified 11/11, and handed over.
+- **New this session, NOT YET COMMITTED**: a 20-font switcher (`C-c F` to pick by
+  number, `C-c }`/`C-c {` to cycle, skipping fonts not actually installed on this
+  machine --- mirrors the existing `my/themes`/`my/cycle-theme` machinery exactly),
+  built after researching tsoding/rexim's own public dotfiles at the user's request
+  (a separate, intentionally-uncommitted `tsoding-setup.html` comparison doc sits at
+  the repo root, out of scope for this config). 15 real font files installed to
+  `~/.local/share/fonts/` this session (Iosevka from its official GitHub release,
+  the rest from Google Fonts), each confirmed via `fc-match`. One real bug found and
+  fixed: `set-face-attribute`'s `:font` argument silently no-ops when font
+  resolution can't succeed right away, with no error --- `:family` is the
+  unconditional, correct argument; found via a real failing test, not assumed.
+  Also added, same batch, after the user clarified a hybrid built-in
+  (`display-line-numbers-current-absolute`) was NOT what they meant ("I see only
+  relative I need another column with regular line numbers" --- they wanted a
+  literal always-visible second column, not just the current line): relative line
+  numbers as the default (`display-line-numbers-type`), plus a custom left-margin-
+  and-overlay-based absolute-number column running alongside Emacs's native
+  relative one (no stock Emacs feature draws two number columns at once; this is a
+  from-scratch minor mode, GUI-only, see `docs/MY-NOTES.md`), and `size-indication-
+  mode` turned on for the `%p` buffer-position indicator the user also asked for.
+  One real bug found and fixed the hard way, via an actual Emacs hang during manual
+  GUI testing (not assumed): `window-end`/`forward-line` can desync at buffer edges
+  (no trailing newline, empty buffer) inside a function that redraws on every
+  keystroke; fixed with a hard iteration cap, computing `window-end` once per
+  update rather than per loop iteration, and dropping the `window-size-change-
+  functions` hook entirely (margin changes are themselves a window-size change, so
+  hooking that event back onto itself risked a feedback loop). Verified for real via
+  this project's own GUI-screenshot pipeline (`tools/gui-screenshot.el` against a
+  real `DISPLAY=:0`), both before the hang fix (pipeline timed out, exit 124) and
+  after (exit 0, correct PNG, cursor's absolute number bold, margin column and
+  native relative column both correct, mode-line showing "All"). Two new test files,
+  `tests/ert/fonts.el` (9 tests) and `tests/ert/line-numbers.el` (10 tests, using
+  this project's own `test-in-buffer` helper rather than `with-temp-buffer`, since
+  the margin/overlay code reads the SELECTED window's own `window-start`/`window-
+  end` --- a real gap found when a first version of these tests silently drew 0
+  overlays against the wrong buffer). Full regression run: 756 tests, 733 pass,
+  known `dictate` flake only, 22 skipped --- clean. Windows zip rebuilt, verified
+  11/11 via `test_dist.WindowsBundle`, copied to the user's Downloads
+  (212,714,455 bytes, delta +5,142 from the previous handed-over zip). `git status`
+  will show `config/init.el`, `config/shortcuts.el`, `docs/KEYBOARD.md`, `docs/
+  MY-NOTES.md`, `tests/ert/fonts.el` (new), `tests/ert/line-numbers.el` (new), and
+  this file, until explicitly asked to commit. (`tsoding-setup.html` stays untracked
+  on purpose --- out of scope for this repo.)
 - **Real, open, user-actionable item, unchanged from before**: `sudo apt-get install
   libpoppler-glib-dev` (then restart Emacs) is needed for pdf-tools to actually do
   anything --- this session could not run it (no passwordless `sudo`); until then it is
