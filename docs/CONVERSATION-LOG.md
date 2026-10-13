@@ -2961,10 +2961,18 @@ left uncommitted-to on its own local branch --- not pushed anywhere.)
 - The Linux bundle is still explicitly **not yet tried on a genuinely bare machine** and
   has **no bundled Java language server** --- both documented as real, current limits in
   [DISTRIBUTION.md](DISTRIBUTION.md), not hidden.
-- **New this session, NOT YET COMMITTED**: `tools/cloudmacs.sh` and `docs/CLOUDMACS.md`
-  (this project's own Emacs, reachable in a browser via Gotty + `emacsclient --tty`, local
-  machine only) --- full account in the `### Follow-up` entry just above. Both it and the
-  separate Ymacs demo (`../ymacs`, outside this repo) are left running for the user right
-  now at `http://127.0.0.1:8080` and `http://127.0.0.1:1234`. `git status` on this repo
-  will show `tools/cloudmacs.sh` (new), `docs/CLOUDMACS.md` (new), `README.md`,
-  `tests/test_repo.py`, and this file, until explicitly asked to commit.
+- `tools/cloudmacs.sh` and `docs/CLOUDMACS.md` (this project's own Emacs, reachable in a
+  browser via Gotty + `emacsclient --tty`, local machine only) --- full account in the
+  `### Follow-up` entry above. `node_modules/` (scratch local tooling, `puppeteer-core` for
+  real GUI/browser screenshots) added to `.gitignore`, since it had been untracked-but-
+  unignored since the line-numbers screenshot work earlier this session. Committed and
+  pushed to `origin/main` (`2e59b1d`). A real, expected gap caught by the pre-commit hook
+  this time, not just the usual Linux-bundle staleness: `test_every_doc_guide_is_included_
+  for_the_in_emacs_docs_buffer` (`WindowsBundle`) failed because the already-built Windows
+  zip's own in-Emacs docs buffer did not yet include the brand-new `docs/CLOUDMACS.md` ---
+  same stale-prebuilt-zip category as always, just surfaced by a different assertion than
+  usual. Four batches had accumulated since the last Windows zip rebuild (the font switcher,
+  line numbers, the keybindings port, and this), so rebuilt it now rather than deferring
+  further: verified 11/11, copied to the user's Downloads (212,732,123 bytes, delta +4,835).
+  Both Cloudmacs and the separate Ymacs demo (`../ymacs`, outside this repo) are left
+  running for the user at `http://127.0.0.1:8080` and `http://127.0.0.1:1234`.
