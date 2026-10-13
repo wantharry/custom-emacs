@@ -28,3 +28,7 @@ __pycache__/
 /.claude/
 !/config/mode-reference.el
 !/config/disk-usage.el
+
+# Scratch local tooling (e.g. puppeteer-core, for real GUI/browser screenshots
+# during development) --- not a tracked project dependency, no package.json here.
+/node_modules/

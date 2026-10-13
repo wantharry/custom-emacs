@@ -57,7 +57,7 @@ class Docs(unittest.TestCase):
 
 class Scripts(unittest.TestCase):
     def test_shell_scripts_have_valid_syntax(self):
-        scripts = ["build.sh", "tools/verify-prune.sh", "tools/doctor.sh", "tests/run-all.sh"]
+        scripts = ["build.sh", "tools/verify-prune.sh", "tools/doctor.sh", "tests/run-all.sh", "tools/cloudmacs.sh"]
         scripts += [os.path.relpath(p, ROOT) for p in glob.glob(rel(".githooks", "*"))]
         for s in scripts:
             with self.subTest(script=s):
@@ -65,7 +65,7 @@ class Scripts(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_scripts_are_executable(self):
-        for s in ["build.sh", "tools/verify-prune.sh", "tools/doctor.sh", "tests/run-all.sh"]:
+        for s in ["build.sh", "tools/verify-prune.sh", "tools/doctor.sh", "tests/run-all.sh", "tools/cloudmacs.sh"]:
             with self.subTest(script=s):
                 self.assertTrue(os.access(rel(s), os.X_OK))
 

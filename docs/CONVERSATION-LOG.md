@@ -2717,6 +2717,80 @@ Full regression: 764 tests, 741 pass, known `dictate` flake only, 22 skipped ---
 no new regressions. Committed and pushed to `origin/main`, with a matching
 Windows zip rebuilt, verified 11/11, and handed over.
 
+### Follow-up, same day: Cloudmacs (this actual Emacs in a browser) and Ymacs (a separate, unrelated JS editor), both set up at the user's request
+
+User asked about email clients, which led to asking whether "Cloudmacs" and "Ymacs"
+were real packages. Researched both for real (not from memory): Ymacs
+(`github.com/mishoo/ymacs`) is a standalone, actively-maintained JavaScript Emacs-
+LIKE code editor for the browser --- zero elisp, shares nothing with this project's
+config. Cloudmacs (`github.com/karlicoss/cloudmacs`) is not an editor of its own;
+its Dockerfile runs Gotty serving `emacsclient --tty` against a real Emacs, so
+whatever is already configured there (including this project) would, in principle,
+reach it. Neither is an email package.
+
+User then asked to have both set up. Before building, asked two real, consequential
+questions rather than assuming: where Cloudmacs should be reachable from (chose
+local machine only --- no auth needed) and whether it should run this project's own
+custom-emacs build specifically (chosen, over a bare stock Emacs); confirmed Ymacs
+was still wanted even once it was clear it could not share any of this config.
+
+**Cloudmacs**: deliberately NOT the real `karlicoss/cloudmacs` Docker image --- its
+Dockerfile is built on `silex/emacs:master-alpine` (musl libc), and this project's
+own native-compiled `.eln` files are glibc-linked (built on Ubuntu); they simply
+would not load under musl, the exact "machine-specific native-build artifact"
+problem `tests/test_dist.py` already guards the dist zips against, found again in a
+new place before it became a wasted build. Instead, a new `tools/cloudmacs.sh`
+does the same real trick (Gotty + `emacsclient --tty`) directly against this host's
+own already-built `install/bin/emacs --init-directory=config --daemon` --- no
+Docker needed. Downloads Gotty (`sorenisanerd/gotty`, the same fork the real
+Cloudmacs Dockerfile uses) with real checksum verification, cached in
+`dist/cache/` like `rg`/`fd`/`delta`/`dua` already are. One real bug found and
+fixed: the release tarball's own entry is `./gotty`, not `gotty` --- `tar -xzf ...
+gotty` silently fails to find it ("Not found in archive"). Bound to `127.0.0.1`
+only, no authentication, by design --- `docs/CLOUDMACS.md` is explicit that this is
+local-machine convenience, not a self-hosted server, and spells out what real
+auth/HTTPS would be needed before ever changing that. Verified for real: started
+it, `curl` confirmed HTTP 200, then a real headless-Chromium screenshot (via
+`puppeteer-core`, already used earlier this session for the line-numbers feature)
+showed this project's own Custom menu, header-line directory indicator, and
+mode-line --- live in the browser, with a real keystroke (`M-x`) actually typed
+through the page and landing in the `*server*` buffer.
+
+**Ymacs**: cloned as a completely separate sibling project (`../ymacs`, NOT part of
+this repo) since it shares no elisp with this config. `npm install` then `npx
+parcel build` (its own `test/`'s CSS imports a BUILT `dist/ymacs.css`/`dist/themes/
+*.css`, not raw `src/` --- the first attempt to just run Parcel's dev server
+straight off `test/index.html` failed on exactly that). A second real bug found:
+upstream's own `test/test.js` calls `cmd("load_file", "index.html")`, a real RPC to
+a backend this plain static setup does not have --- throws `Ymacs_Exception` in the
+console and the editor never gets past its own ".oO[ loading ]Oo." screen, caught
+by checking the real browser console, not just a blank-but-innocent-looking
+screenshot. Worked around with a new, separate `demo/demo.js` (plus `demo/
+index.html`/`demo/run.sh`) using `Ymacs_Buffer.setCode()` directly instead of
+`load_file`, which needs no backend at all --- three example buffers (prose, JS,
+Lisp), a theme, line numbers on. Verified for real via the same headless-Chromium
+screenshot approach: real syntax-highlighted text, real line numbers, a real
+mode-line (`welcome.txt Top of 345b (1,0)`). A real, honest limitation found and
+left as-is rather than chased further: an automated `C-x b` buffer-switch
+keystroke test typed into the still-active buffer instead of a minibuffer prompt
+(a likely Puppeteer modifier-key timing quirk, not chased down further since the
+editor's own real functionality --- text, cursor, line numbers, theme, mode-line
+--- was already clearly confirmed working by that point).
+
+Both left running for the user to try immediately (WSL2 forwards `127.0.0.1` to
+the Windows host automatically, so `http://localhost:8080`/`http://localhost:1234`
+both reach them from a normal Windows browser, not just from inside WSL): Cloudmacs
+at `http://127.0.0.1:8080`, the Ymacs demo at `http://127.0.0.1:1234`. Full
+regression re-run after `tools/cloudmacs.sh` was added: 764 tests, 741 pass, known
+`dictate` flake only, 22 skipped --- one run flagged 3 ERT failures, but a clean
+re-run immediately after (no code changed in between) came back to the normal 1,
+confirming that was resource contention from the two background dev servers during
+that particular run, not a real regression. `git status` on this repo will show
+`tools/cloudmacs.sh` (new), `docs/CLOUDMACS.md` (new), `README.md`,
+`tests/test_repo.py`, and this file, until explicitly asked to commit. (The Ymacs
+clone itself is a separate git repository, outside this repo entirely, and was
+left uncommitted-to on its own local branch --- not pushed anywhere.)
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2887,3 +2961,10 @@ Windows zip rebuilt, verified 11/11, and handed over.
 - The Linux bundle is still explicitly **not yet tried on a genuinely bare machine** and
   has **no bundled Java language server** --- both documented as real, current limits in
   [DISTRIBUTION.md](DISTRIBUTION.md), not hidden.
+- **New this session, NOT YET COMMITTED**: `tools/cloudmacs.sh` and `docs/CLOUDMACS.md`
+  (this project's own Emacs, reachable in a browser via Gotty + `emacsclient --tty`, local
+  machine only) --- full account in the `### Follow-up` entry just above. Both it and the
+  separate Ymacs demo (`../ymacs`, outside this repo) are left running for the user right
+  now at `http://127.0.0.1:8080` and `http://127.0.0.1:1234`. `git status` on this repo
+  will show `tools/cloudmacs.sh` (new), `docs/CLOUDMACS.md` (new), `README.md`,
+  `tests/test_repo.py`, and this file, until explicitly asked to commit.
