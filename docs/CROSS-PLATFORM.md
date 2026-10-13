@@ -33,7 +33,7 @@ Upstream's own instructions, in the source tree:
 |---|---|
 | `config/init.el`, `early-init.el` | Yes. Uses only built-in features |
 | Themes, mode line | Yes (Lisp), same colors everywhere |
-| Fonts | **No.** They come from the OS; the font list has fallbacks but names differ per machine |
+| Fonts | **Partially.** 12 of the 20 `C-c F` fonts are now real files in `tools/fonts/` (both the Windows and Linux dist bundles), installed with one manual step (select all, right-click, Install) --- see [DISTRIBUTION.md](DISTRIBUTION.md). The other 8 still come from the OS, or are not bundled (Iosevka: too large); the font list's own fallbacks and per-machine name differences still apply to those |
 | `prune.list` / `prune.py` | List: yes. Script: only tested on the Linux `make install` layout |
 | Native-compiled `.eln` files | **No.** Tied to machine and exact build; each platform compiles its own |
 | `build.sh` | Linux verified; macOS and Windows branches are untested placeholders |

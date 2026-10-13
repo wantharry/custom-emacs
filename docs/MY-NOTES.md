@@ -340,3 +340,17 @@ not his whole file verbatim.
 | Why not the real `karlicoss/cloudmacs` Docker image | Its own Dockerfile is built on `silex/emacs:master-alpine` --- musl libc. This project's native-compiled `.eln` files are glibc-linked (built on Ubuntu) and will not load under musl --- the same "machine-specific native-build artifact" problem `tests/test_dist.py` already guards the dist zips against, in a new place. Running Gotty directly against this host's own already-built Emacs sidesteps it entirely, no Docker needed |
 | Real gotcha fixed while writing the script | The gotty release tarball's own entry is `./gotty`, not `gotty` --- `tar -xzf ... gotty` silently fails to find it ("Not found in archive"); fixed by extracting `./gotty` instead |
 | Ymacs (`mishoo/ymacs`, cloned as a SEPARATE sibling project at `../ymacs`, not part of this repo) | A real, actively-maintained JS-only Emacs-LIKE code editor for the browser --- zero elisp, shares NOTHING with this project's own config. `npx parcel build` first (its `demo/` CSS imports the built `dist/ymacs.css`/`dist/themes/*.css`, not raw `src/`), then `demo/run.sh [PORT]`. Its own `test/test.js` calls `cmd("load_file", "index.html")`, a real RPC to a backend this plain static setup does not have --- throws `Ymacs_Exception` and never gets past the loading screen; worked around with a separate `demo/demo.js` using `Ymacs_Buffer.setCode()` directly instead, which needs no backend |
+
+## `C-c F` said "not found" on a fresh install --- 12 of the 20 fonts now actually bundled
+
+Real gap the user hit on a brand-new Windows PC: the 15 font files installed on THIS dev
+machine's own `~/.local/share/fonts/` (the font-switcher batch, above) never shipped
+anywhere --- `C-c F` correctly, honestly said "not installed" for every one of them on a
+machine that never had them. Fixed by actually bundling 12 of the 20 (`tools/fonts/`, ~1.6 MB
+total, real files plus their real OFL/UFL license texts fetched from `github.com/google/
+fonts`) into both dist zips, with a one-time "select all, right-click, Install" step (no admin
+needed) --- `tools/fonts/README.md`/`docs/DISTRIBUTION.md` spell it out. Iosevka (~114 MB for
+both weights) and 3 never-downloaded fonts (Hack, Monaspace Neon, Commit Mono) deliberately
+left out, a real size/effort tradeoff, not an oversight --- documented plainly rather than
+silently incomplete. `C-c F` itself needed no code change: it was always correctly checking
+`find-font`, the files just were not there to find.

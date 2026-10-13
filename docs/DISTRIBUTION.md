@@ -58,6 +58,7 @@ custom-emacs-windows-x64/
 │   ├── git/           MinGit 2.55: Git for Magit, with its own small shell
 │   ├── rg/            ripgrep: the fast finder, project text search, and Consult
 │   ├── fd/            fd: file finding for Consult (`C-c s f`) and for finding git repositories (`C-c f p`)
+│   ├── fonts/         12 of the 20 `C-c F` fonts, real files --- select them all, right-click, Install (see tools/fonts/README.md)
 │   └── jdtls/         the Java language server (needs your own JDK 17+ on PATH/JAVA_HOME; not bundled)
 ├── docs/              every guide, plain text, read from inside Emacs with `C-c d` (see below)
 ├── README.md          this project's own overview (also inside the `C-c d` buffer)
@@ -78,6 +79,14 @@ characters), so it is there even with no network. See [CUSTOMIZING.md](CUSTOMIZI
 **Your changes are saved in the bundle's `config\` folder**: recent files, the folder and project history,
 backups and anything `M-x customize` saves. Copying or moving the whole folder moves them with it. It also
 means the folder must be writable, so do not put it under `C:\Program Files`.
+
+**Fonts (`C-c F`) need one extra, one-time step.** A font is an OS resource, not something
+Emacs can install for itself --- `tools\fonts\` holds 12 of the 20 real font files, but
+nothing on the machine actually HAS them until you install them: select every `.ttf` in
+`tools\fonts\` (`Ctrl-A`), right-click, **Install** (no administrator rights needed). A few
+seconds, then restart Emacs. See `tools\fonts\README.md` (a plain text file right there in
+that folder) for exactly which 8 of the 20 are NOT bundled and why (mostly: already covered
+by the startup fallback, or genuinely too large to ship, like Iosevka at ~114 MB).
 
 ### How it differs from the Linux build
 

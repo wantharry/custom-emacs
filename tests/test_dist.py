@@ -85,7 +85,9 @@ class WindowsBundle(unittest.TestCase):
                   "config/tree-sitter/libtree-sitter-html.dll", "config/tree-sitter/libtree-sitter-css.dll",
                   "config/tree-sitter/libtree-sitter-javascript.dll", "config/tree-sitter/libtree-sitter-jsdoc.dll",
                   "config/tree-sitter/libtree-sitter-typescript.dll", "config/tree-sitter/libtree-sitter-tsx.dll",
-                  "config/tree-sitter/libtree-sitter-json.dll"]:
+                  "config/tree-sitter/libtree-sitter-json.dll",
+                  "tools/fonts/README.md", "tools/fonts/IBMPlexMono.ttf", "tools/fonts/licenses/IBMPlexMono-OFL.txt",
+                  "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
 
@@ -200,7 +202,9 @@ class LinuxBundle(unittest.TestCase):
                   "config/tree-sitter/libtree-sitter-java.so", "config/tree-sitter/libtree-sitter-rust.so",
                   "config/tree-sitter/libtree-sitter-html.so", "config/tree-sitter/libtree-sitter-css.so",
                   "config/tree-sitter/libtree-sitter-javascript.so", "config/tree-sitter/libtree-sitter-json.so",
-                  "share/glib-2.0/schemas/gschemas.compiled", "share/fonts/DejaVuSansMono.ttf"]:
+                  "share/glib-2.0/schemas/gschemas.compiled", "share/fonts/DejaVuSansMono.ttf",
+                  "tools/fonts/README.md", "tools/fonts/IBMPlexMono.ttf", "tools/fonts/licenses/IBMPlexMono-OFL.txt",
+                  "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt"]:
             with self.subTest(file=f):
                 self.assertIn(f, self.names)
 

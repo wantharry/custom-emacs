@@ -83,6 +83,10 @@ cp /usr/share/glib-2.0/schemas/gschemas.compiled "$STAGE/share/glib-2.0/schemas/
 cp /usr/share/fonts/truetype/dejavu/DejaVuSansMono*.ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf "$STAGE/share/fonts/" 2>/dev/null || true
 cp /usr/share/fonts/truetype/dejavu/LICENSE "$STAGE/share/fonts/DEJAVU-LICENSE" 2>/dev/null || true
 
+# 12 of the 20 `C-c F' fonts (my/fonts, config/init.el), real files not just names --- same
+# reasoning as the Windows bundle (tools/dist-windows.sh): see tools/fonts/README.md.
+cp -r "$ROOT/tools/fonts" "$STAGE/tools/fonts"
+
 echo "== finding every git repository (C-c f p): a small, dependency-light script (falls"
 echo "   back from fd to plain find on its own), so it travels with the bundle like everything else"
 cp "$ROOT/tools/find-repos.sh" "$STAGE/tools/find-repos.sh"
