@@ -167,7 +167,10 @@
         (should (memq 'orderless completion-styles))
         (should-not fido-vertical-mode))
     (should fido-vertical-mode))
-  (should global-completion-preview-mode)
+  ;; User request: off by default (was an uninvited inline suggestion after nearly every
+  ;; keystroke); `C-M-i' (Corfu) is the on-demand alternative instead. See init.el's own
+  ;; comment on this exact line.
+  (should-not global-completion-preview-mode)
   (should which-key-mode)
   ;; kept in both cases: `C-x p f' relies on it (see init.el's own comment on the real
   ;; regression this caught: jnav/a-partial-name-finds-the-file-by-fuzzy-matching).

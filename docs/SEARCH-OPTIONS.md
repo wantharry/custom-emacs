@@ -272,7 +272,7 @@ numbers releases by date (MELPA).**
 | `embark` | gnu 1.2 | Conveniently act on minibuffer completions | Act on a candidate: open elsewhere, copy, delete. Not present here |
 | `embark-consult` | gnu 1.2 | Consult integration for Embark | Needs embark and consult |
 | `which-key` | gnu 3.6.1 | Display available keybindings in popup | **Already built in and switched on** |
-| `corfu` | gnu 2.16 | COmpletion in Region FUnction | A popup for code completion; we have the built-in inline preview |
+| `corfu` | gnu 2.16 | COmpletion in Region FUnction | **Already installed here** (`C-M-i`, on demand, not auto-popup --- see [KEYBOARD.md](KEYBOARD.md#minibuffer-and-completion)) |
 | `cape` | gnu 2.9 | Completion At Point Extensions | Extra completion sources for corfu |
 | `company` | gnu 1.1.0 | Modular text completion framework | The older popup for code completion |
 
@@ -406,7 +406,7 @@ Most of the completion packages above belong to one of **three families**, and y
 
 | Family | Packages | Character |
 |---|---|---|
-| **Built in** (what you have) | `fido-vertical-mode`, `flex` matching, `completion-preview` | nothing to install; a vertical list with loose matching |
+| **Built in** (what you have) | `fido-vertical-mode`, `flex` matching | nothing to install; a vertical list with loose matching (`completion-preview` exists but is off by default here --- see [KEYBOARD.md](KEYBOARD.md#minibuffer-and-completion)) |
 | **Consult stack** | `consult` (**installed**, section 3) + `vertico` + `orderless` + `marginalia` + `embark` | small, modular pieces that build on Emacs's own completion; the current favourite |
 | **Ivy family** | `ivy` + `counsel` + `swiper` | one framework with its own commands; lighter than Helm |
 | **Helm** | `helm` and its add-ons | the largest and oldest all-in-one framework |

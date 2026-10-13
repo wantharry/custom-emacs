@@ -601,8 +601,11 @@ The minibuffer is the bar at the bottom where commands ask for input.
 This configuration turns on a vertical completion list (`fido-vertical-mode`):
 candidates appear under the prompt, you keep typing to narrow them, `TAB` completes,
 and `C-n` / `C-p` (or the arrows) choose. Matching is flexible and ignores case, so
-`fbuf` can find `find-buffer-file`. An inline suggestion also appears as you type in
-programming buffers (`completion-preview-mode`); `TAB` accepts it.
+`fbuf` can find `find-buffer-file`.
+
+**this config:** in programming buffers, completion does NOT pop up automatically while
+you type (`corfu-auto` is off, and `completion-preview-mode` is off entirely) --- press
+`C-M-i` whenever you actually want a candidate list, same key either way.
 
 ## Evil: vi keys (optional)
 

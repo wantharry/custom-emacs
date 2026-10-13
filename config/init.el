@@ -625,7 +625,17 @@ key sequence can never make a file editable."
   (fido-vertical-mode 1))               ; fallback: minibuffer completion, vertical list, all built in
 (setq completion-ignore-case t
       read-file-name-completion-ignore-case t)
-(global-completion-preview-mode 1)      ; inline suggestions as you type
+;; WHAT/WHY: user request --- this was on by default (an inline ghost-text suggestion
+;; appearing after nearly every keystroke in programming buffers), which read as an
+;; uninvited "autosuggestion" rather than something asked for. Left OFF, on purpose:
+;; `C-M-i' (stock Emacs, already documented in KEYBOARD.md, unaffected by this) already
+;; gives on-demand completion via Corfu's popup (just below, both drive through the
+;; same `completion-at-point-functions' regardless of the exact command name) --- one
+;; single, consistent "show me completions now" action instead of two different popup
+;; styles both firing automatically. Turn this specific one back on for just the
+;; current buffer with `M-x completion-preview-mode' if its particular inline-ghost-
+;; text style is ever wanted instead.
+;; (global-completion-preview-mode 1)
 
 ;; `corfu' is the IN-BUFFER counterpart to `vertico' above: a popup of completion
 ;; candidates while editing code (a variable/function name, a snippet trigger, ...),
@@ -642,9 +652,15 @@ key sequence can never make a file editable."
 ;; (32.0.50): it already has native tty-child-frame support, and Corfu's own source
 ;; detects this and warns `corfu-terminal' is not needed at all on Emacs 31+ --- so it
 ;; is deliberately not installed here (see tools/install-packages.el's own comment).
+;; `corfu-auto' is deliberately nil --- user request: this popped up a candidate list
+;; after nearly every keystroke, the same uninvited "autosuggestion" complaint as
+;; `completion-preview-mode' just above. `global-corfu-mode' stays ON so `C-M-i'
+;; (already a stock Emacs binding, documented in KEYBOARD.md, unchanged by this) still
+;; shows the popup on demand --- "disabled by default, enabled if needed," exactly as
+;; asked, via the one key that already existed for it rather than a new one.
 (when (locate-library "corfu")
   (require 'corfu)
-  (setq corfu-auto t
+  (setq corfu-auto nil
         corfu-cycle t)
   (global-corfu-mode 1))
 

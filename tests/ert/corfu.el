@@ -18,7 +18,9 @@
 (ert-deftest corfu/global-mode-is-on ()
   (corfu-need
     (should (bound-and-true-p global-corfu-mode))
-    (should corfu-auto)
+    ;; User request: no automatic popup while typing; `C-M-i' (stock Emacs, documented
+    ;; in KEYBOARD.md) still shows it on demand, since `global-corfu-mode' stays on.
+    (should-not corfu-auto)
     (should corfu-cycle)))
 
 (ert-deftest corfu/corfu-terminal-is-not-installed-and-not-needed ()
