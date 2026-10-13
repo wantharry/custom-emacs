@@ -102,6 +102,7 @@ research-emacs/
 | [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
 | [docs/NAVIGATING-CODE.md](docs/NAVIGATING-CODE.md) | Find a file in a project, search across it, and in Java click a method to see its definition, implementations and references (measured on a real server) |
 | [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |
+| [docs/QUICK-REFERENCE.md](docs/QUICK-REFERENCE.md) | Two printable pages: the most-used commands by frequency, and finger placement for Emacs chords. Every key is machine-checked |
 | [docs/KEYBOARD.md](docs/KEYBOARD.md) | Learning Emacs: movement, editing, search, Dired, help, Evil. Every key is machine-checked |
 | [docs/KEYBOARD-200.md](docs/KEYBOARD-200.md) | A broader keybinding reference (197 entries): same groups as KEYBOARD.md plus Dired, ibuffer, packages and why each is efficient. Real bindings, not machine-checked |
 | [docs/KEYBOARD-500.md](docs/KEYBOARD-500.md) | The next tier up (526 entries, superset of KEYBOARD-200.md): full Dired/ibuffer/Magit transients/Treemacs/Org/Calc |
