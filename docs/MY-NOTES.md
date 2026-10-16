@@ -354,3 +354,33 @@ both weights) and 3 never-downloaded fonts (Hack, Monaspace Neon, Commit Mono) d
 left out, a real size/effort tradeoff, not an oversight --- documented plainly rather than
 silently incomplete. `C-c F` itself needed no code change: it was always correctly checking
 `find-font`, the files just were not there to find.
+
+## The other 8 fonts, bundled too (`bundle-all-fonts` branch) --- all 20 now real files
+
+User asked for the Windows zip to need zero installs/downloads of any kind, after first
+asking (and being talked out of, once the tradeoff was clear) a full bundled JDK + Rust
+toolchain for Java/Rust language-server support they don't actually use. With those off the
+table, the only real remaining gap was these last 8 fonts, so all 8 were fetched for real
+(not assumed) and bundled:
+
+| Font | Real gotcha |
+|---|---|
+| `JetBrainsMono Nerd Font Mono` | Nerd Fonts patches ONE source font into several DIFFERENT family names (`...Nerd Font`, `...Nerd Font Mono`, `...Nerd Font Propo`) in the same release tarball --- only the `Mono` one matches what `my/fonts` looks for; confirmed with `fc-scan`, not the filename |
+| `CommitMono` | the real font file registers its family as `CommitMono`, no space --- `my/fonts` said `"Commit Mono"` (with a space) and would NEVER have matched even with the real file installed. This is a genuine pre-existing bug in `config/init.el`, not just a missing file; fixed alongside the bundling |
+| `DejaVu Sans Mono`, `Hack` | NOT plain OFL, despite living next to a bunch of OFL fonts --- DejaVu is public domain + the Bitstream Vera license; Hack is MIT (Source Foundry's own part) plus the inherited Bitstream Vera/DejaVu licenses. Saved as `*-LICENSE.txt`/`.md`, not `*-OFL.txt`, so the filename does not overclaim |
+| Iosevka's real size | the old estimate ("~114 MB for Regular+Bold") was based on an asset name (`ttc-iosevka`) that does not exist in current Iosevka releases any more. The current per-weight `.ttc` files are each already ~57 MB on their own (a single `.ttc` bundles upright/oblique/extended variants of that one weight together) --- bundling just `Iosevka-Regular.ttc` (confirmed via `fc-scan` to register plain `Iosevka`) was enough, no Bold needed, matching every other font here being one Regular file |
+| Verification tooling | `fc-scan --format '%{family}\n' FILE` is what actually confirmed every family name below, not trust in the project's own README or filename --- `pip install fonttools` failed outright (PEP 668, externally-managed Python on this machine), so `fc-scan`/`fc-query` (already installed) did the job instead |
+
+## `pdf-tools` on Windows, closed too (`bundle-all-fonts` branch) --- `epdfinfo.exe` bundled, zero install
+
+The Linux gap (needs `sudo apt-get install libpoppler-glib-dev`, documented above) has no
+`apt-get` equivalent on Windows at all, so it had stayed a real, permanent "install yourself"
+item --- closed by bundling a real, prebuilt `epdfinfo.exe` instead of trying to build one.
+
+| Topic | Note |
+|---|---|
+| Where `epdfinfo.exe` came from | MSYS2's own UCRT64 package, `mingw-w64-ucrt-x86_64-emacs-pdf-tools-server` --- the exact binary MSYS2 users get via `pacman -S`, fetched from `mirror.msys2.org` and checksum-verified against MSYS2's own `ucrt64.db` sync database |
+| The real gotcha: MSYS2's declared package `Dependencies:` is the wrong source for "what DLLs does this binary need" | Following that field pulled in Python, Tcl/Tk, a full GnuTLS stack and more --- things the package as a WHOLE depends on (including CLI tools `epdfinfo.exe` never calls), not things `epdfinfo.exe` itself imports. Fixed by reading the real PE import table instead (`objdump -p`), recursively, stopping at genuine Windows system DLLs --- the correct closure is 53 DLLs, not the 100+ files the declared-dependency approach would have pulled in |
+| Real verification | re-ran the same import-table walk against the files actually collected, confirmed every non-system import resolves locally; then started the real Windows Emacs (from WSL, same trick `tools/dist-windows.sh` already uses to compile packages), pointed `pdf-info-epdfinfo-program` at the bundled exe, and `pdf-info-check-epdfinfo` + `pdf-info-open` + `pdf-info-number-of-pages` all worked against a real hand-built PDF --- not just "the files exist," a real PDF actually got parsed |
+| Licenses | all 41 packages' own license files, as MSYS2 ships them (`ucrt64/share/licenses/<pkg>/`), copied in --- except `libidn2` and `poppler`, which don't embed one in their MSYS2 package, fetched directly from each project's own upstream repo instead. Several are GPL (`poppler` itself, `jbigkit`, `emacs-pdf-tools-server`, `libgcc`/`libstdc++`/`gettext-runtime`) --- none of these binaries are modified from what MSYS2 publishes, and MSYS2's own build recipes plus each project's upstream source are both already public, same reasoning already applied to bundling MinGit. Full accounting: `tools/pdf-tools/README.md` |
+| Size | ~39 MB (`epdfinfo.exe` + 53 DLLs) |

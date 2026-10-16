@@ -141,11 +141,16 @@ cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,
 # layout as the git repository, so no code needs to know it is running from a bundle
 cp "$ROOT/README.md" "$STAGE/README.md"
 mkdir -p "$STAGE/docs" && cp "$ROOT"/docs/*.md "$STAGE/docs/"
-# 12 of the 20 `C-c F' fonts (my/fonts, config/init.el), real files not just names --- a font
+# All 20 of the `C-c F' fonts (my/fonts, config/init.el), real files not just names --- a font
 # is a plain OS resource, never auto-installed, so without this every one of them said "not
 # installed" on a fresh machine (the whole point of `C-c F' being honest about what it finds).
-# See tools/fonts/README.md for which 8 are NOT here and why (Iosevka alone is ~114 MB).
+# See tools/fonts/README.md for how each was sourced/verified (licenses, family-name gotchas).
 cp -r "$ROOT/tools/fonts" "$STAGE/tools/fonts"
+# `epdfinfo.exe' (pdf-tools' native helper) plus the 53 DLLs it actually needs --- same
+# "real files, not a build step" pattern as the fonts just above. See tools/pdf-tools/
+# README.md for exactly where each came from, the real DLL-closure verification, and the
+# real functional test (opened a PDF through it, got the right page count back).
+cp -r "$ROOT/tools/pdf-tools" "$STAGE/tools/pdf-tools"
 mkdir -p "$STAGE/config/tree-sitter"; cp "$CACHE"/gram/*.dll "$STAGE/config/tree-sitter/"
 cp -r "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"

@@ -314,7 +314,11 @@ own startup defaults, then immediately save that as the session restored next ti
     (?g . "Cascadia Code")                ; ligatures; Microsoft's, already in the startup list too
     (?h . "Hack")
     (?i . "Monaspace Neon")               ; GitHub's 2023 family; one of its 5 widths/styles
-    (?j . "Commit Mono")
+    ;; Real gotcha, caught by checking the font file's own name table (`fc-scan') rather
+    ;; than trusting the project's human-readable name: CommitMono's own release registers
+    ;; its family as "CommitMono", no space --- "Commit Mono" (with a space) would never be
+    ;; found even after installing the real font file.
+    (?j . "CommitMono")
     (?k . "DejaVu Sans Mono"))            ; this config's own ultimate fallback, see above; near-universal on Linux
   "Character key (e.g. ?1 or ?a) -> font family NAME STRING, for `my/load-font-by-number'.
 Unlike `my/themes', nothing here is guaranteed installed --- see this list's own WHY/HOW
@@ -1283,11 +1287,53 @@ only `let'-binds `default-directory' rather than passing the path as an argument
 ;; `doc-view-mode-p' requires `(display-graphic-p)') still does, unchanged. Once that
 ;; one `apt-get install' is run and Emacs restarted, this picks it up with no other
 ;; change needed.
-(when (and (locate-library "pdf-tools")
-           (executable-find "pkg-config")
-           (zerop (call-process "pkg-config" nil nil nil "--exists" "poppler-glib")))
-  (require 'pdf-loader)
-  (pdf-loader-install t nil t))
+;; Windows bundle: `epdfinfo' does not need building there at all --- a real, prebuilt
+;; binary (MSYS2's own `epdfinfo.exe', with every DLL it actually needs sitting right next
+;; to it; Windows searches a program's own directory for its DLLs first, so nothing needs
+;; to go on `PATH') ships in `tools\pdf-tools\' instead of the C source this package would
+;; otherwise try to compile. See `tools/pdf-tools/README.md' for exactly where it came
+;; from and how it was verified: a closure-complete DLL resolution via the binary's own
+;; import table (not MSYS2's package-level dependency list, which pulls in things this
+;; binary never actually imports), a real checksum against MSYS2's own package database,
+;; and a real functional test --- opened a real PDF through it from the real Windows
+;; Emacs and got the right page count back, not just confirmed the files exist. Pointing
+;; `pdf-info-epdfinfo-program' straight at it skips `pdf-loader-install''s own build-from-
+;; source path entirely, the same "set the variable directly instead of making the
+;; package go looking" trick already used for `magit-git-executable' above, for the same
+;; reason: nothing here to build on Windows, and nothing to go looking for.
+(defun my/bundled-epdfinfo ()
+  (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+              (exe (expand-file-name "tools/pdf-tools/epdfinfo.exe" home))
+              ((file-exists-p exe)))
+    exe))
+(when (locate-library "pdf-tools")
+  (if-let* ((exe (my/bundled-epdfinfo)))
+      (progn
+        (setq pdf-info-epdfinfo-program exe)
+        (require 'pdf-loader)
+        (pdf-loader-install t nil t))
+    ;; Linux / a from-source build: no bundled binary, so `epdfinfo' genuinely has to be
+    ;; built from C against the real system `poppler-glib' --- confirmed NOT present on
+    ;; this machine (`pkg-config --exists poppler-glib' fails), and genuinely not
+    ;; something this build process can fetch on its own the way `vterm' fetches
+    ;; `libvterm': it needs a real `apt-get install libpoppler-glib-dev', which needs a
+    ;; password this process does not have. `pdf-loader-install' is `pdf-tools''s own
+    ;; documented lazy entry point --- it builds `epdfinfo' the FIRST time a real PDF is
+    ;; opened, not at package-install time, and (passing NO-ERROR-P) fails silently rather
+    ;; than signaling an error if that build fails. Still gated here, the same way
+    ;; `magit-delta' above is gated on the external `delta' binary existing: checked once
+    ;; at startup, so until that one system package is installed by hand, nothing about
+    ;; how `.pdf' files already opened changes --- `pdf-loader-install' is never even
+    ;; called while the dependency is missing, so whatever handled `.pdf' files before
+    ;; this (`doc-view-mode-maybe' in a GUI frame with `gs'/`pdftoppm' installed; a real,
+    ;; found-while-testing-this fact: it falls back to plain `fundamental-mode' in a `-nw'
+    ;; terminal session regardless, since its own `doc-view-mode-p' requires
+    ;; `(display-graphic-p)') still does, unchanged. Once that one `apt-get install' is
+    ;; run and Emacs restarted, this picks it up with no other change needed.
+    (when (and (executable-find "pkg-config")
+               (zerop (call-process "pkg-config" nil nil nil "--exists" "poppler-glib")))
+      (require 'pdf-loader)
+      (pdf-loader-install t nil t))))
 
 ;; `docker'/`kubernetes': the same Magit-style transient-popup idea Magit itself uses,
 ;; applied to containers/images/volumes/networks (`docker') or a Kubernetes cluster
@@ -1692,6 +1738,28 @@ what actually gets back to a clean, single plain-Dired window afterward."
   (autoload 'magit-dispatch "magit" "Show all Magit commands." t)
   (autoload 'magit-file-dispatch "magit" "Show Magit commands for this file." t)
   (autoload 'magit-log-buffer-file "magit" "Show the history of this file." t))
+;; WHAT/WHY/HOW: a real gotcha found on a real Windows machine, not from reading Magit's
+;; source in the abstract --- `magit-git-executable''s own `defcustom' STANDARD value, on
+;; `windows-nt', tries to resolve the real, fast `git.exe' (skipping the slow `cmd/git.exe'
+;; wrapper it finds via `executable-find') by shelling out to `which "$1" | cygpath -mf -'.
+;; That trick needs Git for Windows' `which.exe'/`cygpath.exe', both in full "Git for
+;; Windows" but NOT in MinGit, the minimal distribution this portable bundle carries
+;; (tools\git) to keep the zip small --- so the probe always fails there, logging a
+;; `(file-missing ...)' warning on first use even though Magit still limps along afterward
+;; (falling back to the literal string "git", found via the slower `cmd\git.exe' wrapper
+;; since the launcher put `tools\git\cmd' on `PATH').  Since the launcher (Emacs.exe, see
+;; tools/windows-launcher.c) already sets `CUSTOM_EMACS_HOME' to the bundle's own folder,
+;; this config can just point `magit-git-executable' straight at the real binary MinGit
+;; DOES carry (`tools\git\mingw64\bin\git.exe') and skip Magit's own probe entirely ---
+;; both silencing the warning and giving the faster executable the probe was trying to
+;; find in the first place.  No effect anywhere but a Windows machine running from this
+;; bundle: `CUSTOM_EMACS_HOME' is unset everywhere else, so `magit-git-executable' keeps
+;; Magit's own default.
+(when (eq system-type 'windows-nt)
+  (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+              (exe (expand-file-name "tools/git/mingw64/bin/git.exe" home))
+              ((file-exists-p exe)))
+    (setq magit-git-executable exe)))
 ;; WHAT/WHY/HOW: the "Magit isn't installed" fallback command --- bound instead of the
 ;; real Magit commands whenever `locate-library "magit"' comes back nil, so pressing
 ;; `C-x g'/`C-c g' on a machine without Magit gives a clear, one-line explanation in the
