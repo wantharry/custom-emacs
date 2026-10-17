@@ -149,7 +149,7 @@ lines. `C-u` is `universal-argument`; `M-0` to `M-9` are `digit-argument`.
 | `C-w` | `kill-region` | **cut** the selection |
 | `M-w` | `kill-ring-save` | **copy** the selection |
 | `C-y` | `yank` | **paste** |
-| `M-y` | `yank-pop` | right after a paste: replace it with older clipboard entries |
+| `M-y` | `consult-yank-pop` | browse and paste from Emacs's own kill-ring history, searchable (this config: see [SECURITY.md](SECURITY.md) for `C-c C-y`, a SEPARATE system-wide clipboard history) |
 | `C-k` | `kill-line` | cut from the cursor to the end of the line |
 | `M-d` | `kill-word` | cut the next word |
 | `M-DEL` | `backward-kill-word` | cut the previous word |
