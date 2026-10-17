@@ -215,6 +215,104 @@ G      Open Magit status for this repo
 q      Close the tree (Q: and forget its state)
 ")
 
+;; WHAT: two generic fallbacks, shown for any buffer that isn't one of the
+;; specific modes above --- without these, `C-c H' showed nothing at all outside
+;; Dired/Org/`ranger'/Treemacs, which is exactly backwards for "help when you've
+;; forgotten a command": plain editing buffers are where that happens MOST.
+;; WHY two different texts, not one: Evil (`my/toggle-evil', `C-c v') replaces
+;; most of Emacs's own movement/editing keys with vi-style ones, so a single
+;; buffer, on different days, genuinely needs different advice depending on
+;; whether Evil happens to be on --- showing Emacs's own `C-f'/`C-w' keys while
+;; Evil owns the keyboard would be actively wrong, not just incomplete.
+(defconst my/mode-reference-evil-text
+  "Evil (vi keys)
+
+-- Modes --
+i/a    Insert before/after cursor
+I/A    Insert at line start/end
+o/O    Open new line below/above, insert
+v/V    Visual (char/line) selection
+C-v    Visual block selection
+Esc    Back to Normal mode
+
+-- Movement --
+h/l       Left/right
+j/k       Down/up
+w/b       Next/previous word
+e         End of word
+0/^/$     Line start/first non-blank/line end
+gg/G      Top/bottom of buffer
+{n}G      Go to line {n}
+C-f/C-b   Page down/up
+%        Jump to matching bracket
+
+-- Editing --
+x      Delete character
+dd     Delete line
+yy     Yank (copy) line
+p/P    Paste after/before
+cc     Change (delete + insert) line
+cw     Change word
+r      Replace one character
+u      Undo
+C-r    Redo
+.      Repeat last change
+
+-- Search --
+/      Search forward
+?      Search backward
+n/N    Next/previous match
+*/#    Search word under cursor, forward/backward
+
+-- Other --
+:      Ex command line (:w, :q, :%s/.../.../g, ...)
+ZZ     Save and quit
+")
+
+(defconst my/mode-reference-emacs-text
+  "Emacs (Evil is off)
+
+-- Files / buffers --
+C-x C-f   Find file
+C-x C-s   Save
+C-x C-w   Save as...
+C-x b     Switch buffer
+C-x C-b   List buffers
+C-x k     Kill buffer
+
+-- Movement --
+C-f/C-b   Char forward/back
+M-f/M-b   Word forward/back
+C-n/C-p   Line down/up
+C-a/C-e   Start/end of line
+M-</M->   Start/end of buffer
+C-v/M-v   Page down/up
+
+-- Editing --
+C-space   Set mark (start a selection)
+C-w       Kill (cut) region
+M-w       Copy region
+C-y       Yank (paste)
+C-k       Kill to end of line
+C-/       Undo
+C-g       Cancel the current command
+
+-- Search / replace --
+C-s/C-r   Incremental search forward/back
+M-%      Query-replace
+
+-- Windows --
+C-x o     Switch window
+C-x 1     Just this window
+C-x 2/3   Split below/right
+C-x 0     Close this window
+
+-- Running commands --
+M-x       Run any command by name
+C-h k     Describe a key
+C-h f     Describe a function
+")
+
 (defconst my/mode-reference-buffer-name "*Mode Reference*")
 
 (defvar-local my/mode-reference--shown-mode nil
@@ -223,20 +321,37 @@ between Dired and Org only rewrites the buffer when the content actually needs t
 change, not on every single update.")
 
 (defun my/mode-reference--relevant-mode ()
-  "The major mode (a symbol) that currently warrants showing the panel, or nil.
+  "The major mode (a symbol) that currently warrants showing the panel, or a
+synthetic fallback key --- `C-c H' always shows SOMETHING now, not just for
+the four specific modes below: user request, after `C-c H' showing nothing at
+all in a plain editing buffer turned out to be exactly backwards from what a
+newcomer who forgot a command actually needs. Only the minibuffer returns nil
+(there is nothing useful to show while typing a prompt).
+
 `ranger-mode' is checked BEFORE `dired-mode': confirmed directly in its own source,
 `ranger-mode' is `(define-derived-mode ranger-mode dired-mode ...)', so
 `derived-mode-p 'dired-mode' is also true there --- checking it first would show the
-Dired text instead of ranger's own."
-  (cond ((derived-mode-p 'ranger-mode) 'ranger-mode)
+Dired text instead of ranger's own.
+
+The generic fallback itself checks `evil-local-mode' (whether Evil is actually
+active in THIS buffer, not just toggled on somewhere), not the global
+`evil-mode' variable --- Evil excludes/assigns a different state in some
+buffers even while on globally, so the per-buffer variable is the real answer
+to \"which keys actually work here right now\"."
+  (cond ((minibufferp) nil)
+        ((derived-mode-p 'ranger-mode) 'ranger-mode)
         ((derived-mode-p 'dired-mode) 'dired-mode)
         ((derived-mode-p 'org-mode) 'org-mode)
-        ((derived-mode-p 'treemacs-mode) 'treemacs-mode)))
+        ((derived-mode-p 'treemacs-mode) 'treemacs-mode)
+        ((bound-and-true-p evil-local-mode) 'evil-fallback)
+        (t 'emacs-fallback)))
 
 (defun my/mode-reference--text-for (mode)
   (pcase mode
     ('dired-mode my/mode-reference-dired-text)
     ('org-mode my/mode-reference-org-text)
+    ('evil-fallback my/mode-reference-evil-text)
+    ('emacs-fallback my/mode-reference-emacs-text)
     ('ranger-mode my/mode-reference-ranger-text)
     ('treemacs-mode my/mode-reference-treemacs-text)))
 

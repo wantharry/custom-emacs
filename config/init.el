@@ -1949,15 +1949,14 @@ what actually gets back to a clean, single plain-Dired window afterward."
 ;; the real window-slot conflict with Casual's menu found and fixed while building
 ;; this (both now coexist, stacked, on the same edge).
 (require 'mode-reference (expand-file-name "mode-reference" user-emacs-directory))
-(my/mode-reference-mode 1)
 
-;; `C-c H' turns the panel above off (or back on) --- user request, enabled by
-;; default for now, with an explicit plan to turn it off once comfortable with
-;; Dired/ranger/Treemacs without it. `my/mode-reference-mode' is a real `define-
-;; minor-mode', so calling it interactively with no prefix argument already toggles
-;; it on its own; this just gives that existing toggle a key, the same shape as
-;; `C-c v' for `my/toggle-evil' just below. `C-c h' (lowercase, the start screen) is
-;; already taken --- `H' (uppercase) is free.
+;; OFF by default --- user request, reversing the earlier "on by default, turn off
+;; once comfortable" plan: now it only ever shows when asked for, via `C-c H' below.
+;; `my/mode-reference-mode' is a real `define-minor-mode', so calling it
+;; interactively with no prefix argument already toggles it on its own; this just
+;; gives that existing toggle a key, the same shape as `C-c v' for `my/toggle-evil'
+;; just below. `C-c h' (lowercase, the start screen) is already taken --- `H'
+;; (uppercase) is free.
 (global-set-key (kbd "C-c H") #'my/mode-reference-mode)
 
 ;;; Finding git repositories --------------------------------------------------------
