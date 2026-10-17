@@ -221,7 +221,7 @@ by hand.")
     ("Move text"
      ("M-p" move-text-up "shift the current line (or selection) up, bodily")
      ("M-n" move-text-down "the same, downward"))
-    ("Editing extras (from tsoding/rexim's dotfiles)"
+    ("Editing extras (from another Emacs user's dotfiles)"
      ("C-," my/duplicate-line "duplicate the current line")
      ("C-c M-q" my/unfill-paragraph "join a paragraph's lines into one, undoing M-q")
      ("C-x C-g" find-file-at-point "open the file name/path under the cursor directly"))
@@ -312,7 +312,7 @@ by hand.")
      ("C-c ," my/cycle-theme-previous "switch to the previous theme, whatever slot it's in")
      ("C-c C" consult-theme "fuzzy-search any installed theme by name, with live preview"))
     ;; WHAT/WHY: the font equivalent of "Themes" just above --- user request, after a
-    ;; side conversation about another Emacs user's own dotfiles (tsoding/rexim)
+    ;; side conversation about another Emacs user's own dotfiles
     ;; turned into "can we switch fonts this easily too." Unlike every theme above,
     ;; nothing here is guaranteed installed (a font is a plain OS resource, not a
     ;; package this config installs) --- picking one that is not on this machine says
