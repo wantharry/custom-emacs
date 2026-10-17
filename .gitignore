@@ -1,2 +1,34 @@
-build/
-node_modules/
+# Upstream source and build output are reproducible; don't track them.
+/emacs-src/
+/build/
+/install/
+*.log
+
+# Inside the init directory, track only the hand-written config.
+/config/*
+!/config/init.el
+!/config/early-init.el
+!/config/fastfind.el
+!/config/startpage.el
+!/config/docsbuffer.el
+!/config/gitfolders.el
+!/config/llm.el
+!/config/llm-council.el
+!/config/shortcuts.el
+!/config/dictate.el
+!/config/emacs-session.el
+!/config/calendar-year.el
+
+# Python bytecode from the test runner
+__pycache__/
+*.pyc
+/dist/
+
+# Claude Code's own local session state, not project content
+/.claude/
+!/config/mode-reference.el
+!/config/disk-usage.el
+
+# Scratch local tooling (e.g. puppeteer-core, for real GUI/browser screenshots
+# during development) --- not a tracked project dependency, no package.json here.
+/node_modules/

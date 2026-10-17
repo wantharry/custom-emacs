@@ -1,0 +1,75 @@
+name: Build and release Linux bundle
+
+# Push a tag (e.g. "v1.0") whenever you cross a milestone -- that's the only thing that
+# triggers a real release. Nothing runs on ordinary pushes to main, so this never eats CI
+# minutes (or your attention) on routine commits. workflow_dispatch exists only as a manual
+# "run it right now" escape hatch (e.g. to test the pipeline itself), and publishes a release
+# tagged by run number instead of a version, so it can never collide with a real tag release.
+#
+# Builds docs/BUILD.md's own recipe end to end (system deps -> clone Emacs -> ./build.sh all
+# -> packages -> grammars -> dist linux) on a stock ubuntu-latest runner, then publishes the
+# resulting bundle to a GitHub Release with `gh` (already authenticated via GITHUB_TOKEN; no
+# secrets or repo settings to configure by hand). The Windows bundle is NOT built here --
+# tools/dist-windows.sh needs WSL (it runs a real Windows Emacs.exe through cmd.exe to compile
+# packages), which a Linux runner can't do; keep building that one locally and attach it to
+# the same release afterwards if you want both platforms on one release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
+            libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
+            libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
+            liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
+            p7zip-full python3-venv
+
+      # git:// first, matching docs/BUILD.md; https:// as a fallback since some networks
+      # (this one may well be one of them) block the unencrypted git protocol.
+      - name: Fetch Emacs source
+        run: |
+          git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src || \
+          git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git emacs-src
+
+      - name: Build this Emacs (configure + make + install + prune)
+        run: ./build.sh all
+
+      - name: Install this config's Elisp packages
+        run: ./build.sh packages
+
+      - name: Build the tree-sitter grammars
+        run: ./build.sh grammars
+
+      - name: Build the Linux portable bundle
+        run: ./build.sh dist linux
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="manual-run-${GITHUB_RUN_NUMBER}"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+          gh release create "$TAG" \
+            dist/custom-emacs-linux-x86_64.tar.gz \
+            dist/custom-emacs-linux-x86_64.zip \
+            --title "$TAG" \
+            --generate-notes

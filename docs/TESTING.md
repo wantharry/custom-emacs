@@ -1,0 +1,197 @@
+# Testing
+
+The rule of this project: **run the tests after every change.** A change is not done
+until `./build.sh test` says `ALL TESTS PASSED`.
+
+```sh
+./build.sh test                  # everything that works offline (about 5 seconds)
+./build.sh test --network        # plus the tests that need internet
+./build.sh test --lsp            # plus tests that start real language servers and a real Ollama chat request (about 90 seconds)
+./build.sh test --gui            # plus tests inside a real Emacs window and a real terminal
+./build.sh test --full           # everything: network, language servers, window/terminal, tools/verify-prune.sh
+./build.sh test dired            # only the ERT files whose name contains "dired"
+EMACS=/path/to/emacs ./build.sh test     # test a different binary
+```
+
+`./build.sh test` is `tests/run-all.sh`. It prints one line per test file and a total,
+and exits non-zero if anything fails.
+
+To make git enforce it, enable the bundled hook once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+Then every `git commit` runs the offline suite first and aborts if it fails
+(`git commit --no-verify` skips it in an emergency).
+
+## What is covered
+
+Tests are grouped by **subsystem of Emacs**, then by project concern. Each file in
+`tests/ert/` uses Emacs's own test framework (ERT); the Python files in `tests/` test
+the tooling.
+
+### Emacs itself
+
+| File | Covers |
+|---|---|
+| `build-features.el` | What this build can do: native compilation (a function is really compiled and runs), byte compilation, tree-sitter, SQLite, GnuTLS, libxml, modules, threads, the portable dump, the GTK toolkit |
+| `buffers-text.el` | Buffers: insertion, deletion, undo, narrowing, markers, text properties, overlays, buffer-local variables, buffer lifecycle, line arithmetic, `thing-at-point` |
+| `editing-commands.el` | Kill and yank, case, transposition, whitespace, electric pairing, replacing a selection, comments, indentation, filling, sorting, rectangles, registers, keyboard macros |
+| `search-regex.el` | Regexp search with groups, case folding, replacement, `rx`, `regexp-opt`, bounded search, `keep-lines`/`flush-lines`, string search and splitting |
+| `files-dired.el` | Writing and reading, final newline on save, backups (and where they go), no lock files, auto-revert picking up external changes, Dired listings, copy/rename/delete, symlinks, name manipulation, recent files |
+| `processes.el` | `call-process`, exit status, environment, stdin, asynchronous processes with filters and sentinels, sending input, killing, timers |
+| `encoding-text.el` | UTF-8 and Latin-1, byte lengths, encoding detection, display widths, Unicode case conversion, base64, known hash vectors, character properties |
+| `lisp-runtime.el` | Closures, dynamic binding, `pcase`, `seq`/`cl-lib`, hooks, advice, errors and `unwind-protect`, bignums, `format`, minor modes, macros, `setf`, hash tables, threads and mutexes |
+| `language-modes.el` | Mode chosen by extension, file name and shebang; Python, Emacs Lisp, C, JavaScript, JSON, shell: indentation, highlighting, imenu, comments |
+| `treesit.el` | The tree-sitter engine and clean failure with no grammar (grammar-dependent tests skip themselves until a grammar is installed) |
+| `vc-diff.el` | Git repositories created on the fly: root, file state, working revision; diff hunks; merge-conflict resolution |
+| `project-eglot.el` | `project`, `xref` (and finding real definitions), `eldoc`, Flymake, the Eglot client |
+| `network-data.el` | URL parsing and encoding, JSON, XML, HTML, SQLite (queries and rollback), a real TCP client and server over loopback |
+| `calendar-calc-help.el` | Calendar arithmetic, calc, time formatting and parsing, documentation and help, Info manuals, Customize |
+| `tramp.el` | Remote file-name parsing and arithmetic (no connection is made) |
+| `mail-shr.el` | Address and header parsing, message headers, encoded words, MIME types, HTML rendering with links |
+
+### This project
+
+| File | Covers |
+|---|---|
+| `config.el` | Every setting in `init.el`/`early-init.el` takes effect; the files are well formed |
+| `startup-perf.el` | Startup under half a second; `package.el`, Evil and third-party code **not** loaded at startup |
+| `evil.el` | The `C-c v` toggle: on, off, repeatable, states, motions and operators, restores plain Emacs keys, Emacs keys still work, and a regression test for the Emacs 32 incompatibility |
+| `evil-missing.el` | The toggle when Evil is not installed: declining, and accepting the install |
+| `readonly.el` | Every kind of file (existing, new, symlinked) opens read-only; the disk is never touched; `allow-editing`/`stop-editing` work and only saving reaches the disk; nothing can unlock a buffer behind our back; `C-x C-q` twenty mistyped editing shortcuts change nothing (including under Evil); the `C-c e e` / `C-c e l` chords work in every mode (Dired, ibuffer, Java, Rust, Evil) and nothing shorter unlocks a file; Customize, recent files and file operations keep working |
+| `keybindings.el` | **Every key in `docs/KEYBOARD.md`, `docs/TYPING.md` and `docs/NAVIGATING-CODE.md`** (global, Dired, wdired, ibuffer, isearch, minibuffer, Lisp mode, Evil) is bound to the command the guide says |
+| `languages-java-rust.el` | Java and Rust: tree-sitter modes, parsing, highlighting, indentation, imenu, server setup (the bundled-jdtls command uses whatever `java` it finds, and errors clearly with none), no servers started on open, the toolchains compile and run; with `--lsp`, real `rust-analyzer` and `jdtls` sessions through Eglot |
+| `languages-web.el` | HTML/CSS/JavaScript/JSX/TypeScript/TSX/JSON (tree-sitter only, no language server yet): grammars installed and pinned, modes chosen (including `.ts`/`.tsx` needing no remap), legacy modes remain without a grammar, parsing, highlighting, indentation, comments, imenu, and that opening a file starts no server |
+| `fastfind.el` | The instant file finder: index build and exclusions, background refresh, ranking, fuzzy and multi-word matching, regexp characters as plain letters, the live fallback (new file, excluded folder, hidden and ignored files, missing index), project index freshness, identical results from `rg`, `grep` and the pure-Lisp matcher, the completion style, the commands, keys, and a 300,000-path speed check |
+| `treemacs.el` | Treemacs: `C-c t` and `C-c T` bound, not loaded at startup, in the package list with MELPA as a source, its packages on the load path, follow modes on, the read-only lock's exception for its project-list file, `C-c t` showing the current project **with no prompt** (or a plain folder), hiding and re-showing without adding the project twice, `C-c T` landing on the file, and a file opened from the tree being read-only. Skips without Treemacs installed |
+| `docsbuffer.el` | The documentation buffer: built from README.md and every `docs/*.md`, in order; a doc removed after listing is simply left out (not an error); a missing README shows `(missing)`; not duplicated on a rebuild; read-only; `outline-mode` for folding; the table of contents lists every file as a clickable button that jumps to its section; positions recorded for every file; matches the real project's real guides; `C-c d`/`C-c D` bound; the buffer already exists right after startup, with no measurable added startup cost |
+| `magit.el` | Magit: `C-x g` and `C-c g` bound to autoloads, not loaded at startup, in the package list, on the load path, the read-only lock's exception for Git message files (and that other files stay locked), status/stage/log in a real repository, and startup speed. Skips without Magit installed |
+| `gitfolders.el` | Finding every git repository (`C-c f p`), drawn instantly from a saved index and refreshed in the background: key bound, not loaded at startup, the real script finds this project's own repository, the index is saved and reloaded, merging a fresh scan (Windows-drive entries are kept on a quick Linux-only scan, replaced on a full one), a line split across two process-filter chunks and a final line with no trailing newline are both handled, a stale process's late sentinel cannot clobber a newer scan, read-only, `g`/`[rescan]` refresh and cancel an in-flight scan first, and RET/click (Magit), `d` (Dired) and `t` (Treemacs) each open the result at point |
+| `consult.el` | Consult: `C-c s l/g/f/b` bound to autoloads, not loaded at startup, in the package list, its `compat` dependency satisfied by Emacs 32's own built-in copy, and real results checked directly against `rg`/`fd`: `consult-ripgrep` finds every real match and follows the same smart-case rule as `C-x p g`, `consult-fd` finds a file by name (and does not fuzzy-match, unlike the fast finder), `consult-line` lists real buffer lines, and a file opened this way stays read-only. Skips without Consult, or without `rg`/`fd`, installed |
+| `completion.el` | vertico/orderless/marginalia/embark: `embark-act`/`-dwim`/`-bindings` bound (and lazy, checked in a fresh subprocess since another test in the file deliberately loads Embark for real), `embark-consult` loading itself automatically once Consult is also loaded, vertico/marginalia really on (built-in `fido-vertical-mode` as the real fallback otherwise), `orderless` really matching words in any order, `flex` still matching a fuzzy skeleton (a real regression this suite caught: the previous setup had it, `C-x p f` relies on it, `orderless`'s own defaults do not reproduce it), file completion kept off `orderless` but keeping `flex`, a real Marginalia annotation for a real command, and does not slow startup. Skips (or falls back to checking `fido-vertical-mode`) without these packages installed |
+| `startpage.el` | The start screen: remembering folders and projects (newest first, no duplicates, capped, ignored paths, remote and missing skipped), saving and reloading, a damaged store file, the hooks, five entries with a "+ N more" link, expanding and collapsing in place, `RET` opening a file, folder and project, `m`/`d`/`t` opening the entry at point (its folder, for a file) with Magit/Dired/Treemacs, the number keys, stale entries skipped, first-run derivation from recent files, empty history, read-only buffer, and showing only when no file was given |
+| `llm.el` | Chatting with an LLM (`C-c a a`/`C-c a m`): key bound, not loaded at startup, parsing `ollama list` (including a missing `ollama` or a down server, without needing Ollama installed to test that), the Ollama backend built from real or placeholder models, `C-c a a` setting it up only once; against the real, already-running Ollama in this environment: its model list is readable, and (with `--lsp`) a real chat request gets a real answer |
+| `llm-council.el` | Asking 3 local models at once and summarizing with a bigger one (`C-c a c`): key bound, not loaded at startup, picking council models and a distinct summarizer from whatever is really available (preferring the configured list, padding/degrading gracefully, never repeating a model), the buffer showing the summary heading first with every model's answer folded shut below it, close/fold keys; with `gptel-request` mocked: each council model asked with its own `gptel-model` and `:stream nil`, the summary request firing only once all three answers are in (not before), the summary prompt naming every successful answer, a failed council answer marked `failed` and left out of the summary prompt, every model failing leaving the summary `failed` with no 4th request ever sent, and a clear `user-error` when no models are available at all; against the real, already-running Ollama in this environment (with `--lsp`): a real 4-request round trip produces a summary |
+| `emacs-session.el` | Crash-safe auto-save and session restore (`C-c w`): loaded eagerly (not autoloaded) and why, does not slow startup, every deliberate desktop-save/auto-save-visited configuration choice, a real regression test for the `desktop-save` RELEASE-argument bug, `C-c w r`'s clear-then-remove-then-keep-dirname-usable sequence, a real headless save/kill-buffers/restore round trip confirming both the buffer list and the read-only lock come back correctly, `C-c w l`'s listing (desktop.el's own real filter, modified markers, close/refresh keys); named sessions (`C-c w S`/`O`/`D`/`L`): name sanitizing, saving/opening a name never disturbs the live session's own directory, opening or saving under the same name twice both work cleanly (two more real regression tests, the lock-release and modtime-conflict bugs), clear errors for an unknown/missing name, delete only after confirming |
+| `shortcuts.el` | The shortcuts reference (`C-c k`): key bound, every listed key really runs the command it claims (skipping ones from an optional package that is not installed), no duplicate keys, read-only and foldable, every topic and every package's open/close/commands text actually shown; the packages section's real facts checked against the actual keymaps (Magit, Treemacs, gptel, newsticker, the docs buffer, itself), including Magit's transient-based commands (`c c`, `P p`, `F p`, `l l`) via `transient-get-suffix`; shown split next to the start screen only when that is what opened (not when a file was given, not if the layout is already split), and does not slow startup |
+| `java-navigation.el` | Finding files in a project (tracked, new and ignored files, fuzzy typing), text search across it, the outline, Ctrl+Click and right-click menu behavior, the results list, and with `--lsp` a real `jdtls`: definitions, implementations, references, type definition, find-by-name, and that `M-.` really jumps |
+| `pruning.el` | Removed packages are gone, coding essentials and deliberate exceptions are present, removed features fail cleanly, no native code left for them |
+| `network-live.el` | Real HTTPS fetch, package refresh, package install (only with `--network`) |
+| `tests/test_prune.py` | The pruning tool, using small fake trees: dependency rescue, lazy requires, exceptions, preloaded files, applying to an install, idempotence |
+| `tools/doctor.sh` (checked by `tests/test_repo.py`) | Runs headless in the suite: every section is reported and warnings never fail it |
+| `tests/test_dist.py` | The portable bundle: build scripts, the launcher compiles for Windows, and (when `dist/custom-emacs-windows-x64.zip` exists) that it holds everything needed, that its settings are **identical to `config/`** (so a forgotten rebuild fails), that Evil and Magit are compiled for the bundled Emacs, and that no personal history is inside |
+| `tools/test-windows.sh` | Runs the offline ERT files with the **Windows Emacs from an unpacked bundle**, from WSL, one line per file (`LSP=1` also starts a real `jdtls`). The last full run: 409 tests, 391 pass, 1 fail (a known real-server timing flake, 27/27 alone), 17 skipped ([DISTRIBUTION.md](DISTRIBUTION.md)) |
+| `tests/test_repo.py` | Docs links and anchors, every guide listed in the README, script syntax, ignore rules, `prune.list` syntax, and the test suite's own conventions |
+
+## Real window and real terminal
+
+The ERT files above run Emacs with `--batch`: headless, no window, no screen. That is fast
+and reliable, but it cannot show anything visual. Two more suites run Emacs the way you use
+it, and `./build.sh test --gui` runs both (they skip themselves without a display or `tmux`).
+
+| Suite | How it runs | What it covers |
+|---|---|---|
+| `tests/gui/gui-tests.el` (35 tests) | Emacs opens a **real graphical window** and runs the tests inside it (`tests/gui/gui-runner.el`) | The frame (graphical, size, menu bar on, tool bar off), the font actually chosen (monospace, from the preference list, 12 pt), text measured in pixels, Unicode and image support, real colors for syntax faces, the mode line (`%%` read-only, `**` modified), line numbers, current-line highlight, scrolling, splitting windows, the frame rendering to a PNG, keys through the **real command loop** (typing is blocked and the message shows; `C-c e e` and `C-c e l`), the which-key popup, the vertical `M-x` list, Magit's status in a real window, Treemacs, Consult (`consult-fd` finding and opening a file read-only; `consult-ripgrep`'s live preview of a real match), finding git repositories and clicking one open in Magit, the start screen (`C-c h`), the file finder in the real minibuffer (a typo finds the file; `RET` opens it), Evil's cursor shape per state, mouse and menu bindings, the clipboard, startup time in a window |
+| `tests/test_tui.py` (16 tests) | Emacs runs in a **real terminal** (`emacs -nw` inside `tmux`); the tests send genuine keystrokes and read the screen | Read-only on open with line numbers and mode line, typing blocked with the message on screen, the edit chord then typing then saving then locking (the disk is checked at each step), the `C-x C-q` reminder, the which-key popup for `C-c e` naming both commands, the vertical `M-x` list, Magit (the status, and a real commit through the message buffer, checked in `git log`), the start screen (five of each list, expanding, opening a file, `C-c h`), the file finder (`C-c f f`, a fuzzy match, `RET`), the Evil toggle, Dired, colored code (ANSI escapes), and quitting |
+
+A graphical session prints nothing to stdout, so the GUI runner writes its results to a log
+file in the same format ERT uses. `./build.sh test --gui NAME` runs only tests whose name
+contains NAME.
+
+### Looking at it
+
+Tests can check that colors exist and that a font is monospace, not that it looks good.
+`./build.sh screenshots OUTDIR FILE...` opens each file in a real window and saves a PNG of
+what Emacs drew (`tools/gui-screenshot.el`). Use it whenever you change fonts, colors or the
+mode line.
+
+## How a test file is run
+
+Each file starts with a header naming its **harness**:
+
+| Header | Emacs is started as | Used for |
+|---|---|---|
+| `;; harness: bare` | `emacs -Q` (no config) | Emacs behavior that should not depend on our settings |
+| `;; harness: config` | our `init.el` loaded from a temporary copy, with `config/elpa` linked in | Anything our configuration affects |
+| `;; harness: noelpa` | same, but with no packages installed | The "Evil is missing" paths |
+
+Files run in parallel, each in its own Emacs process, so tests cannot interfere with
+one another. A temporary copy of the config is used so tests never write backups or
+history into `config/`.
+
+`tests/ert/helper.el` provides the shared tools:
+
+| Helper | Use |
+|---|---|
+| `test-in-buffer MODE TEXT ...` | run code in a real buffer (shown in the selected window) |
+| `test-with-temp-dir VAR ...` | a temporary directory that is deleted afterwards |
+| `test-write-file`, `test-read-file` | file fixtures |
+| `test-git DIR ARGS...` | run git with a fixed identity |
+| `test-skip-unless-network`, `test-skip-unless-pruned` | skip a test when it does not apply |
+
+## Adding a test
+
+1. Pick the file for the subsystem (or create `tests/ert/NAME.el` with a
+   `;; harness:` header and `lexical-binding: t`).
+2. Name it `area/what-it-checks`. Names must be unique across files (a Python test
+   enforces this, and the `area/` prefix).
+3. Test **behavior**, not just that a function exists.
+4. Run `./build.sh test NAME`, then the whole suite.
+
+**When you find a bug, add the test that would have caught it first**, then fix it.
+That has already happened three times here:
+
+| Bug | Caught by |
+|---|---|
+| Pruning removed `mm-archive`, which broke package downloads | `network-live.el` and `tools/verify-prune.sh` |
+| Evil 1.15 raises `void-variable evil-mode-buffers` on Emacs 32 | `evil/no-post-command-hook-errors-on-emacs-32` |
+| `package.el` at startup costs ~0.7 s on WSL (Windows drives on `PATH`) | `startup-perf.el` tests |
+
+## Things the tests found along the way
+
+- **The window uses DejaVu Sans Mono**, not JetBrains: the font names in `init.el` do not
+  match the installed `JetBrainsMono Nerd Font`. The font block only runs in a window, so
+  batch mode could never have shown this. The window test accepts any font from the
+  list, so it records the fallback without failing.
+- **A terminal reads `ESC` plus a key as Meta.** Tests that press `Escape` must wait for the
+  screen to change before the next key, as a person's pause would.
+- **Nested command loops leave state behind.** Running a command inside a test's nested
+  loop leaves `this-command` set, which suppresses the which-key popup, and hiding a popup by
+  hand stops the next one for the same prefix. Real typing is unaffected; the harness resets
+  the state before every feed.
+- **`jdtls` guesses the source root for a folder with no build file,** and the wrong guess only
+  breaks references to *types*, so methods look fine. A test asks for both, so a regression shows.
+- **Results in the `*xref*` list are clickable through a keymap on the text itself,** not the
+  buffer's keymap, so a test that looks in the buffer keymap finds nothing.
+- **A graphical session is silent about errors.** A crashed script just leaves the window
+  open, so scripts that drive a window wrap everything and always exit.
+
+These are worth knowing; each is now covered by a test or a note.
+
+- **Batch mode hides problems.** It does not run `post-command-hook`, so the Evil
+  incompatibility only appears when a test runs those hooks explicitly. It also
+  never switches globalized modes on for file buffers (true on Emacs 29 as well), so
+  auto-revert is tested by behavior rather than by checking the mode variable.
+- **Keyboard macros act on the window's buffer**, not the current buffer, so
+  `test-in-buffer` displays its buffer in the selected window.
+- **Some Emacs rules bite tests:** files under `/tmp` are never backed up;
+  `vc-state` needs `default-directory` set to the file's directory; batch frames are
+  narrow, so rendered text wraps.
+- **Installed Lisp is byte-compiled**, so argument names are lost. Test help on
+  functions defined inside the test.
+
+## What the tests cannot tell you
+
+- **Whether it looks good.** The window and terminal suites check that fonts, colors and
+  the mode line exist and behave, not that you like them. Take screenshots
+  (`./build.sh screenshots`) and look. Icons from icon fonts are not checked at all.
+- **Real language servers and tree-sitter grammars**, until they are installed.
+  Grammar-dependent tests skip and will start running by themselves.
+- **Windows and macOS.** Nothing here has been run there.
+- **Interactive timing and feel.** `startup-perf.el` catches gross startup
+  regressions only.
+
+`--network` and `--full` add the real-download tests and the pruning verifier
+(`tools/verify-prune.sh`, described in [PRUNING.md](PRUNING.md)).

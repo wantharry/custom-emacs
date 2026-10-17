@@ -1,0 +1,151 @@
+# Customizing
+
+Nearly all customization is Elisp in `config/`, which needs **no
+recompiling**. See [ARCHITECTURE.md](ARCHITECTURE.md#where-a-change-belongs) for
+when a change belongs in C instead.
+
+## How the config is loaded
+
+Run Emacs with `--init-directory=config` and it loads, in order:
+
+1. `config/early-init.el`: before the window and the package system exist.
+   Used only for startup speed and frame setup.
+2. `config/init.el`: everything else.
+3. `config/custom.el`: written by `M-x customize`, loaded from `init.el` if it
+   exists. Gitignored.
+
+`~/.emacs-research` is a symlink to `config/`, so either path works.
+
+Only `init.el` and `early-init.el` are tracked in git. Everything else Emacs
+writes into `config/` (backups, `recentf.eld`, `history`, `eln-cache/`) is
+ignored on purpose; see `.gitignore`.
+
+> **Batch mode does not load your init file.** `emacs --batch` skips it
+> (`init-file-user` is `nil`), so a headless test that "shows nothing changed"
+> proves nothing. Load it explicitly: `emacs --batch -l config/init.el ...`.
+
+## What is in `early-init.el`
+
+- Disables garbage collection while starting (restored in `init.el`).
+- Hides the tool bar and vertical scroll bars before the first frame is drawn
+  (avoids a visible flash) and suppresses the startup screen.
+- Silences native-compilation warnings and lets Lisp compile in the background.
+
+## What is in `init.el`, section by section
+
+| Section | Does |
+|---|---|
+| Startup / performance | Sets GC threshold to 64 MB after startup, a 1 MB process-output buffer (faster language servers), and moves `M-x customize` output to `custom.el` |
+| UI | Menu bar, column numbers, line numbers everywhere, current-line highlight. **No theme.** Picks a font (below) |
+| Editing | 4-space indentation with spaces, matching parens, delete-selection, auto-revert, save-place, recent files, minibuffer history. Backups and auto-saves go to `config/backups/` and no lock files are created |
+| Completion | Built-in only: vertical `fido` minibuffer, flexible matching, inline completion preview, `which-key` |
+| Coding | `treesit-font-lock-level 4`; Eglot (built-in LSP client) is available but not auto-started |
+| Packages | Puts installed packages (Evil, Magit, Treemacs and Consult) from `config/elpa/` on `load-path` **without** loading `package.el`, which costs ~0.7 s per launch on WSL. `my/install-package` loads it only to install |
+| Project text search | `C-x p g` uses ripgrep when installed (4 to 10 times faster than grep, measured), applied only when xref loads |
+| Clicking through code | Turns on the right-click menu (Find Definition, Find References, and our Find Implementations and Find Type Definition when a language server is running), Ctrl+Click for definitions, `repeat-mode`, and the Java source-path default. See [NAVIGATING-CODE.md](NAVIGATING-CODE.md) |
+| Treemacs | `C-c t` shows the project as a tree in a sidebar, `C-c T` moves into it on the current file. Autoloaded; its two follow modes come on when it loads; its own project-list file is exempt from the read-only lock. See [TREEMACS.md](TREEMACS.md) |
+| Consult | `C-c s l/g/f/b`: a live-preview search box (this buffer, project text via ripgrep, file names via `fd`, buffers). Autoloaded; needs `rg` and `fd` on `PATH`. See [SEARCHING.md](SEARCHING.md#10-consult-one-search-box-for-several-of-the-above) |
+| Magit | `C-x g` opens Git status, `C-c g` file commands. Autoloaded (nothing loads at startup). Also the one exception to the read-only lock: Git's commit-message files open editable. See [MAGIT.md](MAGIT.md) |
+| Start screen | What opens when Emacs starts without a file: the last 5 files, folders and projects as links, each expandable. `C-c h` brings it back. From `config/startpage.el`. See [START-SCREEN.md](START-SCREEN.md) |
+| Documentation buffer | README.md and every `docs/*.md` guide, concatenated into one buffer (`*docs*`) built at startup (about 2 ms). `C-c d` shows it, `C-c D` rebuilds it. From `config/docsbuffer.el`, built in only |
+| Windows tweaks | On Windows only: new files are saved as UTF-8 with LF line endings (not CRLF), and the mode line does not print "(Unix)". Nothing else differs |
+| Fast file finding | `C-c f f` / `C-c f g`: instant fuzzy file search over an `rg`-built index of the project or the whole disk, with a live search when the index has nothing. Autoloaded from `config/fastfind.el` (nothing loads or runs at startup; the index is built after 90 s idle). Options are `my/ff-*`. See [NAVIGATING-CODE.md](NAVIGATING-CODE.md) |
+| Read-only files | Every file opens read-only. `C-c e e` (`M-x allow-editing`) and `C-c e l` (`M-x stop-editing`) are the only ways to change that; the single-key `C-x C-q` just prints a reminder. The hook runs last so nothing (such as version control) can unlock a buffer. See [KEYBOARD.md](KEYBOARD.md) |
+| Evil | `C-c v` toggles vi-style editing; Evil loads on first use. Includes a one-line compatibility shim (below) |
+| Languages | Pins tree-sitter grammar versions (Java, Rust, and HTML/CSS/JS/TS/JSX/JSON), remaps the built-in modes to their `-ts-` counterpart when a grammar exists, and keeps language servers manual. See [LANGUAGES.md](LANGUAGES.md) |
+| LLM chat | `C-c a a` opens a chat buffer (a local Ollama model, set up automatically), `C-c a m` its menu. See [LLM.md](LLM.md) |
+| Shortcuts | `C-c k` shows this configuration's own keybindings, grouped by topic and foldable; shown automatically next to the start screen. See [START-SCREEN.md](START-SCREEN.md) |
+| Keys | `C-c v` → toggle Evil, `C-x C-b` → `ibuffer`, `M-o` → jump to a window by letter (`ace-window`), `C-c r` → recent files. All keys are listed in [KEYBOARD.md](KEYBOARD.md) |
+| Startup report | Prints Emacs version, load time and GC count to the echo area once |
+
+The only third-party packages are **Evil**, **Magit**, **Treemacs** (with its helpers), **Consult** and **gptel**, and all are optional: they are installed by
+`./build.sh packages` (or offered on first use of `C-c v`) into `config/elpa/`, which
+is gitignored. Nothing else is installed.
+
+**Evil on Emacs 32.** Evil 1.15 reads a variable, `evil-mode-buffers`, that Emacs 32
+no longer defines. Without a shim every command raised `(void-variable
+evil-mode-buffers)` from `post-command-hook`. `init.el` defines the variable as `nil`.
+The regression test `evil/no-post-command-hook-errors-on-emacs-32` guards it; delete the
+shim once Evil supports Emacs 32.
+
+## Adding a theme
+
+There is deliberately none right now. Emacs ships several (Modus, Deeper Blue,
+Wheatgrass, and others). To use a built-in one, add to `init.el`:
+
+```elisp
+(load-theme 'modus-vivendi t)
+```
+
+List what is available with `M-x customize-themes`. A third-party theme (for
+example `doom-themes`) needs installing from a package archive first; that is
+outside the "no extra packages" baseline, so decide it explicitly.
+
+## Fonts
+
+`init.el` picks the first font from a list that fontconfig can find:
+`JetBrainsMono Nerd Font Mono`, `JetBrains Mono`, `Fira Code`, `Cascadia Code`,
+`DejaVu Sans Mono`, `Menlo`, `Consolas`, at height 120 (12 pt).
+
+**Names must match exactly.** `find-font` compares the exact family string, so a name that is
+close but not exact (`"JetBrains Mono"` against an installed `JetBrainsMono Nerd Font Mono`)
+falls straight through to the next entry with no warning. This is why the real installed
+name is listed first here, checked with:
+
+```sh
+fc-list : family | sort -u | grep -i jetbrains
+```
+
+Real, distinct monospace families installed on this machine (2026-09-27, checked with
+`fc-list`): `JetBrainsMono Nerd Font Mono` (and its many Nerd Font weight variants),
+`DejaVu Sans Mono`, `Ubuntu Mono`, `Liberation Mono`, `Noto Sans Mono`, `Nimbus Mono PS`.
+Not installed: `Cascadia Code`, `Cascadia Mono`, `Fira Code`, `Consolas`, `Symbols Nerd Font`
+(so mode line icon fonts still show as boxes; unrelated to this fix).
+
+Icon fonts: packages such as `nerd-icons` look for a font named
+`Symbols Nerd Font`, which is not installed here; icons would show as empty
+boxes until it is (or another Nerd Font is mapped in).
+
+Inside Emacs, `M-x describe-font` shows which font is actually in use.
+
+## Editing and applying changes live
+
+- `C-x C-e` after a form evaluates just that form.
+- `M-x eval-buffer` re-applies the whole `init.el` without restarting.
+- Adding something to a hook or mode may need the mode toggled off and on.
+
+## Changing built-in behavior
+
+Find the source: `C-h f <function>` then follow the link, or open
+`emacs-src/lisp/...`. Evaluate your edit in place; it takes effect immediately
+in the running session. For it to persist across restarts, put the override in
+`config/init.el` instead of editing `emacs-src/` (which must stay clean for
+`git pull`). Use `advice-add` or redefine after `(with-eval-after-load 'x ...)`.
+
+## Looking at the result
+
+After changing fonts, colors or the mode line, look at the real window:
+`./build.sh screenshots OUTDIR FILE...` saves PNGs of files as Emacs draws them. The
+graphical tests (`./build.sh test --gui`) check the fonts and colors exist and behave; they
+cannot tell you whether they look right.
+
+## Profiling
+
+Do not guess at bottlenecks. To find out what is slow:
+
+1. `M-x profiler-start`, choose `cpu+mem`.
+2. Do the slow thing.
+3. `M-x profiler-report`, expand the tree; `profiler-stop` when done.
+
+If the time is in Lisp, the fix belongs in config. If it is inside C primitives
+(redisplay, process output, encoding), a source change may be justified.
+
+Startup time: `emacs --init-directory=config -f kill-emacs` timed externally, or
+read the message the config prints at startup.
+
+## Keeping the look consistent across platforms
+
+Themes and mode lines are Lisp; fonts come from the operating system. So the
+same `init.el` gives the same colors everywhere, but fonts depend on what is
+installed on each machine. That is why the font list has fallbacks. See
+[CROSS-PLATFORM.md](CROSS-PLATFORM.md).

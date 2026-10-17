@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# Build the portable Windows bundle, from Linux/WSL, without Windows tooling except that WSL can
+# run Windows programs (used to compile the packages with the Windows Emacs itself).
+#
+#   tools/dist-windows.sh          -> dist/custom-emacs-windows-x64.zip
+#
+# What goes in the zip: Emacs.exe (a launcher), the official GNU Emacs 31 for Windows (with all its
+# libraries), your settings (config/), Evil and Magit compiled for that Emacs, tree-sitter grammars
+# for Java and Rust, ripgrep, fd, delta, dua, a portable Git (MinGit), the Java language server
+# (jdtls) and, on this `java' branch, a portable JDK to run it on.  See docs/DISTRIBUTION.md.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DIST="$ROOT/dist"; CACHE="$DIST/cache"
+NAME=custom-emacs-windows-x64
+STAGE="$DIST/stage/$NAME"
+EMACS_ZIP=emacs-31.1_1.zip
+EMACS_URL=https://ftp.gnu.org/gnu/emacs/windows/emacs-31
+RG_VERSION="${RG_VERSION:-14.1.1}"
+FD_VERSION="${FD_VERSION:-10.5.0}"
+DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
+DUA_VERSION="${DUA_VERSION:-2.45.1}"   # my/disk-usage's own backend, config/disk-usage.el
+JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
+JDK_VERSION="${JDK_VERSION:-21.0.12.1+1}"     # Eclipse Temurin, the portable JDK jdtls runs on (`java' branch only)
+MAVEN_VERSION="${MAVEN_VERSION:-3.10.0}"      # Apache Maven, bundled so `C-c j' works with zero install (`java' branch only)
+MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
+ZIG=("$DIST/.venv/bin/python" -m ziglang)
+[ -x "$DIST/.venv/bin/python" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
+command -v 7z >/dev/null || { echo "7z is needed to make the zip (sudo apt-get install p7zip-full)" >&2; exit 1; }
+command -v cmd.exe >/dev/null || { echo "this needs WSL (it runs the Windows Emacs to compile packages)" >&2; exit 1; }
+[ -d "$ROOT/config/elpa" ] || { echo "no packages: run ./build.sh packages" >&2; exit 1; }
+mkdir -p "$CACHE"
+
+fetch() {   # fetch URL FILE
+  [ -s "$CACHE/$2" ] || { echo "   downloading $2"; curl -fSL -s -o "$CACHE/$2.part" "$1" && mv "$CACHE/$2.part" "$CACHE/$2"; }
+}
+
+echo "== downloads (cached in dist/cache)"
+fetch "$EMACS_URL/emacs-31.1_1-sha256sums.txt" emacs-sums.txt
+fetch "$EMACS_URL/$EMACS_ZIP" "$EMACS_ZIP"
+want="$(grep " \*$EMACS_ZIP\$" "$CACHE/emacs-sums.txt" | cut -d' ' -f1)"
+got="$(sha256sum "$CACHE/$EMACS_ZIP" | cut -d' ' -f1)"
+[ -n "$want" ] && [ "$want" = "$got" ] || { echo "CHECKSUM MISMATCH for $EMACS_ZIP" >&2; exit 1; }
+echo "   $EMACS_ZIP matches the checksum published by GNU"
+fetch "$MINGIT_URL" MinGit-64.zip
+fetch "https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/ripgrep-$RG_VERSION-x86_64-pc-windows-msvc.zip" rg-win.zip
+FD_ASSET="fd-v$FD_VERSION-x86_64-pc-windows-msvc.zip"
+fetch "https://github.com/sharkdp/fd/releases/download/v$FD_VERSION/$FD_ASSET" fd-win.zip
+FD_SHA="$(curl -fsSL "https://api.github.com/repos/sharkdp/fd/releases/tags/v$FD_VERSION" | python3 -c "
+import json, sys
+name = sys.argv[1]
+for a in json.load(sys.stdin)['assets']:
+    if a['name'] == name:
+        print(a['digest'].split(':')[1]); break
+" "$FD_ASSET")"
+if [ -n "$FD_SHA" ]; then
+  [ "$(sha256sum "$CACHE/fd-win.zip" | cut -d' ' -f1)" = "$FD_SHA" ] || { echo "CHECKSUM MISMATCH for fd-win.zip" >&2; exit 1; }
+  echo "   fd-win.zip matches the checksum published by GitHub"
+else
+  echo "   (could not fetch a published checksum for fd-win.zip; proceeding without one)"
+fi
+DELTA_ASSET="delta-$DELTA_VERSION-x86_64-pc-windows-msvc.zip"
+fetch "https://github.com/dandavison/delta/releases/download/$DELTA_VERSION/$DELTA_ASSET" delta-win.zip
+DELTA_SHA="$(curl -fsSL "https://api.github.com/repos/dandavison/delta/releases/tags/$DELTA_VERSION" | python3 -c "
+import json, sys
+name = sys.argv[1]
+for a in json.load(sys.stdin)['assets']:
+    if a['name'] == name:
+        print(a['digest'].split(':')[1]); break
+" "$DELTA_ASSET")"
+if [ -n "$DELTA_SHA" ]; then
+  [ "$(sha256sum "$CACHE/delta-win.zip" | cut -d' ' -f1)" = "$DELTA_SHA" ] || { echo "CHECKSUM MISMATCH for delta-win.zip" >&2; exit 1; }
+  echo "   delta-win.zip matches the checksum published by GitHub"
+else
+  echo "   (could not fetch a published checksum for delta-win.zip; proceeding without one)"
+fi
+DUA_ASSET="dua-v$DUA_VERSION-x86_64-pc-windows-msvc.zip"
+fetch "https://github.com/Byron/dua-cli/releases/download/v$DUA_VERSION/$DUA_ASSET" dua-win.zip
+DUA_SHA="$(curl -fsSL "https://api.github.com/repos/Byron/dua-cli/releases/tags/v$DUA_VERSION" | python3 -c "
+import json, sys
+name = sys.argv[1]
+for a in json.load(sys.stdin)['assets']:
+    if a['name'] == name:
+        print(a['digest'].split(':')[1]); break
+" "$DUA_ASSET")"
+if [ -n "$DUA_SHA" ]; then
+  [ "$(sha256sum "$CACHE/dua-win.zip" | cut -d' ' -f1)" = "$DUA_SHA" ] || { echo "CHECKSUM MISMATCH for dua-win.zip" >&2; exit 1; }
+  echo "   dua-win.zip matches the checksum published by GitHub"
+else
+  echo "   (could not fetch a published checksum for dua-win.zip; proceeding without one)"
+fi
+
+echo "== Java: the Java language server, plus a portable JDK to run it on (this \`java' branch only)"
+JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
+JDTLS_FILE="$(curl -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
+fetch "$JDTLS_BASE/$JDTLS_FILE" "$JDTLS_FILE"
+[ "$(sha256sum "$CACHE/$JDTLS_FILE" | cut -d' ' -f1)" = "$(curl -fsSL "$JDTLS_BASE/$JDTLS_FILE.sha256" | cut -d' ' -f1 | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $JDTLS_FILE" >&2; exit 1; }
+echo "   $JDTLS_FILE matches the checksum published by Eclipse"
+# Eclipse Temurin (Adoptium): a real, official OpenJDK build distributed as a plain .zip
+# (not an installer) specifically for this "unzip and go" use case.  Asset/tag naming
+# follows Adoptium's own convention: version "21.0.12.1+1" -> release tag
+# "jdk-21.0.12.1%2B1" (URL-encoded '+') and asset "..._21.0.12.1_1.zip" ('+' -> '_').
+JDK_TAG="jdk-${JDK_VERSION/+/%2B}"
+JDK_ASSET="OpenJDK21U-jdk_x64_windows_hotspot_${JDK_VERSION/+/_}.zip"
+JDK_URL="https://github.com/adoptium/temurin21-binaries/releases/download/$JDK_TAG/$JDK_ASSET"
+fetch "$JDK_URL" "$JDK_ASSET"
+[ "$(sha256sum "$CACHE/$JDK_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$JDK_URL.sha256.txt" | cut -d' ' -f1 | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $JDK_ASSET" >&2; exit 1; }
+echo "   $JDK_ASSET matches the checksum published by Adoptium"
+# Apache Maven: a plain, official .zip (no installer), the same "unzip and go" shape as the
+# JDK above --- Maven itself is pure Java, so it only needs the bundled JDK's `java' on PATH
+# (already true, see the launcher below) plus `JAVA_HOME' (set in the launcher too).
+MAVEN_ASSET="apache-maven-$MAVEN_VERSION-bin.zip"
+MAVEN_URL="https://dlcdn.apache.org/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_ASSET"
+fetch "$MAVEN_URL" "$MAVEN_ASSET"
+[ "$(sha512sum "$CACHE/$MAVEN_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$MAVEN_URL.sha512" | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $MAVEN_ASSET" >&2; exit 1; }
+echo "   $MAVEN_ASSET matches the checksum published by Apache"
+
+echo "== tree-sitter grammars for Windows (cross-compiled with zig, same versions as on Linux)"
+mkdir -p "$CACHE/gram"
+build_grammar() {   # build_grammar LANG TAG [SUBDIR] [REPO]
+  # SUBDIR (default "src") and REPO (default tree-sitter-LANG) are only needed for a
+  # grammar repo that holds more than one language, like tree-sitter-typescript's
+  # typescript/src and tsx/src --- both from the same repo, so it is only cloned once.
+  local l="$1" tag="$2" sub="${3:-src}" repo="${4:-tree-sitter-$1}"
+  local d="$CACHE/gram/ts-$repo-$tag"
+  [ -f "$CACHE/gram/libtree-sitter-$l.dll" ] && return
+  [ -d "$d" ] || git clone -q --depth=1 --branch "$tag" "https://github.com/tree-sitter/$repo" "$d"
+  local srcdir="$d/$sub"
+  local srcs=("$srcdir/parser.c"); [ -f "$srcdir/scanner.c" ] && srcs+=("$srcdir/scanner.c")
+  "${ZIG[@]}" cc -target x86_64-windows-gnu -shared -O2 -I "$srcdir" "${srcs[@]}" -o "$CACHE/gram/libtree-sitter-$l.dll"
+}
+# keep these in step with `treesit-language-source-alist' in config/init.el
+build_grammar java v0.23.5
+build_grammar rust v0.23.2
+build_grammar html v0.23.2
+build_grammar css v0.23.2
+build_grammar javascript v0.23.1
+build_grammar jsdoc v0.23.2
+build_grammar typescript v0.23.2 typescript/src tree-sitter-typescript
+build_grammar tsx v0.23.2 tsx/src tree-sitter-typescript
+build_grammar json v0.23.0
+
+echo "== launcher (Emacs.exe)"
+"${ZIG[@]}" cc -target x86_64-windows-gnu -municode -O2 -s -Wl,--subsystem,windows \
+  "$ROOT/tools/windows-launcher.c" -o "$CACHE/Emacs.exe"
+
+echo "== assemble"
+rm -rf "$STAGE"; mkdir -p "$STAGE"/{config,tools/rg,tools/fd,tools/delta}
+unzip -q "$CACHE/$EMACS_ZIP" -d "$STAGE/emacs"
+unzip -q "$CACHE/MinGit-64.zip" -d "$STAGE/tools/git"
+unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
+unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
+unzip -q -j "$CACHE/delta-win.zip" "*/delta.exe" -d "$STAGE/tools/delta"
+unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
+# the language server: only the Windows part (it is started on the bundled JDK below, no
+# Python needed --- see init.el's my/bundled-jdtls-command).
+mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
+# a real, portable JDK so jdtls has a `java' to run without installing anything.  Skips
+# jmods\ and include\ --- confirmed by `du -sh' on the real unpacked JDK that jmods\ alone
+# is 81 MB of the ~332 MB unpacked total (it is only for `jlink' custom runtime images,
+# never needed just to RUN java/jdtls) and include\ is JNI headers for compiling native
+# code against the JDK, also unneeded here; bin\, conf\ and lib\ are what running java
+# actually touches, legal\ is kept for the license texts.  The zip's own top-level entry
+# is the release folder itself ("jdk-21.0.12.1+1/"), so extract to a scratch folder and
+# move its one subfolder into place, the same "strip the top-level dir" idea as the font/
+# MinGit extraction above, giving a flat tools\jdk\bin\java.exe like tools\jdtls.
+rm -rf "$CACHE/jdk-tmp"; mkdir -p "$CACHE/jdk-tmp"
+unzip -q "$CACHE/$JDK_ASSET" -d "$CACHE/jdk-tmp" "*/bin/*" "*/conf/*" "*/legal/*" "*/lib/*"
+mv "$CACHE"/jdk-tmp/*/ "$STAGE/tools/jdk"
+rm -rf "$CACHE/jdk-tmp"
+# Maven: same "strip the top-level release folder" unzip idiom as the JDK above (the zip's
+# own top-level entry is "apache-maven-$MAVEN_VERSION/"), giving a flat tools\maven\bin\mvn.cmd.
+rm -rf "$CACHE/maven-tmp"; mkdir -p "$CACHE/maven-tmp"
+unzip -q "$CACHE/$MAVEN_ASSET" -d "$CACHE/maven-tmp"
+mv "$CACHE"/maven-tmp/*/ "$STAGE/tools/maven"
+rm -rf "$CACHE/maven-tmp"
+cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
+# text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
+# layout as the git repository, so no code needs to know it is running from a bundle
+cp "$ROOT/README.md" "$STAGE/README.md"
+mkdir -p "$STAGE/docs" && cp "$ROOT"/docs/*.md "$STAGE/docs/"
+# All 20 of the `C-c F' fonts (my/fonts, config/init.el), real files not just names --- a font
+# is a plain OS resource, never auto-installed, so without this every one of them said "not
+# installed" on a fresh machine (the whole point of `C-c F' being honest about what it finds).
+# See tools/fonts/README.md for how each was sourced/verified (licenses, family-name gotchas).
+cp -r "$ROOT/tools/fonts" "$STAGE/tools/fonts"
+# `epdfinfo.exe' (pdf-tools' native helper) plus the 53 DLLs it actually needs --- same
+# "real files, not a build step" pattern as the fonts just above. See tools/pdf-tools/
+# README.md for exactly where each came from, the real DLL-closure verification, and the
+# real functional test (opened a PDF through it, got the right page count back).
+cp -r "$ROOT/tools/pdf-tools" "$STAGE/tools/pdf-tools"
+mkdir -p "$STAGE/config/tree-sitter"; cp "$CACHE"/gram/*.dll "$STAGE/config/tree-sitter/"
+cp -r "$ROOT/config/elpa" "$STAGE/config/elpa"
+rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"
+find "$STAGE/config/elpa" \( -name '*.elc' -o -name '*.eln' \) -delete   # built by another Emacs; redo below
+# A real, found-the-hard-way bug this guards against: `vterm'/`pdf-tools' compile a
+# native module/helper from C the first time they are actually USED (see init.el's own
+# comments on each) --- if that ever happened on THIS machine first (e.g. while testing
+# vterm directly, not through `./build.sh dist'), the result is a REAL, machine-specific
+# `build/' directory (a genuine CMake build tree, `CMakeCache.txt' and all, not source)
+# sitting in `config/elpa' alongside the package's own real source files, which the
+# plain `cp -r' above would otherwise ship straight into the Windows bundle --- baking
+# in THIS Linux machine's own absolute path, confirmed for real to make CMake refuse to
+# continue on a real Windows machine ("different than the directory ... where
+# CMakeCache.txt was created"). `CMakeCache.txt' is the one reliable signal to tell a
+# REAL build tree apart from a package's own, legitimate `build/' directory of plain
+# SOURCE files (`pdf-tools' ships exactly this: `build/server/epdfinfo.c', never a
+# problem, confirmed directly it is not a CMake project at all) --- only directories
+# that actually contain one are removed, nothing else.
+find "$STAGE/config/elpa" -name 'CMakeCache.txt' -exec dirname {} \; | while read -r d; do rm -rf "$d"; done
+find "$STAGE/config/elpa" -maxdepth 2 \( -name '*.so' -o -name '*.dll' -o -name '*.o' \) -delete
+
+echo "== compile the packages with the Windows Emacs itself"
+TMPWIN="$(cd /mnt/c && cmd.exe /c 'echo %TEMP%' 2>/dev/null | tr -d '\r')"
+WT="$(wslpath "$TMPWIN")/custom-emacs-build"
+rm -rf "$WT"; mkdir -p "$WT"
+cp -r "$STAGE/emacs" "$WT/emacs"; cp -r "$STAGE/config/elpa" "$WT/elpa"
+WELPA="$(wslpath -m "$WT/elpa")"
+# the packages need each other on the load path while compiling (Magit needs llama, etc.)
+# `(provide 'vterm-module)' --- a real, found-the-hard-way fix for a compile FAILURE
+# (not a warning; the whole run previously still reported success at 1 file short):
+# `evil-collection-vterm.el' does `(require 'vterm nil t)' at its own top level, which
+# finds the real `vterm.el' on `load-path' and loads it for real (NOERROR only
+# suppresses a file-not-found, not errors from code THAT file then runs) --- and
+# `vterm.el' itself, unconditionally, checks whether `vterm-module' is already
+# provided and if not either prompts via `y-or-n-p' (`vterm-always-compile-module'
+# nil, the default) or actually tries to compile the native module right then
+# (confirmed: setting that variable instead would NOT have been the right fix here,
+# since the module genuinely cannot compile on Windows anyway --- see `tests/ert/
+# vterm.el''s own comment on the general shape of this bug, a real case of it
+# recurring somewhere new). Either way, `y-or-n-p' itself fails immediately in this
+# real `--batch' process with no stdin ("Error reading from stdin"). Pretending the
+# feature is already provided skips vterm.el's whole check with neither problem ---
+# harmless for byte-compilation specifically, which only needs `vterm.el''s plain
+# Lisp definitions and `declare-function' forms to satisfy the compiler, never an
+# actually-working native module.
+"$WT/emacs/bin/emacs.exe" --batch --eval "(progn (provide 'vterm-module) (setq byte-compile-warnings nil) (dolist (d (directory-files \"$WELPA\" t \"\\\\\`[^.]\")) (when (file-directory-p d) (add-to-list 'load-path d))) (byte-recompile-directory \"$WELPA\" 0 t))" 2>&1 | tail -1
+n=$(find "$WT/elpa" -name '*.elc' | wc -l)
+[ "$n" -gt 40 ] || { echo "only $n files compiled; expected more" >&2; exit 1; }
+rm -rf "$STAGE/config/elpa"; cp -a "$WT/elpa" "$STAGE/config/elpa"; rm -rf "$WT"
+# a compiled file must be newer than its source, or Emacs prints "newer than byte-compiled file"
+find "$STAGE/config/elpa" -name '*.elc' -exec touch {} +
+
+cat > "$STAGE/README.txt" <<EOF
+Custom Emacs, portable, for Windows 10/11 (64-bit).
+
+  Run:  double-click  Emacs.exe
+
+Nothing to install, nothing to download. Everything is in this folder:
+  emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
+  config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
+  tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
+            Git (for Magit), the Java language server, a portable JDK to run it on, and Apache
+            Maven (C-c j) --- nothing to install for Java
+  docs\\    every guide, also readable inside Emacs itself: press C-c d
+Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
+Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
+
+Notes: this is Emacs 31.1, not the Emacs 32 development build the Linux version uses, and it has no
+native compilation (the official Windows build ships without it), so it runs byte-compiled code.
+Java: the language server (jdtls) and a real JDK (Temurin 21 LTS) are both included --- nothing
+to install, M-x eglot in a Java project just works (definitions, references, etc.). C-c J compiles
+and runs a single .java file; C-c j runs Maven (compile/test/package/install/clean) in a project
+with a pom.xml, also on the bundled JDK --- Maven itself is bundled too.
+Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK on other branches.
+Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
+Magit diffs are rendered with delta (bundled) via magit-delta-mode, on by default.
+C-c W browses real disk usage (biggest first) using the bundled dua.
+Press C-c d for every guide in one buffer (README.md and docs\\*.md), built the moment Emacs starts.
+GNU Emacs is licensed under the GPL v3+ (https://www.gnu.org/software/emacs/), MinGit under GPL v2
+(tools\\git\\LICENSE.txt), ripgrep under MIT/Unlicense, delta under MIT, and dua under MIT.
+Full guide: DISTRIBUTION.md.
+EOF
+cp "$ROOT/docs/DISTRIBUTION.md" "$STAGE/DISTRIBUTION.md" 2>/dev/null || true
+
+echo "== zip"
+rm -f "$DIST/$NAME.zip"
+# The zip's own top-level entries are the files themselves (Emacs.exe, emacs/, config/, ...), not
+# one more "$NAME/" wrapping them.  Zipping "$NAME" as a single entry (the previous approach) meant
+# that Windows' "Extract All" wizard, which proposes a destination folder named after the zip
+# minus ".zip" (i.e. also "$NAME"), extracted that one folder INTO a second folder of the same
+# name: "$NAME\$NAME\Emacs.exe" instead of "$NAME\Emacs.exe". Zipping the contents directly avoids
+# the doubling regardless of what the person names the folder they extract into.
+( cd "$STAGE" && 7z a -tzip -mx=6 -bso0 -bsp0 "$DIST/$NAME.zip" * )
+ls -lh "$DIST/$NAME.zip"; du -sh "$STAGE"
