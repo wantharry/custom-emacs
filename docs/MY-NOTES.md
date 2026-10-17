@@ -354,3 +354,19 @@ both weights) and 3 never-downloaded fonts (Hack, Monaspace Neon, Commit Mono) d
 left out, a real size/effort tradeoff, not an oversight --- documented plainly rather than
 silently incomplete. `C-c F` itself needed no code change: it was always correctly checking
 `find-font`, the files just were not there to find.
+
+## The other 8 fonts, bundled too (`bundle-all-fonts` branch) --- all 20 now real files
+
+User asked for the Windows zip to need zero installs/downloads of any kind, after first
+asking (and being talked out of, once the tradeoff was clear) a full bundled JDK + Rust
+toolchain for Java/Rust language-server support they don't actually use. With those off the
+table, the only real remaining gap was these last 8 fonts, so all 8 were fetched for real
+(not assumed) and bundled:
+
+| Font | Real gotcha |
+|---|---|
+| `JetBrainsMono Nerd Font Mono` | Nerd Fonts patches ONE source font into several DIFFERENT family names (`...Nerd Font`, `...Nerd Font Mono`, `...Nerd Font Propo`) in the same release tarball --- only the `Mono` one matches what `my/fonts` looks for; confirmed with `fc-scan`, not the filename |
+| `CommitMono` | the real font file registers its family as `CommitMono`, no space --- `my/fonts` said `"Commit Mono"` (with a space) and would NEVER have matched even with the real file installed. This is a genuine pre-existing bug in `config/init.el`, not just a missing file; fixed alongside the bundling |
+| `DejaVu Sans Mono`, `Hack` | NOT plain OFL, despite living next to a bunch of OFL fonts --- DejaVu is public domain + the Bitstream Vera license; Hack is MIT (Source Foundry's own part) plus the inherited Bitstream Vera/DejaVu licenses. Saved as `*-LICENSE.txt`/`.md`, not `*-OFL.txt`, so the filename does not overclaim |
+| Iosevka's real size | the old estimate ("~114 MB for Regular+Bold") was based on an asset name (`ttc-iosevka`) that does not exist in current Iosevka releases any more. The current per-weight `.ttc` files are each already ~57 MB on their own (a single `.ttc` bundles upright/oblique/extended variants of that one weight together) --- bundling just `Iosevka-Regular.ttc` (confirmed via `fc-scan` to register plain `Iosevka`) was enough, no Bold needed, matching every other font here being one Regular file |
+| Verification tooling | `fc-scan --format '%{family}\n' FILE` is what actually confirmed every family name below, not trust in the project's own README or filename --- `pip install fonttools` failed outright (PEP 668, externally-managed Python on this machine), so `fc-scan`/`fc-query` (already installed) did the job instead |

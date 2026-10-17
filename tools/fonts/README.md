@@ -1,31 +1,50 @@
 # Bundled fonts
 
-12 of the 20 fonts `C-c F`/`C-c }`/`C-c {` ([KEYBOARD.md](../../docs/KEYBOARD.md)) can switch
-to, bundled here as real font files so a fresh install of this bundle has them available ---
-not just "configured," actually installable. Each is redistributed under its own real,
-verified open license: see `licenses/`.
+All 20 fonts `C-c F`/`C-c }`/`C-c {` ([KEYBOARD.md](../../docs/KEYBOARD.md)) can switch to are
+bundled here as real font files, so a fresh install of this bundle has every one of them
+available --- not just "configured," actually installable, with zero network access needed.
+Each is redistributed under its own real, verified open license: see `licenses/`.
 
-**The other 8 entries in `my/fonts` are deliberately NOT here:**
+The first 12 were bundled first (see `git log` on this file for that batch); the remaining 8
+--- `JetBrainsMono Nerd Font Mono`, `Fira Code`, `Cascadia Code`, `DejaVu Sans Mono`, `Hack`,
+`Monaspace Neon`, `CommitMono`, `Iosevka` --- were added afterward, closing the gap the project's
+own `my/fonts` comment used to call out as "deliberately not here." Notes on each, since none of
+this was assumed:
 
-- `JetBrainsMono Nerd Font Mono`, `Fira Code`, `Cascadia Code`, `DejaVu Sans Mono` --- already
-  covered by this config's own startup fallback chain (`config/init.el`); Cascadia Code in
-  particular already ships with Windows 11 and recent Windows Terminal installs.
-- `Iosevka` --- a real, deliberate size tradeoff: its two weights (`Regular`/`Bold`) are
-  **~114 MB combined**, more than half the size of this entire bundle. Get it yourself from
-  <https://github.com/be5invis/Iosevka/releases> (the `ttc-iosevka` asset) if you want it ---
-  same install steps below, just with those two files instead.
-- `Hack`, `Monaspace Neon`, `Commit Mono` --- not yet bundled here at all (never fetched this
-  session). `C-c F` says "not installed" honestly for these until you install them yourself,
-  the same as for any font this project does not manage (see `my/fonts`' own comment in
-  `config/init.el`).
+- **`JetBrainsMono Nerd Font Mono.ttf`** --- from the Nerd Fonts project's own release
+  (`JetBrainsMono.tar.xz`, checksum verified against GitHub's published digest). The Nerd Fonts
+  patcher ships several family variants from the same source font (`...Nerd Font`, `...Nerd Font
+  Mono`, `...Nerd Font Propo`); only the `Mono` one has the family name this config actually
+  looks for (`JetBrainsMono Nerd Font Mono`), confirmed with `fc-scan`, not assumed from the
+  filename. Two licenses apply and are both here: Nerd Fonts' own patcher license
+  (`NerdFonts-LICENSE.txt`) and JetBrains Mono's own OFL (`JetBrainsMonoNerdFontMono-OFL.txt`).
+- **`FiraCode.ttf`**, **`CascadiaCode.ttf`**, **`MonaspaceNeon.otf`**, **`CommitMono.ttf`**,
+  **`Iosevka.ttc`** --- all OFL, fetched from each project's own GitHub release and confirmed with
+  `fc-scan`. One real, caught-not-assumed gotcha: CommitMono's own font file registers its family
+  as `CommitMono`, no space --- not `Commit Mono`. `config/init.el`'s `my/fonts` list used to say
+  "Commit Mono" (never would have matched even with this file installed) and has been corrected
+  to `"CommitMono"`.
+- **`DejaVuSansMono.ttf`** --- the DejaVu project's own Bitstream-Vera-derived license, not OFL
+  (see `DejaVuSansMono-LICENSE.txt`); it is public domain plus the Bitstream Vera license, not a
+  SIL-licensed font.
+- **`Hack.ttf`** --- also not plain OFL: Hack's own `LICENSE.md` is MIT (Source Foundry's own
+  additions) plus the inherited Bitstream Vera and DejaVu licenses (see `Hack-LICENSE.md`).
+- **Iosevka's real size, corrected**: the old version of this file estimated "~114 MB combined"
+  for a Regular+Bold pair, based on an asset name (`ttc-iosevka`) that no longer exists in
+  Iosevka's current releases. The current release's single-weight `.ttc` files are themselves
+  about 57 MB EACH (a `.ttc` bundles upright, oblique, extended and other variants of that one
+  weight together) --- so bundling just `Iosevka-Regular.ttc` (confirmed to register the plain
+  `Iosevka` family via `fc-scan`) costs about 57 MB, not 114 MB, and matches how every other font
+  here is one single Regular-weight file, not a Bold alongside it.
 
 ## Installing them (one-time, no admin rights needed)
 
-**Windows:** select every `.ttf` file in this folder (`Ctrl-A`), right-click, choose
-**Install** (or **Install for all users** if you are an administrator and want every account
-on the PC to have them). A few seconds, then restart Emacs --- `C-c F` now finds them.
+**Windows:** select every font file in this folder (`Ctrl-A`; includes `.ttf`, `.otf` and `.ttc`
+files), right-click, choose **Install** (or **Install for all users** if you are an administrator
+and want every account on the PC to have them). A few seconds, then restart Emacs --- `C-c F` now
+finds all 20.
 
-**Linux:** copy this folder's `.ttf` files into `~/.local/share/fonts/`, then run
-`fc-cache -f`. (This project's own dev machine has these at exactly that path.)
+**Linux:** copy this folder's font files into `~/.local/share/fonts/`, then run `fc-cache -f`.
+(This project's own dev machine has these at exactly that path.)
 
-**macOS:** double-click each `.ttf`, click **Install Font** in the preview that opens.
+**macOS:** double-click each font file, click **Install Font** in the preview that opens.

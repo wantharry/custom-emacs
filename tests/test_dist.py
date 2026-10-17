@@ -87,7 +87,11 @@ class WindowsBundle(unittest.TestCase):
                   "config/tree-sitter/libtree-sitter-typescript.dll", "config/tree-sitter/libtree-sitter-tsx.dll",
                   "config/tree-sitter/libtree-sitter-json.dll",
                   "tools/fonts/README.md", "tools/fonts/IBMPlexMono.ttf", "tools/fonts/licenses/IBMPlexMono-OFL.txt",
-                  "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt"]:
+                  "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt",
+                  "tools/fonts/Iosevka.ttc", "tools/fonts/licenses/Iosevka-OFL.md",
+                  "tools/fonts/JetBrainsMonoNerdFontMono.ttf", "tools/fonts/licenses/NerdFonts-LICENSE.txt",
+                  "tools/fonts/CommitMono.ttf", "tools/fonts/licenses/CommitMono-OFL.txt",
+                  "tools/fonts/DejaVuSansMono.ttf", "tools/fonts/licenses/DejaVuSansMono-LICENSE.txt"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
 
@@ -204,7 +208,11 @@ class LinuxBundle(unittest.TestCase):
                   "config/tree-sitter/libtree-sitter-javascript.so", "config/tree-sitter/libtree-sitter-json.so",
                   "share/glib-2.0/schemas/gschemas.compiled", "share/fonts/DejaVuSansMono.ttf",
                   "tools/fonts/README.md", "tools/fonts/IBMPlexMono.ttf", "tools/fonts/licenses/IBMPlexMono-OFL.txt",
-                  "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt"]:
+                  "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt",
+                  "tools/fonts/Iosevka.ttc", "tools/fonts/licenses/Iosevka-OFL.md",
+                  "tools/fonts/JetBrainsMonoNerdFontMono.ttf", "tools/fonts/licenses/NerdFonts-LICENSE.txt",
+                  "tools/fonts/CommitMono.ttf", "tools/fonts/licenses/CommitMono-OFL.txt",
+                  "tools/fonts/DejaVuSansMono.ttf", "tools/fonts/licenses/DejaVuSansMono-LICENSE.txt"]:
             with self.subTest(file=f):
                 self.assertIn(f, self.names)
 

@@ -314,7 +314,11 @@ own startup defaults, then immediately save that as the session restored next ti
     (?g . "Cascadia Code")                ; ligatures; Microsoft's, already in the startup list too
     (?h . "Hack")
     (?i . "Monaspace Neon")               ; GitHub's 2023 family; one of its 5 widths/styles
-    (?j . "Commit Mono")
+    ;; Real gotcha, caught by checking the font file's own name table (`fc-scan') rather
+    ;; than trusting the project's human-readable name: CommitMono's own release registers
+    ;; its family as "CommitMono", no space --- "Commit Mono" (with a space) would never be
+    ;; found even after installing the real font file.
+    (?j . "CommitMono")
     (?k . "DejaVu Sans Mono"))            ; this config's own ultimate fallback, see above; near-universal on Linux
   "Character key (e.g. ?1 or ?a) -> font family NAME STRING, for `my/load-font-by-number'.
 Unlike `my/themes', nothing here is guaranteed installed --- see this list's own WHY/HOW
