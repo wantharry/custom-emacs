@@ -17,11 +17,10 @@
   (declare (indent 0))
   `(test-with-temp-dir mg-dir
      (let ((default-directory mg-dir))
-       (dolist (c '(("init" "-q") ("config" "user.email" "t@t") ("config" "user.name" "t")))
-         (apply #'call-process "git" nil nil nil c))
+       (test-git mg-dir "init" "-q")
        (with-temp-file (concat mg-dir "a.txt") (insert "one\n"))
-       (call-process "git" nil nil nil "add" "a.txt")
-       (call-process "git" nil nil nil "commit" "-qm" "first")
+       (test-git mg-dir "add" "a.txt")
+       (test-git mg-dir "commit" "-qm" "first")
        (with-temp-file (concat mg-dir "a.txt") (insert "one\ntwo\n"))
        ,@body)))
 
