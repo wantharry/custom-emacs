@@ -10,6 +10,19 @@
 (defvar test-emacs (or (getenv "EMACS_BIN") (expand-file-name invocation-name invocation-directory))
   "The Emacs binary under test.")
 
+;; WHAT/WHY: when `tests/run-all.sh' itself runs as the `.githooks/pre-commit' hook, git
+;; has already set these in the environment for the REAL repo's commit in progress ---
+;; inherited here, they point every later `git' call (`test-git' below, Magit's own
+;; internal git calls, fastfind's own repo-finding, ...) at the real repo's `.git'
+;; instead of a fresh test fixture's own, breaking its isolation. Confirmed directly:
+;; `fastfind'/`magit'/`vc-diff'/`project-eglot'/`java-navigation'/`diff-hl' all failed
+;; ONLY when run via the hook, never standalone. Unset here, once, for the whole test
+;; process (not just inside `test-git''s own dynamic scope) since some fixtures (`mg-
+;; with-repo' in `tests/ert/magit.el') call `git' directly, and the functionality under
+;; test itself (Magit, VC, project.el) shells out to `git' well outside any such scope.
+(dolist (v '("GIT_DIR" "GIT_WORK_TREE" "GIT_INDEX_FILE" "GIT_PREFIX" "GIT_COMMON_DIR"))
+  (setenv v nil))
+
 (defmacro test-with-temp-dir (var &rest body)
   "Bind VAR to a fresh temporary directory (with trailing slash) around BODY."
   (declare (indent 1))
