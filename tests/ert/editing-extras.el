@@ -1,10 +1,10 @@
-;;; editing-extras.el --- bindings copied from tsoding/rexim's own dotfiles  -*- lexical-binding: t; -*-
+;;; editing-extras.el --- bindings copied from another Emacs user's own dotfiles  -*- lexical-binding: t; -*-
 ;; harness: config
-;; Covers the batch read directly from github.com/rexim/dotfiles's `.emacs' and
+;; Covers the batch read directly from that public dotfiles repo's `.emacs' and
 ;; `.emacs.rc/misc-rc.el' and ported here: `my/duplicate-line', `my/unfill-paragraph',
 ;; `find-file-at-point', the Emacs-Lisp-only `C-c C-j', and the two extra
 ;; `multiple-cursors'/`move-text' bindings. See docs/KEYBOARD.md and this file's own
-;; entry in init.el for which of his bindings were deliberately left out, and why.
+;; entry in init.el for which of those bindings were deliberately left out, and why.
 
 (ert-deftest editing-extras/duplicate-line-key-is-bound ()
   (should (eq (key-binding (kbd "C-,")) #'my/duplicate-line)))

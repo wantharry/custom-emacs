@@ -2603,21 +2603,21 @@ COMMITTED**, on top of everything above.
 
 ### Follow-up, same day: a 20-font switcher, dual line-number columns, and the %p position indicator
 
-Side conversation looked at another Emacs user's own public dotfiles (tsoding/
-rexim), real content fetched and read directly (`github.com/rexim/dotfiles`), not
-recalled --- written up as a standalone comparison document (not part of this repo;
-published separately as an artifact) rather than committed here. Two real,
-genuinely useful things came out of it: his `ctrl:nocaps` keyboard remap already
-matches this project's own `docs/TYPING.md` advice (independent confirmation, not
-coincidence), and `display-line-numbers-type 'relative` turned up directly in his
-`.emacs.custom.el` as something this config was still missing.
+Side conversation looked at another Emacs user's own public dotfiles, real content
+fetched and read directly from that public repo, not recalled --- written up as a
+standalone comparison document (not part of this repo; published separately as an
+artifact) rather than committed here. Two real, genuinely useful things came out of
+it: its `ctrl:nocaps` keyboard remap already matches this project's own
+`docs/TYPING.md` advice (independent confirmation, not coincidence), and
+`display-line-numbers-type 'relative` turned up directly in its `.emacs.custom.el`
+as something this config was still missing.
 
 Built a font switcher mirroring `my/themes'/`C-c c` exactly: `my/fonts' (20 real
 monospace fonts, `C-c F` + character to pick one, `C-c }`/`C-c {` to cycle), with a
 real, honest difference from themes --- nothing here is guaranteed installed (a font
 is a plain OS resource, not a package this project manages), so picking one not on
 the machine says so plainly. Installed and confirmed 14 of the 20 for real on this
-dev machine (`~/.local/share/fonts`, no sudo needed): Iosevka (tsoding's own pick,
+dev machine (`~/.local/share/fonts`, no sudo needed): Iosevka (that config's own pick,
 142 MB release, downloaded directly from its real GitHub release, confirmed via
 `fc-match`) plus 13 more fetched efficiently from Google Fonts' own CSS2 API
 (individual small TTFs, not their huge multi-weight bundles). A real bug found and
@@ -2627,7 +2627,7 @@ attribute unconditionally --- confirmed directly, the hard way, after a mocked t
 that should have passed kept failing.
 
 Added relative line numbers (`display-line-numbers-type 'relative`, the setting
-from the tsoding comparison) --- confirmed the CURRENT line already shows its real
+from that comparison) --- confirmed the CURRENT line already shows its real
 absolute number for free via the real, built-in `display-line-numbers-current-
 absolute` (on by default). User then asked for BOTH columns shown for every line at
 once, not just the current one --- no stock Emacs feature does that, so built one:
@@ -2657,16 +2657,16 @@ regressions. Windows zip rebuilt, verified 11/11, copied to the user's Downloads
 (212,714,455 bytes). Fonts are NOT bundled in the Windows zip (same reasoning as
 `dua` on Linux --- a plain OS resource, not something this project installs for
 you). Committed and pushed to `origin/main` (`fdc658e`), with the matching Windows
-zip handed over. (`tsoding-setup.html`, a separate comparison doc, stays untracked
-on purpose --- out of scope for this repo.)
+zip handed over. (The separate comparison doc stays untracked
+on purpose --- out of scope for this repo, and has since been removed entirely.)
 
-### Follow-up, same day: the rest of tsoding/rexim's own keybindings, read directly from his dotfiles and ported where they were real, free, and generic
+### Follow-up, same day: the rest of another Emacs user's own keybindings, read directly from their dotfiles and ported where they were real, free, and generic
 
-User request, after being shown a summarized table of his bindings in chat: "copy
-all the key bindings which are written." Read every file his `.emacs` actually
-loads, for real (`gh api repos/rexim/dotfiles/contents/...` against each one, not a
+User request, after being shown a summarized table of those bindings in chat: "copy
+all the key bindings which are written." Read every file that `.emacs` actually
+loads, for real (fetched from the public repo directly, not a
 guess from memory) --- `.emacs` itself, `.emacs.rc/{rc,misc-rc,org-mode-rc,
-autocommit-rc}.el`, `.vimrc`, `.nexrc` --- then checked every one of his keys
+autocommit-rc}.el`, `.vimrc`, `.nexrc` --- then checked every one of those keys
 against this config's own `key-binding` before deciding what to port, the same
 diligence as every other feature this session.
 
@@ -2878,10 +2878,10 @@ left uncommitted-to on its own local branch --- not pushed anywhere.)
   with a matching Windows zip rebuilt, verified 11/11, and handed over.
 - A 20-font switcher (`C-c F` to pick by number, `C-c }`/`C-c {` to cycle, skipping
   fonts not actually installed on this machine --- mirrors the existing `my/themes`/
-  `my/cycle-theme` machinery exactly), built after researching tsoding/rexim's own
+  `my/cycle-theme` machinery exactly), built after researching another Emacs user's
   public dotfiles at the user's request (a separate, intentionally-uncommitted
-  `tsoding-setup.html` comparison doc sits at the repo root, out of scope for this
-  config). 15 real font files installed to `~/.local/share/fonts/` this session
+  comparison doc sat at the repo root for a while, out of scope for this
+  config, since removed). 15 real font files installed to `~/.local/share/fonts/` this session
   (Iosevka from its official GitHub release, the rest from Google Fonts), each
   confirmed via `fc-match`. One real bug found and fixed: `set-face-attribute`'s
   `:font` argument silently no-ops when font resolution can't succeed right away,
@@ -2908,9 +2908,9 @@ left uncommitted-to on its own local branch --- not pushed anywhere.)
   native relative column both correct, mode-line showing "All"). Two new test files,
   `tests/ert/fonts.el` (9 tests) and `tests/ert/line-numbers.el` (10 tests). All of
   this is committed and pushed to `origin/main` (`fdc658e`), with a matching Windows
-  zip rebuilt, verified 11/11, and handed over (`tsoding-setup.html` stays untracked
-  on purpose --- out of scope for this repo).
-- The rest of tsoding/rexim's own keybindings, read directly from every file his
+  zip rebuilt, verified 11/11, and handed over (the comparison doc stayed untracked
+  on purpose --- out of scope for this repo, since removed entirely).
+- The rest of another Emacs user's own keybindings, read directly from every file their
   `.emacs` actually loads (not a guess from memory) and ported where they were
   real, free, and generic --- `C-,` (`my/duplicate-line`), `C-c M-q` (`my/unfill-
   paragraph`), `C-x C-g` (`find-file-at-point`, built in), `C-c C-j` inside Emacs
