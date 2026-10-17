@@ -221,7 +221,7 @@ by hand.")
     ("Move text"
      ("M-p" move-text-up "shift the current line (or selection) up, bodily")
      ("M-n" move-text-down "the same, downward"))
-    ("Editing extras (from another Emacs user's dotfiles)"
+    ("Editing extras"
      ("C-," my/duplicate-line "duplicate the current line")
      ("C-c M-q" my/unfill-paragraph "join a paragraph's lines into one, undoing M-q")
      ("C-x C-g" find-file-at-point "open the file name/path under the cursor directly"))
