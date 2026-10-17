@@ -36,8 +36,8 @@
 ;; line number, so a numeric-prefix jump (`M-5 C-n' moves down exactly 5 lines, `12dd'
 ;; in Evil deletes exactly 12 lines) is a glance at the number already on screen
 ;; instead of subtracting two absolute numbers by hand. User request, after the same
-;; setting turned up directly in another Emacs user's own config (tsoding/rexim) during
-;; a side conversation about speed --- a real, one-line win, not specific to his setup.
+;; setting turned up directly in another Emacs user's own config during a side
+;; conversation about speed --- a real, one-line win, not specific to that setup.
 (setq-default display-line-numbers-type 'relative)
 
 ;; A SECOND column, right next to the native one above, showing each line's real
@@ -279,7 +279,7 @@ own startup defaults, then immediately save that as the session restored next ti
 
 ;; WHAT/WHY: `C-c c' lets you pick any THEME by character; this is the same idea for
 ;; the FONT --- user request, after a side conversation about another Emacs user's own
-;; dotfiles (tsoding/rexim, whose `.emacs' picks Iosevka on Linux) turned into "can we
+;; dotfiles (whose `.emacs' picks Iosevka on Linux) turned into "can we
 ;; switch fonts this easily too." 20 real, well-known monospace/programming fonts,
 ;; mirroring `my/themes' exactly: `C-c F' + a character picks one by number, `C-c }'/
 ;; `C-c {' cycle forward/backward through this same list.
@@ -297,7 +297,7 @@ own startup defaults, then immediately save that as the session restored next ti
 ;; the same "not installed" message over and over.
 (defvar my/fonts
   '((?1 . "JetBrainsMono Nerd Font Mono") ; this config's own current default, see above
-    (?2 . "Iosevka")                      ; tsoding/rexim's own pick on Linux, see WHY above
+    (?2 . "Iosevka")                      ; another Emacs user's own pick on Linux, see WHY above
     (?3 . "IBM Plex Mono")
     (?4 . "Source Code Pro")
     (?5 . "Victor Mono")                  ; cursive italics
@@ -1229,24 +1229,24 @@ only `let'-binds `default-directory' rather than passing the path as an argument
 (global-set-key (kbd "C-=") (if (locate-library "expand-region") #'er/expand-region #'my/expand-region-missing))
 (global-set-key (kbd "C-M--") (if (locate-library "expand-region") #'er/contract-region #'my/expand-region-missing))
 
-;;; Editing extras found reading tsoding/rexim's own dotfiles -----------------
-;; WHAT/WHY: the rest of what came out of reading github.com/rexim/dotfiles --- his
+;;; Editing extras found reading another Emacs user's own dotfiles ------------
+;; WHAT/WHY: the rest of what came out of reading that public dotfiles repo --- its
 ;; `.emacs'/`.emacs.rc/misc-rc.el' key-for-key, where the key was actually free in
 ;; this config (`key-binding' checked for each one before adding it) and the command
 ;; was either already built into Emacs or small enough to keep inline, the same way
-;; `rc/duplicate-line'/`rc/unfill-paragraph' are inline in his own `misc-rc.el'
+;; `rc/duplicate-line'/`rc/unfill-paragraph' are inline in that `misc-rc.el'
 ;; rather than pulled from a package. Deliberately left OUT: `M-x' -> `smex' (this
-;; config already has the newer Vertico/Orderless for that), his `C-c m s'/`C-c m l'
+;; config already has the newer Vertico/Orderless for that), its `C-c m s'/`C-c m l'
 ;; (Magit) and `C-c c' (org-capture) (both keys already taken here --- dictation and
 ;; the theme picker --- and Magit status/log are already reachable some other way,
-;; `C-x g'/`C-c G'), his `C-c h ...' (Helm; `C-c h' is already `my/start' here, and
+;; `C-x g'/`C-c G'), its `C-c h ...' (Helm; `C-c h' is already `my/start' here, and
 ;; Vertico/Consult already cover the same ground Helm would), `C-x a'/`C-c i m'
 ;; (org-agenda and imenu; `C-x a' is stock Emacs's own `abbrev-map' here, and imenu
-;; is already bound at the stock `M-g i'), and his whole org-cliplink/agenda-folder
-;; workflow (`C-c C-x j', `C-x p w'/`i'/`t') --- tied to his own `~/Documents/Agenda'
+;; is already bound at the stock `M-g i'), and its whole org-cliplink/agenda-folder
+;; workflow (`C-c C-x j', `C-x p w'/`i'/`t') --- tied to its own personal agenda
 ;; setup, not a generic keybinding this config has any use for.
 
-;; `rc/duplicate-line' in his own `misc-rc.el', verbatim logic, renamed to match this
+;; `rc/duplicate-line' in that same `misc-rc.el', verbatim logic, renamed to match this
 ;; file's own `my/' prefix convention.
 (defun my/duplicate-line ()
   "Duplicate the current line, leaving the cursor at the same column on the copy."
@@ -1403,10 +1403,10 @@ only `let'-binds `default-directory' rather than passing the path as an argument
   (autoload 'mc/mark-previous-like-this "mc-mark-more" nil t)
   (autoload 'mc/mark-all-like-this "mc-mark-more" nil t)
   ;; WHAT/WHY: the other two multiple-cursors conventions found while reading
-  ;; tsoding/rexim's own dotfiles (github.com/rexim/dotfiles, `.emacs') --- `C-S-c
+  ;; another Emacs user's own dotfiles --- `C-S-c
   ;; C-S-c' (place a cursor on every selected line at once, instead of one match at a
   ;; time) and `C-"'/`C-:' (skip the current match without placing a cursor on it, in
-  ;; either direction) --- his own key choices, kept as-is rather than invented fresh,
+  ;; either direction) --- those own key choices, kept as-is rather than invented fresh,
   ;; same reasoning as `C->'/`C-<'/`C-c C-<' just above.
   (autoload 'mc/edit-lines "mc-edit-lines" nil t)
   (autoload 'mc/skip-to-next-like-this "mc-mark-more" nil t)
@@ -1422,8 +1422,8 @@ only `let'-binds `default-directory' rather than passing the path as an argument
 (global-set-key (kbd "C-:") (if (locate-library "multiple-cursors") #'mc/skip-to-previous-like-this #'my/multiple-cursors-missing))
 
 ;; `move-text': shift the current line (or selection) up/down bodily --- another real
-;; binding found reading tsoding/rexim's own `.emacs' (github.com/rexim/dotfiles),
-;; bound to the same `M-p'/`M-n' he uses, unbound in stock Emacs or anywhere else in
+;; binding found reading another Emacs user's own `.emacs',
+;; bound to the same `M-p'/`M-n' used there, unbound in stock Emacs or anywhere else in
 ;; this config (confirmed with `key-binding' before adding it). Same explicit-
 ;; activation/missing-fallback pattern as `multiple-cursors' just above.
 (when (locate-library "move-text")
