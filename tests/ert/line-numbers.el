@@ -100,6 +100,120 @@
     (my/absolute-line-numbers--maybe-enable)
     (should-not my/absolute-line-numbers-margin-mode)))
 
+;; WHAT/WHY: the real cause of a severe slowdown on a real 9.3-million-line/93MB test
+;; file turned out to be `display-line-numbers-mode' itself (native, C-implemented,
+;; but still real cost at that size, confirmed by direct timing, not guessed) ---
+;; `my/line-numbers-max-buffer-size' and `my/line-numbers--maybe-disable-for-huge-
+;; buffer' (config/init.el) are the fix: both line-number features turned off
+;; outright above that size. See `my/line-numbers-max-buffer-size''s own docstring
+;; for the full before/after numbers.
+
+(ert-deftest line-numbers/huge-buffer-threshold-is-5mb ()
+  (should (= my/line-numbers-max-buffer-size (* 5 1024 1024))))
+
+(ert-deftest line-numbers/disable-hook-is-really-on-find-file-hook ()
+  (should (memq 'my/line-numbers--maybe-disable-for-huge-buffer find-file-hook)))
+
+(ert-deftest line-numbers/buffer-under-the-threshold-keeps-line-numbers-on ()
+  (test-in-buffer #'text-mode "a short buffer, nowhere near 5MB"
+    (unwind-protect
+        (progn
+          (display-line-numbers-mode 1)
+          (my/absolute-line-numbers-margin-mode 1)
+          (my/line-numbers--maybe-disable-for-huge-buffer)
+          (should display-line-numbers-mode)
+          (should my/absolute-line-numbers-margin-mode))
+      (display-line-numbers-mode -1)
+      (my/absolute-line-numbers-margin-mode -1))))
+
+(ert-deftest line-numbers/buffer-over-the-threshold-turns-both-features-off ()
+  ;; `buffer-size' is a character count, so a buffer of exactly this many `?x'
+  ;; characters is deliberately 1 byte over the real threshold --- matching the
+  ;; `>' (not `>=') in `my/line-numbers--maybe-disable-for-huge-buffer' itself.
+  (test-in-buffer #'text-mode (make-string (1+ my/line-numbers-max-buffer-size) ?x)
+    (display-line-numbers-mode 1)
+    (my/absolute-line-numbers-margin-mode 1)
+    (my/line-numbers--maybe-disable-for-huge-buffer)
+    (should-not display-line-numbers-mode)
+    (should-not my/absolute-line-numbers-margin-mode)))
+
+(ert-deftest line-numbers/buffer-exactly-at-the-threshold-is-left-alone ()
+  (test-in-buffer #'text-mode (make-string my/line-numbers-max-buffer-size ?x)
+    (unwind-protect
+        (progn
+          (display-line-numbers-mode 1)
+          (my/line-numbers--maybe-disable-for-huge-buffer)
+          (should display-line-numbers-mode))
+      (display-line-numbers-mode -1))))
+
+(ert-deftest line-numbers/line-at-reuses-the-cache-instead-of-rescanning-when-the-tick-matches ()
+  ;; WHAT/WHY: the actual performance fix --- `my/absolute-line-numbers--line-at'
+  ;; must answer a later query via `count-lines' from the cached (POS . LINE), not
+  ;; by calling `line-number-at-pos' (an O(n)-from-`point-min' rescan) again, as
+  ;; long as `buffer-chars-modified-tick' still matches. A real fresh rescan would
+  ;; give the TRUE answer either way, so this does not just check the output is
+  ;; right --- the cache is deliberately seeded with a wrong line number for its
+  ;; real anchor position (999, not the real 51), with a current, still-valid
+  ;; tick. If the cache is genuinely being used, the result is wrong in exactly
+  ;; the way that wrong seed predicts (999 + the real distance); a fresh,
+  ;; cache-bypassing rescan would instead give the true line number (81) and fail
+  ;; this test, catching a regression to always-rescan even though it would look
+  ;; "more correct" in isolation.
+  (test-in-buffer #'text-mode (mapconcat #'number-to-string (number-sequence 1 200) "\n")
+    (goto-char (point-min))
+    (forward-line 50) ; real line 51
+    (setq my/absolute-line-numbers--cache
+          (list (point) 999 (buffer-chars-modified-tick)))
+    (goto-char (point-min))
+    (forward-line 80) ; real line 81, after the cached anchor --- exercises the `>=' branch
+    (should (= (my/absolute-line-numbers--line-at (point)) (+ 999 30)))))
+
+(ert-deftest line-numbers/line-at-falls-back-to-a-real-rescan-once-the-tick-is-stale ()
+  (test-in-buffer #'text-mode (mapconcat #'number-to-string (number-sequence 1 50) "\n")
+    (goto-char (point-min))
+    (forward-line 10)
+    ;; A deliberately stale tick (one less than the real current one) --- the cache
+    ;; must be rejected and a fresh `line-number-at-pos' used instead.
+    (setq my/absolute-line-numbers--cache
+          (list (point) 11 (1- (buffer-chars-modified-tick))))
+    (goto-char (point-min))
+    (forward-line 19)
+    (should (= (my/absolute-line-numbers--line-at (point)) 20))))
+
+(ert-deftest line-numbers/absolute-margin-draws-correct-numbers-after-a-pure-scroll ()
+  ;; The end-to-end check behind the two unit tests above: scrolling with no edit
+  ;; in between still redraws every visible line's number correctly, going through
+  ;; the same cache-using `--line-at' those two tests exercise directly.
+  (test-in-buffer #'text-mode (mapconcat #'number-to-string (number-sequence 1 200) "\n")
+    (unwind-protect
+        (progn
+          (my/absolute-line-numbers-margin-mode 1)
+          (goto-char (point-min))
+          (forward-line 50)
+          (set-window-start (selected-window) (point))
+          (my/absolute-line-numbers--update)
+          (let* ((ov (car (last my/absolute-line-numbers--overlays)))
+                 (display-spec (get-text-property 0 'display (overlay-get ov 'before-string))))
+            (should (string-match-p "51\\'" (string-trim (cadr display-spec))))))
+      (my/absolute-line-numbers-margin-mode -1))))
+
+(ert-deftest line-numbers/absolute-margin-cache-invalidates-on-a-real-edit ()
+  (test-in-buffer #'text-mode (mapconcat #'number-to-string (number-sequence 1 50) "\n")
+    (unwind-protect
+        (progn
+          (my/absolute-line-numbers-margin-mode 1)
+          (let ((tick-before (nth 2 my/absolute-line-numbers--cache)))
+            (goto-char (point-min))
+            (insert "a new first line\n")
+            (my/absolute-line-numbers--update)
+            (should-not (= (nth 2 my/absolute-line-numbers--cache) tick-before))
+            ;; And the redraw is still correct after the edit, not just re-tagged:
+            ;; what was line 1 is now line 2.
+            (goto-char (point-min))
+            (forward-line 1)
+            (should (= (my/absolute-line-numbers--line-at (point)) 2))))
+      (my/absolute-line-numbers-margin-mode -1))))
+
 (ert-deftest line-numbers/size-indication-mode-is-on ()
   ;; User request: the current point's position through the buffer as a percentage
   ;; (or Top/Bot/All at the edges) --- a real, built-in Emacs feature

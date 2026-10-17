@@ -37,6 +37,13 @@ the content was written."
         (push (match-string 1 line) keys)))
     (nreverse keys)))
 
+(ert-deftest mode-reference/off-by-default ()
+  ;; WHAT/WHY: user request --- the panel used to turn itself on unconditionally at
+  ;; startup; now nothing in config/init.el calls `(my/mode-reference-mode 1)' any
+  ;; more, only `C-c H' itself does. Confirmed directly against the real global
+  ;; state the config harness leaves it in, not just grepped for in the source.
+  (should-not my/mode-reference-mode))
+
 (ert-deftest mode-reference/every-dired-key-is-really-bound ()
   (let ((keys (mref--parse-keys my/mode-reference-dired-text)))
     (should (> (length keys) 20)) ; sanity: the parser itself found a reasonable amount
@@ -91,6 +98,79 @@ the content was written."
                        (with-current-buffer my/mode-reference-buffer-name (point-min))))))
       (my/mode-reference--hide)
       (kill-buffer my/mode-reference-buffer-name))))
+
+;; WHAT/WHY: user request --- after `C-c H' showing nothing at all outside Dired/
+;; Org/`ranger'/Treemacs turned out to be exactly backwards, the panel now shows
+;; SOMETHING in any other buffer too: a comprehensive Evil-keys reference if Evil
+;; is actually active in that specific buffer, or a comprehensive plain-Emacs
+;; reference otherwise. The tests below confirm the real selection logic in
+;; `my/mode-reference--relevant-mode', not just that the two text constants exist.
+
+(ert-deftest mode-reference/emacs-fallback-shown-in-a-plain-buffer-with-evil-off ()
+  (test-in-buffer #'text-mode "plain text, no Evil"
+    (should-not (bound-and-true-p evil-local-mode))
+    (should (eq (my/mode-reference--relevant-mode) 'emacs-fallback))
+    (should (eq (my/mode-reference--text-for (my/mode-reference--relevant-mode))
+                my/mode-reference-emacs-text))))
+
+(ert-deftest mode-reference/evil-fallback-shown-in-a-plain-buffer-with-evil-on ()
+  (skip-unless (locate-library "evil"))
+  (require 'evil)
+  (test-in-buffer #'text-mode "plain text, Evil on"
+    (unwind-protect
+        (progn
+          (evil-local-mode 1)
+          (should (eq (my/mode-reference--relevant-mode) 'evil-fallback))
+          (should (eq (my/mode-reference--text-for (my/mode-reference--relevant-mode))
+                      my/mode-reference-evil-text)))
+      (evil-local-mode -1))))
+
+(ert-deftest mode-reference/evil-fallback-checks-the-buffer-local-state-not-the-global-one ()
+  ;; WHY: `my/mode-reference--relevant-mode' deliberately reads the buffer-local
+  ;; `evil-local-mode', not the global `evil-mode' --- Evil can exclude a specific
+  ;; buffer even while globally on, so the global variable alone would give the
+  ;; wrong answer for THIS buffer. Proven for real, not simulated: turn Evil on
+  ;; globally, then explicitly exclude just this one buffer from it, and confirm
+  ;; the panel still picks the plain-Emacs text, not the Evil one.
+  (skip-unless (locate-library "evil"))
+  (require 'evil)
+  (test-in-buffer #'text-mode "plain text"
+    (unwind-protect
+        (progn
+          (evil-mode 1)
+          (evil-local-mode -1)
+          (should evil-mode)
+          (should-not evil-local-mode)
+          (should (eq (my/mode-reference--relevant-mode) 'emacs-fallback)))
+      (evil-local-mode -1)
+      (evil-mode -1))))
+
+(ert-deftest mode-reference/dired-still-wins-over-the-generic-fallback ()
+  ;; A real priority check: a buffer that IS one of the four specific modes must
+  ;; still get its own dedicated text, not the generic fallback, even with Evil on.
+  (skip-unless (locate-library "evil"))
+  (require 'evil)
+  (test-with-temp-dir dir
+    (let (buf)
+      (unwind-protect
+          (progn
+            (dired dir)
+            (setq buf (current-buffer))
+            (evil-local-mode 1)
+            (should (eq (my/mode-reference--relevant-mode) 'dired-mode)))
+        (when (buffer-live-p buf)
+          (with-current-buffer buf (when (bound-and-true-p evil-local-mode) (evil-local-mode -1)))
+          (kill-buffer buf))))))
+
+(ert-deftest mode-reference/minibuffer-shows-nothing ()
+  ;; `minibufferp' is a real Emacs primitive (not this project's own), so it is
+  ;; stubbed here rather than driven through a real, asynchronous minibuffer read
+  ;; --- this isolates the one thing that IS this project's own code: that
+  ;; `my/mode-reference--relevant-mode''s `cond' checks it FIRST, before any of
+  ;; the mode-derived branches, and returns nil rather than falling through to a
+  ;; fallback text.
+  (cl-letf (((symbol-function 'minibufferp) (lambda (&rest _) t)))
+    (should-not (my/mode-reference--relevant-mode))))
 
 (ert-deftest mode-reference/c-c-h-toggles-the-panel-on-and-off ()
   ;; WHAT/WHY: user request --- a key to turn this always-on-by-default panel off (and
