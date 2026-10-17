@@ -2791,6 +2791,203 @@ that particular run, not a real regression. `git status` on this repo will show
 clone itself is a separate git repository, outside this repo entirely, and was
 left uncommitted-to on its own local branch --- not pushed anywhere.)
 
+### Follow-up, same day: a printable Quick Reference, pasted in from another conversation
+
+User pasted a two-page "Emacs Quick Reference" cheat sheet (most-used commands by
+frequency on one page, home-row/finger-placement notes for chords on the other) they
+had put together in a different conversation, asking to document and push it. Added
+as `docs/QUICK-REFERENCE.md`, a condensed companion to `KEYBOARD.md`/`TYPING.md`
+rather than a duplicate --- every key row machine-checked against the real build by
+`tests/ert/keybindings.el`, the same mechanism `KEYBOARD.md` already uses. One real
+mismatch caught before it shipped: `DEL` was first written as
+`backward-delete-char-untabify`, what an ad-hoc manual batch-mode check had returned
+--- traced afterward to a real invocation flaw (`emacs --batch --init-directory=DIR`
+does NOT load `init.el` the way `-l early-init.el -l init.el` does; the check had
+silently run against unconfigured stock Emacs). The real, correct, already-documented
+binding is `delete-backward-char`, caught by `keys/global-keys-match-the-guide`
+before the wrong answer ever reached the doc. Committed and pushed to `origin/main`
+(`3a20925`).
+
+### Follow-up, same day: "it says not found" on a brand-new Windows PC --- 12 of the 20 fonts actually bundled
+
+User, trying the font switcher on a fresh Windows install: "When I am trying to
+switch fonts it says not found I thought you zipped in the folder." A real gap:
+`my/fonts`/`C-c F` had always correctly checked `find-font`, but the font FILES
+themselves had only ever been installed on this dev machine's own
+`~/.local/share/fonts/` (the font-switcher batch, several entries above) ---
+nothing had ever actually shipped them anywhere. Fixed by bundling 12 of the 20 as
+real files (`tools/fonts/`, ~1.6 MB, each with its real OFL/UFL license text fetched
+and verified from `github.com/google/fonts`) into both dist bundles, with a
+one-time "select all, right-click, Install" step (no admin rights needed),
+documented in `tools/fonts/README.md` and `DISTRIBUTION.md`. Iosevka (~114 MB for
+both weights, by the estimate at the time) and 3 never-downloaded fonts (Hack,
+Monaspace Neon, Commit Mono) left out as a deliberate, documented size/effort
+tradeoff, not an oversight. Committed and pushed to `origin/main` (`71982bd`), with
+a matching Windows zip rebuilt, verified, and copied to the user's Downloads.
+
+### Follow-up, same day: two uninvited "autosuggestion" popups turned off
+
+User: "Is it Elisp autosuggestion which keep showing how come they are enable by
+default they should be disabled and enabled if need how much space it?" Two
+separate mechanisms, neither ever explicitly asked for, were both popping something
+up after nearly every keystroke: `global-completion-preview-mode` (inline ghost
+text) and `corfu-auto` (a candidate dropdown). Both turned off; `global-corfu-mode`
+stays on, so `C-M-i` (`complete-symbol`/`completion-at-point` --- confirmed, by
+reading `emacs-src/lisp/bindings.el` directly, to be thin wrappers around the exact
+same `completion-at-point-functions` machinery either way) still shows Corfu's
+popup whenever actually wanted, on demand instead of firing on its own.
+`tests/ert/config.el`/`tests/ert/corfu.el` flipped to match. (Reading
+`emacs-src/lisp/bindings.el` directly also surfaced `emacs-src/AGENTS.md`'s own
+policy against LLM-generated contributions to that vendored subtree --- mentioned
+to the user as a brief aside; nothing in `emacs-src/` was touched.) Same-day, a
+separate mid-turn tangent, informational only: explained the real, already-existing
+difference between the buffer-local `text-scale-adjust` (`C-x C-+`) the user
+already knew and the whole-FRAME `global-text-scale-adjust` (`C-x C-M-+`), a real,
+confirmed-bound stock Emacs 30+ command on this build --- no code change, offered
+(not actioned) to make a larger default size persist across restarts. Committed and
+pushed to `origin/main` (`a78969e`), Windows zip rebuilt, verified, uploaded to the
+`v1.1` GitHub Release, and copied to the user's Downloads.
+
+### Follow-up, a new session: a real Magit warning from the user's own screenshot, then "everything in the zip" --- a new `bundle-all-fonts` branch with all 20 fonts and `pdf-tools`, zero install
+
+User sent a real screenshot from their Windows PC showing a Magit startup warning:
+`Could not run Git: (file-missing ... which: command not found ... cygpath ...)`.
+Diagnosed directly in `config/elpa`'s own `magit-git.el` source, not guessed:
+Magit's `magit-git-executable` defcustom, on `windows-nt`, tries to resolve the
+fast `git.exe` (skipping the slower `cmd/git.exe` wrapper) by shelling out to
+`which "$1" | cygpath -mf -` --- a trick that needs Git for Windows' own
+`which.exe`/`cygpath.exe`, neither of which MinGit (the minimal distribution this
+bundle actually carries, to keep the zip small) ships. Fixed by pointing
+`magit-git-executable` straight at the bundled MinGit's real
+`tools\git\mingw64\bin\git.exe` when `CUSTOM_EMACS_HOME` is set, skipping the
+broken probe entirely --- the same "set the variable directly instead of making the
+package go looking" trick, and also the exact faster binary Magit's own probe was
+trying to reach in the first place. `magit` ERT: 15/15.
+
+User then asked for a fully self-contained Windows zip: "i need everything in the
+zip, i dont want to install package install or gets downloaded from internet," and
+to do the work on a new branch. Before building anything, asked what "everything"
+actually meant in practice --- confirmed via a direct follow-up that the user does
+not write Java or Rust day to day, narrowing "everything" to the two real remaining
+gaps: the 8 still-unbundled fonts, and `pdf-tools`' `epdfinfo`. Created branch
+`bundle-all-fonts` off `main`.
+
+**All 20 fonts** (previously 12 of 20): two parallel forks did the remaining 8
+(JetBrainsMono Nerd Font Mono, Fira Code, Cascadia Code, DejaVu Sans Mono, Iosevka,
+Hack, Monaspace Neon, Commit Mono), each family name confirmed via `fc-scan`, not
+filename/trust. One more real pre-existing bug caught: `my/fonts` said `"Commit
+Mono"` (with a space) but the font's real registered family is `"CommitMono"` ---
+would never have matched even with the file present; fixed alongside the bundling.
+Iosevka's real current size corrected too: the old "~114 MB for Regular+Bold"
+estimate named an asset that no longer exists upstream; the current single-weight
+`.ttc` is ~57 MB alone, bundled as `Iosevka-Regular.ttc` (confirmed via `fc-scan` to
+register plain `"Iosevka"`), matching every other font here being one weight.
+`tools/fonts/` now ~62 MB, all 20 real files.
+
+**`pdf-tools`/`epdfinfo`**: a second, read-only audit fork searched the rest of the
+config for any other real "needs install/download" gap, explicitly excluding
+anything LLM-dependent (the user's own stated exception) and Java/Rust --- found
+`pdf-tools` as the one other real, closeable gap. (`vterm` on Windows is a genuine
+platform limitation, confirmed by reading `vterm-module.c` itself: unconditionally
+POSIX termios/pty, no Windows code path at all --- not fixable by bundling
+anything, flagged only so it is not mistaken for an open gap. Local
+whisper-based dictation was flagged as borderline "AI-adjacent" and left alone, the
+parent's judgment call.) No prebuilt Windows `epdfinfo.exe` exists from the
+upstream `pdf-tools` project itself, but MSYS2 publishes one as a UCRT64 package
+(`mingw-w64-ucrt-x86_64-emacs-pdf-tools-server`) --- fetched directly, checksum-
+verified against MSYS2's own `ucrt64.db` sync database. Its real DLL closure was
+then resolved the correct way: reading the binary's own PE import table
+(`objdump -p`) recursively, NOT MSYS2's declared package-level `Dependencies:`
+field, which would have pulled in Python, Tcl/Tk and a full GnuTLS/SQLite stack
+this binary never actually imports --- the real closure is 53 DLLs from 40 further
+packages, ~39 MB total, confirmed complete by re-running the same import-table walk
+against the files actually collected. Each of the 41 packages' own real license
+collected (mostly from each MSYS2 package's own bundled `share/licenses/`, with
+`libidn2` and `poppler` fetched directly from their own upstream repos since MSYS2
+does not embed one for those two); several are GPL (`poppler` itself, `jbigkit`,
+`emacs-pdf-tools-server`, `libgcc`/`libstdc++`/`gettext-runtime`) --- none of these
+binaries are modified from what MSYS2 publishes, and MSYS2's own build recipes plus
+each project's upstream source are both already public, same reasoning already
+applied to bundling MinGit. Verified for real, not just files-present: ran the
+actual Windows Emacs from WSL against this exact binary, opened a real hand-built
+PDF, `pdf-info-check-epdfinfo`/`pdf-info-open`/`pdf-info-number-of-pages` all
+worked, correct page count came back.
+
+A real build-system limitation hit (and worked around, not fixed) along the way:
+`tools/dist-windows.sh`'s Windows-package-compile step uses a fixed, shared Windows
+`%TEMP%` path, so two concurrent `./build.sh dist windows` runs (this branch's
+rebuild racing the parallel `java`-branch fork's own build, below) collided and
+corrupted each other's output twice before the collision was understood; simply
+retried once the other build finished rather than fixing the shared-path design.
+
+Committed (`448dc7f`) and pushed to `origin/bundle-all-fonts` (deliberately NOT
+`main` --- a separate, as-yet-unmerged branch). Windows zip: 249 MB, 11/11 dist
+tests. Linux zip also rebuilt, 9/9. Full suite: 741/742 ERT (the one failure the
+same known `dictate` flake), 96/96 Python. Copied to the user's Downloads.
+
+### Follow-up, same session, in parallel: a new `java` branch --- a real bundled JDK, then a real "run the program" command the user asked for twice
+
+Separately from `bundle-all-fonts` above, the user explicitly asked for a new
+branch named `java` with a bundled JDK --- despite having just confirmed Java/Rust
+are not part of their day-to-day use; treated as a deliberate request for an
+opt-in variant, kept off `main`/`bundle-all-fonts` on purpose. Done in an isolated
+git worktree (`.claude/worktrees/agent-...`) so its own `./build.sh dist windows`
+run would not collide with `bundle-all-fonts`'s (it still did, once, the shared
+`%TEMP%` issue noted above --- simply retried after).
+
+Bundled **Eclipse Temurin 21.0.12.1+1 LTS** for Windows x64 (`tools\jdk`,
+checksum-verified against Adoptium's own published checksum), trimmed `jmods/` and
+`include/` (neither needed just to run `java`/`jdtls`), preferred over
+`executable-find "java"` in `my/bundled-jdtls-command` when running from the
+portable bundle, the launcher (`tools/windows-launcher.c`) also puts
+`tools\jdk\bin` on `PATH`. Verified for real: `java.exe -version`, run directly
+from WSL against the staged bundle, printed a genuine Temurin banner; the real
+`jdtls` jar started and idled correctly waiting for an LSP handshake on this
+bundled JDK (one real gotcha found only in that WSL verification environment: an
+OSGi file-locking error that happens only over a `\\wsl.localhost\...` UNC path,
+irrelevant on a real Windows drive --- confirmed by rerunning with
+`-Dosgi.locking=none`). One real regression caught before pushing:
+`tests/test_dist.py`'s own launcher-source check still expected the literal string
+`"JAVA_HOME"` in `tools/windows-launcher.c`, stale now that a JDK is actually
+bundled --- fixed. Committed (`b429d4e`) and pushed to `origin/java`. Windows zip:
+335 MB, 11/11 dist tests.
+
+User then asked "how to run a java program?" --- answered honestly that this
+config had no dedicated command for it, only stock `M-x compile`/`M-x shell`; user
+confirmed that was wanted ("yes thats what i wanted"). Added **`C-c J`**
+(`my/run-java-file`): compiles and runs the current buffer's `.java` file via
+`compile`, reusing the bundled-JDK lookup `my/bundled-jdk-java` already does for
+`jdtls`, falling back to `PATH` everywhere else. Verified for real: ran it from the
+actual staged Windows Emacs against a real `Hello.java`, got the correct stdout
+back. Added to the Custom menu (`config/shortcuts.el`, a new "Java" topic) and
+`docs/EGLOT.md`. Committed (`7100aa6`) and pushed. **A real gap found right after
+shipping it**: plain `compile` has no way to SEND input to the process, so a
+program reading `Scanner`/`System.in` would just hang with nothing to type into ---
+fixed by passing `compile`'s own second (COMINT) argument, switching the buffer to
+Comint mode (same conveniences, but now you can type directly into it and it goes
+to the process's stdin, like a real terminal). Verified for real: typed `"Claude"`
+into the comint buffer while a `Scanner`-based test program was running on the
+bundled JDK, got back the correct `"Hello, Claude!"`. Committed (`85899e1`) and
+pushed. Both rebuilds verified 11/11 and copied to the user's Downloads after each.
+
+### Follow-up, same session: the tsoding/rexim name removed from comments and docs, every binding kept
+
+User: "can you remove the name of tscoding/rexim form the code base and emacs,"
+then, after being asked to confirm scope: "i want to keep the commands but remove
+the tscoding/rexim names." Reworded every comment/doc reference (`config/init.el`,
+`config/shortcuts.el`, `docs/MY-NOTES.md`, `docs/CONVERSATION-LOG.md` --- including
+the entries above, written at the time with the name still in them,
+`tests/ert/editing-extras.el`) to "another Emacs user's own dotfiles" instead of
+naming the person or linking their GitHub repo --- no function, keybinding, or test
+touched, only prose. Deleted `tsoding-setup.html` (a separate, always-untracked
+comparison doc at the repo root). Committed and pushed on `bundle-all-fonts`
+(`90bb855`); the identical commit cherry-picked cleanly onto `java` (`8c7977e`, no
+conflicts) since both branches had independently inherited the same text from
+`main`'s own history. Both branches' Windows zips rebuilt, verified 11/11,
+confirmed clean of the name by grepping the actual built zip (not just the source),
+and copied to the user's Downloads (the `java` branch's, since that is what the
+user was actively testing).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -2976,3 +3173,30 @@ left uncommitted-to on its own local branch --- not pushed anywhere.)
   further: verified 11/11, copied to the user's Downloads (212,732,123 bytes, delta +4,835).
   Both Cloudmacs and the separate Ymacs demo (`../ymacs`, outside this repo) are left
   running for the user at `http://127.0.0.1:8080` and `http://127.0.0.1:1234`.
+- **Two separate, unmerged branches now exist, both fully committed and pushed, neither
+  merged into `main`:** `bundle-all-fonts` (`90bb855` --- all 20 `C-c F` fonts, `pdf-tools`
+  with zero install, the Magit `git-executable` fix) and `java` (`8c7977e`, branched from
+  `main`, not from `bundle-all-fonts` --- a bundled JDK, `C-c J` to compile-and-run a
+  `.java` file with real Comint-mode stdin support). Full account in the five
+  `### Follow-up` entries just above. **Neither is on `main`** --- if asked to merge, check
+  with the user first about which (or both) and in what order, since `java` was explicitly
+  framed as an opt-in variant the user does not need day to day.
+- **The user's Downloads folder (`/mnt/c/Users/openclaw/Downloads/custom-emacs-
+  windows-x64.zip`) currently holds the `java` branch's build**, not `bundle-all-fonts`'s
+  --- rebuilt and re-copied there after every commit on `java` (most recently `8c7977e`,
+  334,625,842 bytes). If asked to "zip it to Downloads" again without saying which branch,
+  ask, since this has been overwritten back and forth between the two branches several
+  times already this session.
+- An open, never-resolved thread: the user reported a cursor-visibility issue ("I can see
+  the line highlighted but no cursor"), echoing a previously-fixed, screenshot-verified bug
+  (`my/ensure-visible-cursor`, a fixed `DarkOrange` cursor face on every theme change ---
+  confirmed present in the exact build they were using). User then said "i think i can see
+  now, only the recent doesnt have for some reason" and was asked what "the recent" meant
+  (a specific buffer? the newest build specifically?) --- never answered; still genuinely
+  unresolved, not fixed, not root-caused. If it comes up again, start by asking exactly what
+  "the recent" referred to rather than assuming.
+- `/remote-control` was rejected for this session with no visible reason (neither to the
+  user nor surfaced to the model) --- outside anything this session can diagnose or fix (a
+  client/device-pairing decision, not exposed as a tool here); feedback was drafted
+  (queued locally, not sent) via the feedback tool. If asked again, the honest answer is
+  still "no visibility into why," not a guess.
