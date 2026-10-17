@@ -190,6 +190,14 @@ tools\jdk\bin\java.exe -Declipse.application=org.eclipse.jdt.ls.core.id1 ... -ja
 Measured on the Windows bundle: **27 of 27** `java-navigation` tests with the real server (definitions, implementations,
 references, type definition, find by name), and the screenshots above.
 
+### Running a Java program, not just navigating it
+
+Eglot only gives you navigation and diagnostics --- it never compiles or runs anything itself. `C-c J`
+(`my/run-java-file`, `config/init.el`) compiles and runs the current buffer's `.java` file with `javac`/`java`
+(output in the usual `*compilation*` buffer: clickable error locations, `g` to re-run), using the same bundled-JDK
+lookup `my/bundled-jdk-java` already does for `jdtls` above --- so it works with zero install on this bundle too,
+falling back to whatever `javac`/`java` are on `PATH` everywhere else.
+
 ## 7. Troubleshooting
 
 | Symptom | Cause and fix |

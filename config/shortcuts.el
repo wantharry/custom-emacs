@@ -321,6 +321,13 @@ by hand.")
      ("C-c F" my/load-font-by-number "pick a font by character (press C-c F, then 1-9/a-k; 20 real fonts, see my/fonts)")
      ("C-c }" my/cycle-font "switch to the next INSTALLED font, whatever slot it's in")
      ("C-c {" my/cycle-font-previous "switch to the previous installed font, whatever slot it's in"))
+    ;; WHAT/WHY: user request, after asking how to run a Java program and being told
+    ;; the honest answer --- no dedicated command existed for it, only stock `M-x
+    ;; compile'/`M-x shell'. This `java' branch already bundles a real JDK, so a
+    ;; one-key compile-and-run was worth adding; see `my/run-java-file''s own comment
+    ;; in init.el for how it finds `javac'/`java' (bundled first, then `PATH').
+    ("Java"
+     ("C-c J" my/run-java-file "compile and run the current buffer's .java file"))
     ("Frame"
      ("C-c u" my/toggle-frame-chrome "hide/show the menu bar, tool bar and window decorations together")
      ("C-c U" my/reset-to-defaults "put frame and theme back to this config's own defaults, and save it"))

@@ -822,6 +822,38 @@ so it costs nothing until then.  If either is not installed, offer to install it
   (with-eval-after-load 'eglot
     (add-to-list 'eglot-server-programs '((java-mode java-ts-mode) . my/bundled-jdtls-command))))
 
+;; `C-c J': compile and run the current buffer's .java file --- user request, after
+;; asking how to run a Java program and being told the honest answer: this config had
+;; no dedicated command for it, only the stock `M-x compile'/`M-x shell' route. Uses
+;; `compile' (not `shell-command') deliberately: clickable error locations from `javac',
+;; `g' to re-run, the usual `*compilation*' buffer conventions, for free.
+;; HOW: reuses the same bundled-JDK resolution `my/bundled-jdk-java' already does for
+;; jdtls above (so this works with zero install on this `java' branch's Windows bundle),
+;; falling back to whatever `javac'/`java' are already on `PATH' everywhere else (a
+;; from-source Linux build, or a machine with its own JDK) --- the same "bundled path
+;; first, PATH second" pattern used for jdtls itself, just generalized to any program
+;; name in that same `tools\jdk\bin\' directory instead of only `java.exe'.
+(defun my/bundled-jdk-bin (name)
+  "Full path to NAME (e.g. \"javac.exe\") in the bundled JDK's bin, or nil."
+  (when-let* ((java (my/bundled-jdk-java)))
+    (expand-file-name name (file-name-directory java))))
+
+(defun my/run-java-file ()
+  "Compile and run the current buffer's .java file, output in `*compilation*'."
+  (interactive)
+  (unless (and buffer-file-name (string-suffix-p ".java" buffer-file-name))
+    (user-error "Not a .java file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (class (file-name-sans-extension file))
+         (javac (or (my/bundled-jdk-bin "javac.exe") (executable-find "javac") "javac"))
+         (java (or (my/bundled-jdk-bin "java.exe") (executable-find "java") "java"))
+         (default-directory (file-name-directory buffer-file-name))
+         (compile-command (format "%s %s && %s %s"
+                                   (shell-quote-argument javac) (shell-quote-argument file)
+                                   (shell-quote-argument java) (shell-quote-argument class))))
+    (compile compile-command)))
+(global-set-key (kbd "C-c J") #'my/run-java-file)
+
 ;; Language servers (rust-analyzer, jdtls) are started by hand with M-x eglot and
 ;; never automatically: a JVM-based server takes seconds and a large amount of
 ;; memory, and most editing does not need it.  Skip logging every protocol message.
