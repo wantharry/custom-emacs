@@ -839,7 +839,16 @@ so it costs nothing until then.  If either is not installed, offer to install it
     (expand-file-name name (file-name-directory java))))
 
 (defun my/run-java-file ()
-  "Compile and run the current buffer's .java file, output in `*compilation*'."
+  "Compile and run the current buffer's .java file, output in `*compilation*'.
+
+Runs in Comint mode (`compile's own second, COMINT argument) rather than
+plain `compilation-mode' --- a real, found-after-shipping gap: plain
+`compile' has no way to SEND input to the process, so a program that reads
+`Scanner'/`System.in' would just hang forever with no way to type anything
+into the buffer. Comint mode keeps the usual compile-buffer conveniences
+(clickable error locations from `javac', `g' to re-run) while also letting
+you type directly into the buffer, which goes to the running program's
+stdin, exactly like a real terminal would."
   (interactive)
   (unless (and buffer-file-name (string-suffix-p ".java" buffer-file-name))
     (user-error "Not a .java file"))
@@ -851,7 +860,7 @@ so it costs nothing until then.  If either is not installed, offer to install it
          (compile-command (format "%s %s && %s %s"
                                    (shell-quote-argument javac) (shell-quote-argument file)
                                    (shell-quote-argument java) (shell-quote-argument class))))
-    (compile compile-command)))
+    (compile compile-command t)))
 (global-set-key (kbd "C-c J") #'my/run-java-file)
 
 ;; Language servers (rust-analyzer, jdtls) are started by hand with M-x eglot and
