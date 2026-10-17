@@ -185,6 +185,30 @@ absolute-line-numbers-margin-width'."
 (when (display-graphic-p)
   (my/global-absolute-line-numbers-margin-mode 1))
 
+(defvar my/line-numbers-max-buffer-size (* 5 1024 1024)
+  "Buffers bigger than this (characters) get no line numbers at all.
+
+WHY: `display-line-numbers-mode' itself --- a native, C-implemented, normally
+very fast feature, not anything this config added --- measured directly as
+the real cause of a severe slowdown on a real 9.3-million-line/93MB test
+file: plain `next-line' alone (called directly, with no redisplay, no hook,
+no feature this config adds anywhere in its call path) took ~0.3s per call
+near the end of that file, dropping to instant the moment `display-line-
+numbers-mode' was turned off --- true for both `relative' and plain absolute
+numbering, and unaffected by `word-wrap' or this config's own extra margin
+column, which were checked and ruled out first. A real, surprising Emacs
+limitation on a file this size, confirmed by elimination, not guessed.")
+
+(defun my/line-numbers--maybe-disable-for-huge-buffer ()
+  "Turn line numbers off in the current buffer if it is huge --- see
+`my/line-numbers-max-buffer-size'. `buffer-size' is an O(1) character count
+(no scanning), so this check itself costs nothing even on a huge file."
+  (when (> (buffer-size) my/line-numbers-max-buffer-size)
+    (display-line-numbers-mode -1)
+    (when (bound-and-true-p my/absolute-line-numbers-margin-mode)
+      (my/absolute-line-numbers-margin-mode -1))))
+(add-hook 'find-file-hook #'my/line-numbers--maybe-disable-for-huge-buffer)
+
 (global-hl-line-mode 1)
 (setq-default indicate-empty-lines t
               fill-column 80)
