@@ -73,34 +73,77 @@ the absolute line number column.")
   "This buffer's own overlays currently holding `my/absolute-line-numbers-margin-mode''s
 margin text, so the next redraw can remove exactly these and no others.")
 
+(defvar-local my/absolute-line-numbers--last-range nil
+  "(WINDOW-START . WINDOW-END) from the last redraw. `post-command-hook' fires on
+EVERY command, including ones that never scroll (typing, moving the cursor
+within an already-fully-visible screen) --- when the visible range is exactly
+what it was last time, the same lines are already on screen with the same
+numbers already drawn, so there is nothing to do. Skipping those is the single
+biggest win for normal editing: most keystrokes do not scroll at all.")
+
+(defvar-local my/absolute-line-numbers--cache nil
+  "(POS LINE-NUMBER MODIFIED-TICK) for the last window-start this mode actually
+drew, so the next nearby redraw gets its line number by counting the (small)
+distance from here with `count-lines' instead of calling `line-number-at-pos',
+which always rescans from `point-min' --- measured directly on a real 9.3-
+million-line file (`words-20x.txt', built to test exactly this): about 45ms
+for that one call near the end of the file, however small the actual scroll
+was. MODIFIED-TICK (`buffer-chars-modified-tick') invalidates the cache
+whenever the buffer's text changes in a way that could shift line numbers
+between the cached position and now, falling back to one correct-but-slower
+`line-number-at-pos' call rather than ever trusting a stale count.")
+
 (defun my/absolute-line-numbers--clear ()
   (mapc #'delete-overlay my/absolute-line-numbers--overlays)
   (setq my/absolute-line-numbers--overlays nil))
 
+(defun my/absolute-line-numbers--line-at (pos)
+  "Line number of POS, via the cache above when it is still valid, else a
+plain `line-number-at-pos' (still correct, just the slower path)."
+  (let ((tick (buffer-chars-modified-tick)))
+    (if (and my/absolute-line-numbers--cache
+             (= tick (nth 2 my/absolute-line-numbers--cache)))
+        (let ((cpos (nth 0 my/absolute-line-numbers--cache))
+              (cline (nth 1 my/absolute-line-numbers--cache)))
+          (if (>= pos cpos)
+              (+ cline (count-lines cpos pos))
+            (- cline (count-lines pos cpos))))
+      (line-number-at-pos pos))))
+
 (defun my/absolute-line-numbers--update (&rest _)
   "Redraw the margin for exactly the lines currently visible in the selected
 window --- called from `post-command-hook'/`window-scroll-functions', so this
-runs often; staying confined to the visible range (never the whole buffer) is
-what keeps that cheap. A hard iteration cap (no real window is ever remotely
-this tall) guarantees this returns even if `window-end'/`forward-line' ever
+runs often; staying confined to the visible range (never the whole buffer),
+skipping the redraw entirely when that range has not changed, and reusing the
+cache above for the one line number each redraw still needs are what keep
+this cheap even on a huge file (see both this file's own WHAT/WHY/HOW comment
+above and each helper's own docstring for the three real, measured costs this
+guards against). A hard iteration cap (no real window is ever remotely this
+tall) guarantees this returns even if `window-end'/`forward-line' ever
 disagree at a buffer's own edge case (an unterminated last line, an empty
 buffer, ...) --- found the hard way, a real hang during testing with no cap."
   (when (and my/absolute-line-numbers-margin-mode (window-live-p (selected-window)))
-    (my/absolute-line-numbers--clear)
-    (let ((width my/absolute-line-numbers-margin-width)
-          (end (window-end nil t))
-          (budget 500))
-      (save-excursion
-        (goto-char (window-start))
-        (while (and (< (point) end) (> budget 0) (not (eobp)))
-          (setq budget (1- budget))
-          (let* ((n (line-number-at-pos))
-                 (text (propertize (format (format "%%%dd" (1- width)) n) 'face 'line-number))
-                 (ov (make-overlay (point) (point))))
-            (overlay-put ov 'before-string
-                         (propertize " " 'display (list (list 'margin 'left-margin) text)))
-            (push ov my/absolute-line-numbers--overlays))
-          (forward-line 1))))))
+    (let* ((start (window-start))
+           (end (window-end nil t))
+           (range (cons start end)))
+      (unless (equal my/absolute-line-numbers--last-range range)
+        (setq my/absolute-line-numbers--last-range range)
+        (my/absolute-line-numbers--clear)
+        (let ((width my/absolute-line-numbers-margin-width)
+              (budget 500)
+              (n (my/absolute-line-numbers--line-at start)))
+          (setq my/absolute-line-numbers--cache (list start n (buffer-chars-modified-tick)))
+          (save-excursion
+            (goto-char start)
+            (while (and (< (point) end) (> budget 0) (not (eobp)))
+              (setq budget (1- budget))
+              (let* ((text (propertize (format (format "%%%dd" (1- width)) n) 'face 'line-number))
+                     (ov (make-overlay (point) (point))))
+                (overlay-put ov 'before-string
+                             (propertize " " 'display (list (list 'margin 'left-margin) text)))
+                (push ov my/absolute-line-numbers--overlays))
+              (forward-line 1)
+              (setq n (1+ n)))))))))
 
 ;;;###autoload
 (define-minor-mode my/absolute-line-numbers-margin-mode
@@ -127,7 +170,11 @@ absolute-line-numbers-margin-width'."
     (set-window-margins (selected-window) nil (cdr (window-margins (selected-window))))
     (remove-hook 'post-command-hook #'my/absolute-line-numbers--update t)
     (remove-hook 'window-scroll-functions #'my/absolute-line-numbers--update t)
-    (my/absolute-line-numbers--clear)))
+    (my/absolute-line-numbers--clear)
+    ;; So re-enabling later always redraws fresh, rather than risking a stale
+    ;; `--last-range'/`--cache' from before coincidentally matching and skipping it.
+    (setq my/absolute-line-numbers--last-range nil
+          my/absolute-line-numbers--cache nil)))
 
 (defun my/absolute-line-numbers--maybe-enable ()
   (when (and (display-graphic-p) (not (minibufferp)))
