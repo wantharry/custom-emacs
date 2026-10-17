@@ -100,6 +100,7 @@ research-emacs/
 | [docs/DISK-USAGE.md](docs/DISK-USAGE.md) | A WizTree-style disk usage browser (`C-c W`) powered by `dua`, plus recursive sizes right inside Dired (`dired-du-mode`, the same key) |
 | [docs/CLOUDMACS.md](docs/CLOUDMACS.md) | `tools/cloudmacs.sh`: this actual Emacs, reachable in a browser tab (local machine only), via Gotty and `emacsclient --tty` --- no Docker, why not the real `karlicoss/cloudmacs` image, and the security tradeoffs of ever exposing it beyond your own machine |
 | [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
+| [docs/SECURITY.md](docs/SECURITY.md) | Encrypting files/folders (`C-c x`), a real password manager (`C-c p`, built on `pass`), and clipboard history (`C-c C-y`/`M-y`): what is set up, real bugs found building them, why they are built on plain `gpg` instead of Emacs's own higher-level EasyPG |
 | [docs/NAVIGATING-CODE.md](docs/NAVIGATING-CODE.md) | Find a file in a project, search across it, and in Java click a method to see its definition, implementations and references (measured on a real server) |
 | [docs/TYPING.md](docs/TYPING.md) | How to press Control and Meta comfortably and fast, type fewer chords, and a four-week plan with a practice file. Every key is machine-checked |
 | [docs/QUICK-REFERENCE.md](docs/QUICK-REFERENCE.md) | Two printable pages: the most-used commands by frequency, and finger placement for Emacs chords. Every key is machine-checked |

@@ -2452,6 +2452,374 @@ already picked at startup (this runs later, so it wins)."
     (my/ensure-visible-cursor)))
 (add-hook 'desktop-after-read-hook #'my/session--restore-theme)
 
+;;; Encryption (GnuPG via EasyPG, already built into Emacs) -------------------
+
+;; WHAT: `C-c x e'/`C-c x d' encrypt/decrypt a single file; `C-c x E'/`C-c x D' do
+;; the same for a whole FOLDER (tarred first, since GPG only ever encrypts one
+;; file at a time, so the folder's structure and filenames are hidden too, not
+;; just each file's content).
+;; WHY: user request --- a way to encrypt files/folders, both password-based
+;; (symmetric, no key setup) and GPG-key-based (asymmetric). `my/gpg--select-
+;; recipient' below offers exactly this choice interactively: pick a key, or
+;; leave the selection empty (or skip the prompt outright if no key exists
+;; yet at all) for a plain password.
+;; HOW: no new package --- GnuPG itself (`gpg', already on this machine) does
+;; the real work; Emacs's own `epg' library (ships with Emacs, just needs
+;; `require') is used only for the one thing it is genuinely good at and
+;; cannot hang on --- listing already-known keys for the recipient prompt ---
+;; not for the encrypt/decrypt operation itself; see `my/gpg--run''s own
+;; comment for why. Opening a real `*.gpg'/`*.asc' file also already
+;; transparently decrypts it with zero setup, completely independently of
+;; anything below (`epa-hook.el', loaded unconditionally at startup ---
+;; confirmed directly: a bare `-Q' Emacs's own `find-file-hook' already has
+;; `epa-file-find-file-hook' on it); the four commands below are the missing
+;; piece, turning an ALREADY-plain file/folder into an encrypted one and
+;; back, which nothing built-in does on its own. `tar' is bundled with
+;; Windows 10+ itself (confirmed: `tar.exe', really bsdtar, has shipped in
+;; the box since build 17063/2018), so nothing extra is needed there; `gpg'
+;; itself is bundled for Windows below (`tools/gnupg'), the same zero-install
+;; pattern as pdf-tools/fonts/the JDK.
+(require 'epg)
+(when (eq system-type 'windows-nt)
+  (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+              (exe (expand-file-name "tools/gnupg/gpg.exe" home))
+              ((file-exists-p exe)))
+    (setq epg-gpg-program exe)))
+
+;; A real, found-by-testing gotcha, not assumed: EasyPG's own high-level
+;; `epa-encrypt-file'/`epa-decrypt-file' go through `epg''s asynchronous,
+;; status-fd-based protocol with gpg-agent, which --- confirmed directly, a
+;; real hang, not guessed --- can block the ENTIRE Emacs process indefinitely
+;; on a machine/session with no gpg-agent already running and no usable
+;; Pinentry reachable, even with `epg-pinentry-mode' set to `'loopback'' (which
+;; helps but, on its own, was not enough here either). Plain `gpg --batch
+;; --passphrase-file ...' via `call-process' --- proven directly, the same
+;; passphrase/key material, same cipher --- always returns immediately,
+;; succeeding or failing cleanly, never hanging: `--batch' is GnuPG's own
+;; guarantee that it will never try to prompt interactively at all. The
+;; commands below are built on that primitive instead of `epg''s own protocol.
+(defun my/gpg--with-passphrase (passphrase fn)
+  "Call FN (a function of one arg, a --passphrase-file path) with PASSPHRASE
+written to a short-lived, 0600 temp file, deleted again no matter what ---
+never passed as a bare --passphrase command-line argument, which every other
+local user could see for real via `ps'."
+  (let ((tmp (make-temp-file "my-gpg-pass-")))
+    (set-file-modes tmp #o600)
+    (with-temp-file tmp (insert passphrase))
+    (unwind-protect (funcall fn tmp)
+      (delete-file tmp))))
+
+(defun my/gpg--run (args)
+  "Run gpg with ARGS (a list), batch/non-interactive, signaling a real error
+on any nonzero exit so a caller's `unwind-protect'/`condition-case' sees it."
+  (with-temp-buffer
+    (let ((status (apply #'call-process "gpg" nil t nil "--batch" "--yes"
+                          "--pinentry-mode" "loopback" args)))
+      (unless (zerop status)
+        (error "gpg failed (exit %s): %s" status (string-trim (buffer-string)))))))
+
+(defun my/gpg--select-recipient ()
+  "Prompt for a GPG public key to encrypt to, or blank for a plain password.
+Returns the chosen key's ID string, or nil for symmetric (password)
+encryption --- skips the prompt entirely (just nil) if no key exists at all,
+since there is nothing real to choose from yet."
+  (let* ((keys (epg-list-keys (epg-make-context) nil))
+         (names (mapcar (lambda (k) (epg-user-id-string (car (epg-key-user-id-list k)))) keys)))
+    (when keys
+      (let ((choice (completing-read
+                      "Recipient (RET on blank for a plain password instead): "
+                      names nil t)))
+        (unless (string-empty-p choice)
+          (epg-sub-key-id (car (epg-key-sub-key-list (nth (cl-position choice names :test #'equal) keys)))))))))
+
+(defun my/encrypt-file (file)
+  "Encrypt FILE (`C-c x e'). Pick a GPG recipient if any key exists, or leave
+it blank (or no key exists yet at all) for a plain password instead ---
+symmetric, no key needed."
+  (interactive "fFile to encrypt: ")
+  (setq file (expand-file-name file))
+  (let ((recipient (my/gpg--select-recipient))
+        (out (concat file ".gpg")))
+    (if recipient
+        (my/gpg--run (list "--recipient" recipient "--encrypt" "-o" out file))
+      (my/gpg--with-passphrase
+       (read-passwd "Password for this file: " t)
+       (lambda (pf)
+         (my/gpg--run (list "--passphrase-file" pf "--symmetric" "--cipher-algo" "AES256"
+                             "-o" out file)))))
+    (message "Encrypted %s -> %s" file out)))
+
+(defun my/decrypt-file (file)
+  "Decrypt FILE (`C-c x d'), real GPG/password file --- works whether it was
+password- or GPG-key-encrypted. Tries without a password first (succeeds
+silently for a key-encrypted file whose secret key itself has no passphrase);
+only asks for one if that first, cheap attempt genuinely needed it."
+  (interactive "fFile to decrypt: ")
+  (setq file (expand-file-name file))
+  (let ((out (if (string-suffix-p ".gpg" file)
+                 (string-remove-suffix ".gpg" file)
+               (concat file ".decrypted"))))
+    (condition-case nil
+        (my/gpg--run (list "--decrypt" "-o" out file))
+      (error
+       (my/gpg--with-passphrase
+        (read-passwd "Password for this file: ")
+        (lambda (pf)
+          (my/gpg--run (list "--passphrase-file" pf "--decrypt" "-o" out file))))))
+    (message "Decrypted %s -> %s" file out)))
+
+(defun my/encrypt-folder (dir)
+  "Encrypt an entire folder (`C-c x E') into one DIR.tar.gpg file next to it."
+  (interactive "DFolder to encrypt: ")
+  (setq dir (directory-file-name (expand-file-name dir)))
+  (let* ((tar (concat dir ".tar"))
+         (default-directory (file-name-directory dir)))
+    (if (zerop (call-process "tar" nil nil nil "-cf" tar "-C" default-directory
+                              (file-name-nondirectory dir)))
+        (progn (my/encrypt-file tar)
+               (delete-file tar)
+               (message "Encrypted %s -> %s" dir (concat (file-name-nondirectory tar) ".gpg")))
+      (error "tar failed; nothing was encrypted"))))
+
+(defun my/decrypt-folder (archive)
+  "Decrypt a `C-c x E'-made ARCHIVE (`C-c x D') back into a real folder."
+  (interactive "fEncrypted folder archive (.tar.gpg) to decrypt: ")
+  (setq archive (expand-file-name archive))
+  (let* ((tar (string-remove-suffix ".gpg" archive))
+         (default-directory (file-name-directory tar)))
+    (my/decrypt-file archive)
+    (if (zerop (call-process "tar" nil nil nil "-xf" tar "-C" default-directory))
+        (message "Decrypted into %s" default-directory)
+      (error "tar extraction failed; the decrypted archive is still at %s" tar))
+    (delete-file tar)))
+
+(global-set-key (kbd "C-c x e") #'my/encrypt-file)
+(global-set-key (kbd "C-c x d") #'my/decrypt-file)
+(global-set-key (kbd "C-c x E") #'my/encrypt-folder)
+(global-set-key (kbd "C-c x D") #'my/decrypt-folder)
+
+;;; Password manager (`pass'/password-store, bundled; built on the same GnuPG) -
+
+;; Forward declaration (real `defvar' with its own docstring further below,
+;; in the clipboard-history section) --- `my/pass-find'/`my/pass-generate'
+;; below set this to keep their own secret out of that separate history.
+(defvar my/clip-history--skip)
+
+;; WHAT: `C-c p f' finds and copies a stored password (Emacs's own clipboard,
+;; auto-cleared after 45s); `C-c p i' stores/overwrites one, typed into a real
+;; hidden `read-passwd' prompt, never a visible shell command; `C-c p g'
+;; generates a new random one; `C-c p I' sets the password store up the first
+;; time, generating a real GPG key for it if one does not exist yet.
+;; WHY: user request --- the standard Unix password manager (`pass'), bundled
+;; here (`tools/pass/pass', the real official script --- see tools/pass/
+;; README.md for exactly where it came from) since it is not installed and
+;; there is no `sudo' to `apt-get' it, the same pattern as every other
+;; bundled tool in this config. Built on the exact same GnuPG `C-c x' above
+;; already uses --- a `pass' entry is just a GPG-encrypted file, one per
+;; secret, under `~/.password-store'.
+;; HOW: copies via Emacs's OWN clipboard (`kill-new'/`gui-select-text'), not
+;; `pass show -c'/`generate -c' --- those need `xclip'/`wl-copy', confirmed
+;; NEITHER is installed here, so `-c' would silently do nothing; Emacs's own
+;; clipboard integration (`select-enable-clipboard', on by default) has no
+;; such external binary dependency at all. `pass insert's secret is fed
+;; straight from a `read-passwd' prompt to `pass insert -m' via
+;; `call-process-region' (the secret's own bytes as that one process's
+;; stdin) --- it never becomes a command-line argument (visible via `ps' to
+;; any other local user) or a separate temp file on disk.
+(defvar my/pass-store-dir (expand-file-name "~/.password-store/")
+  "Where `pass' keeps its entries --- its own default, unless
+PASSWORD_STORE_DIR is set in the real environment, in which case `pass'
+itself (not this config) already honors that instead.")
+
+(defun my/pass-program ()
+  "The bundled `tools/pass/pass' if present (same resolution --- a sibling of
+`config/' --- `my/git-repos-script' already uses for `tools/find-repos.sh'),
+else a real `pass' already on PATH, else nil."
+  (let ((bundled (expand-file-name "../tools/pass/pass" user-emacs-directory)))
+    (cond ((file-executable-p bundled) bundled)
+          ((executable-find "pass") "pass"))))
+
+(defun my/pass-missing ()
+  (interactive)
+  (message "pass is not available (no bundled tools/pass/pass and no system `pass' on PATH)"))
+
+(defun my/pass--env ()
+  "`process-environment', with PASSWORD_STORE_DIR forced to match
+`my/pass-store-dir' --- a real bug, found the hard way while testing: without
+this, `pass' itself always uses its OWN default (`~/.password-store'),
+completely ignoring `my/pass-store-dir', which is what every other function
+here checks --- the two silently pointed at two different directories."
+  (cons (concat "PASSWORD_STORE_DIR=" (directory-file-name my/pass-store-dir))
+        process-environment))
+
+(defun my/pass--run (args)
+  "Run `pass' with ARGS (a list) in the current buffer, signaling a real
+error with its own real output on any nonzero exit."
+  (let* ((process-environment (my/pass--env))
+         (status (apply #'call-process (my/pass-program) nil t nil args)))
+    (unless (zerop status)
+      (error "pass %s failed: %s" (car args) (string-trim (buffer-string))))))
+
+(defun my/pass-list ()
+  "Every real entry name in the store, derived straight from the real
+`*.gpg' files on disk --- simpler and just as real as parsing `pass ls''s
+own tree-drawing output."
+  (if (file-directory-p my/pass-store-dir)
+      (mapcar (lambda (f) (string-remove-suffix ".gpg" (file-relative-name f my/pass-store-dir)))
+              (directory-files-recursively my/pass-store-dir "\\.gpg\\'"))
+    nil))
+
+(defun my/pass-ensure-key ()
+  "Return a real GPG key ID to encrypt the store to --- the first already-
+existing secret key, or (after asking) a freshly generated one. Returns nil
+if the user declines and none exists, so callers can bail out cleanly."
+  (require 'epg)
+  (let ((keys (epg-list-keys (epg-make-context) nil 'public)))
+    (if keys
+        (epg-sub-key-id (car (epg-key-sub-key-list (car keys))))
+      (when (y-or-n-p "No GPG key exists yet; generate one now for the password store? ")
+        (let ((name (read-string "Your name: " user-full-name))
+              (email (read-string "Your email: ")))
+          (call-process "gpg" nil nil nil "--batch" "--yes" "--passphrase" ""
+                        "--quick-generate-key" (format "%s <%s>" name email)
+                        "default" "default" "never")
+          (epg-sub-key-id (car (epg-key-sub-key-list
+                                 (car (epg-list-keys (epg-make-context) nil 'public))))))))))
+
+(defun my/pass-init ()
+  "Set up the password store the first time (`C-c p I') --- a no-op, reported
+plainly, if it is already set up."
+  (interactive)
+  (if (file-exists-p (expand-file-name ".gpg-id" my/pass-store-dir))
+      (message "Password store already initialized at %s" my/pass-store-dir)
+    (if-let* ((key (my/pass-ensure-key)))
+        (with-temp-buffer
+          (my/pass--run (list "init" key))
+          (message "Password store initialized (key %s)" key))
+      (user-error "No GPG key to initialize the store with"))))
+
+(defun my/pass-find (name)
+  "Copy entry NAME's password (`C-c p f') to the clipboard, cleared again
+after 45 seconds --- the same window `pass show -c' itself uses."
+  (interactive (list (completing-read "Entry: " (my/pass-list) nil t)))
+  (let ((secret (with-temp-buffer
+                  (my/pass--run (list "show" name))
+                  (goto-char (point-min))
+                  (buffer-substring (point) (line-end-position)))))
+    (setq my/clip-history--skip secret)
+    (kill-new secret)
+    (run-at-time 45 nil (lambda ()
+                          (when (equal (car kill-ring) secret)
+                            (kill-new ""))))
+    (message "Copied %s to the clipboard (clearing in 45s)" name)))
+
+(defun my/pass-insert (name)
+  "Store/overwrite entry NAME (`C-c p i') --- its secret comes straight from
+a hidden `read-passwd' prompt (typed twice, like `C-c x e''s own password
+path), fed to `pass insert -m' as that one process's stdin."
+  (interactive "sEntry name: ")
+  (unless (file-exists-p (expand-file-name ".gpg-id" my/pass-store-dir))
+    (my/pass-init))
+  (when (and (member name (my/pass-list))
+             (not (y-or-n-p (format "%s already exists.  Overwrite it? " name))))
+    (user-error "Cancelled"))
+  (let ((secret (read-passwd (format "Secret for %s: " name) t))
+        (process-environment (my/pass--env))
+        (output (generate-new-buffer " *pass-insert-output*")))
+    (unwind-protect
+        (with-temp-buffer
+          (insert secret)
+          (let ((status (call-process-region (point-min) (point-max) (my/pass-program)
+                                              nil output nil "insert" "-m" "-f" name)))
+            (unless (zerop status)
+              (error "pass insert failed: %s" (with-current-buffer output (buffer-string))))))
+      (kill-buffer output)))
+  (message "Stored %s" name))
+
+(defun my/pass-generate (name length)
+  "Generate a new random password for NAME (`C-c p g'), LENGTH characters,
+and copy it to the clipboard the same way `C-c p f' does. Asks before
+overwriting an existing entry, same as `C-c p i'."
+  (interactive (list (read-string "Entry: ") (read-number "Length: " 25)))
+  (unless (file-exists-p (expand-file-name ".gpg-id" my/pass-store-dir))
+    (my/pass-init))
+  (let ((exists (member name (my/pass-list))))
+    (when (and exists (not (y-or-n-p (format "%s already exists.  Overwrite it? " name))))
+      (user-error "Cancelled"))
+    (with-temp-buffer
+      (my/pass--run (append (list "generate") (and exists '("--force"))
+                             (list name (number-to-string length))))))
+  (my/pass-find name))
+
+(global-set-key (kbd "C-c p f") (if (my/pass-program) #'my/pass-find #'my/pass-missing))
+(global-set-key (kbd "C-c p i") (if (my/pass-program) #'my/pass-insert #'my/pass-missing))
+(global-set-key (kbd "C-c p g") (if (my/pass-program) #'my/pass-generate #'my/pass-missing))
+(global-set-key (kbd "C-c p I") (if (my/pass-program) #'my/pass-init #'my/pass-missing))
+
+;;; Clipboard history (two SEPARATE histories, by explicit request) -----------
+
+;; WHAT: `C-c C-y' browses a real, SEPARATE system-wide clipboard history ---
+;; every copy from ANY app, polled every 2s, not just what you kill inside
+;; Emacs --- and re-copies the one you pick. `M-y' is rebound to Consult's
+;; own nicer kill-ring browser (`consult-yank-pop') for Emacs's OWN, separate
+;; kill history. Two distinct histories, two distinct commands, by explicit
+;; request --- not merged into one.
+;; WHY: user request --- "clipboard history", both senses: better use of what
+;; Emacs already has (the kill-ring, `M-y') and genuine system-wide history
+;; across every app, which the kill-ring alone never sees.
+;; HOW: `(gui-get-selection 'CLIPBOARD)' is a real, cross-platform primitive
+;; (X11/Wayland/Windows/macOS alike) --- no external clipboard-manager daemon
+;; needed. GUI-only (same `(display-graphic-p)' gate `my/global-absolute-
+;; line-numbers-margin-mode' above already uses), so this never starts a
+;; timer in a real `--batch' test run either. A real security carve-out: a
+;; secret `C-c p f'/`C-c p g' copies is tracked via `my/clip-history--skip'
+;; and never joins this history at all, let alone the persisted copy of it.
+(defvar my/clip-history nil "Real system-wide clipboard copies, newest first.")
+(defvar my/clip-history-max 200 "How many entries `my/clip-history' keeps.")
+(defvar my/clip-history--last nil
+  "The last clipboard value already seen, so the same unchanged content is
+never logged twice in a row.")
+(defvar my/clip-history--skip nil
+  "Set by `C-c p f'/`C-c p g' to the exact secret they just copied, so the
+poller below never logs it. Cleared the moment it is actually seen once ---
+the real clipboard has moved on by then either way.")
+
+(defun my/clip-history--poll ()
+  "Checked on EVERY tick, not just once at config-load time --- a real,
+found-the-hard-way gotcha: a `--fg-daemon' has no frame at all yet when its
+own config loads, so a one-time `(when (display-graphic-p) ...)' guard
+around starting the timer would mean this never runs for any daemon, even
+after a real GUI frame is attached to it later via `emacsclient -c'."
+  (when-let* (((display-graphic-p))
+              (text (ignore-errors (gui-get-selection 'CLIPBOARD)))
+              ((> (length text) 0))
+              ((not (equal text my/clip-history--last))))
+    (setq my/clip-history--last text)
+    (if (equal text my/clip-history--skip)
+        (setq my/clip-history--skip nil)
+      (unless (equal text (car my/clip-history))
+        (push text my/clip-history)
+        (when (> (length my/clip-history) my/clip-history-max)
+          (setq my/clip-history (butlast my/clip-history)))))))
+
+;; Always started --- never gated on `(display-graphic-p)' here, for the
+;; exact reason `my/clip-history--poll''s own docstring explains; the check
+;; that actually matters happens on every tick, inside the function itself.
+(unless noninteractive
+  (run-with-timer 2 2 #'my/clip-history--poll))
+
+(defun my/clip-history-browse ()
+  "Pick a real past system-clipboard entry (`C-c C-y') and copy it again."
+  (interactive)
+  (if (null my/clip-history)
+      (message "Clipboard history is empty")
+    (kill-new (completing-read "Clipboard history: " my/clip-history nil t))
+    (message "Copied back to the clipboard")))
+
+(add-to-list 'desktop-globals-to-save 'my/clip-history)
+(global-set-key (kbd "C-c C-y") #'my/clip-history-browse)
+(global-set-key (kbd "M-y") (if (locate-library "consult") #'consult-yank-pop #'yank-pop))
+
 ;;; Keys ---------------------------------------------------------------------
 
 (global-set-key (kbd "C-c f f") #'my/ff-find-file)

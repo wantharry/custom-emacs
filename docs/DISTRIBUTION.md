@@ -184,7 +184,9 @@ LSP=1 tools/test-windows.sh /mnt/c/path/to/unzipped/custom-emacs-windows-x64 jav
 `./build.sh dist windows` does, in order: downloads the official Emacs 31.1 zip and checks it against GNU's
 published checksum; downloads MinGit, ripgrep and fd (fd's checksum is fetched from GitHub's own release API); **cross-compiles** the Java and Rust grammars and
 `Emacs.exe` for Windows with the `zig` compiler (installed into `dist/.venv`, not on your system);
-copies in the four config files and `elpa/`; **recompiles the packages with the bundled Windows Emacs**
+copies in the 14 config files and `elpa/`, plus `tools/fonts/` (all 20 `C-c F` fonts) and `tools/pdf-tools/`
+(`epdfinfo.exe` + every DLL it needs) --- both already real files tracked in this repo, not downloaded at
+build time; **recompiles the packages with the bundled Windows Emacs**
 (compiled files must come from the Emacs that runs them); and zips. The downloads are cached in
 `dist/cache/`.
 
@@ -304,9 +306,11 @@ itself); finds every shared library `emacs`/`emacsclient`/`etags`/`ebrowse` (and
 image-loader plug-ins) actually need with `ldd`, and copies each one in, skipping glibc and GPU drivers on
 purpose (those must come from the machine that runs it); makes every copied library and binary relocatable
 with `patchelf` (`RPATH` set to `$ORIGIN`-relative paths, so nothing needs `LD_LIBRARY_PATH` set, which would
-otherwise leak into every child process Emacs starts); copies in the ten config files, `elpa/`, the
-tree-sitter grammars, `docs/*.md` and `README.md` (so `C-c d` works), and `tools/find-repos.sh` (so `C-c f p`
-works); downloads and caches ripgrep; writes the launcher script and a desktop-entry generator; and archives
+otherwise leak into every child process Emacs starts); copies in the 14 config files, `elpa/`, the
+tree-sitter grammars, `docs/*.md` and `README.md` (so `C-c d` works), `tools/find-repos.sh` (so `C-c f p`
+works), and `tools/fonts/` (all 20 `C-c F` fonts, already real files tracked in this repo --- `tools/pdf-
+tools/` is Windows-only, since the Linux build relies on the system's own `libpoppler-glib`); downloads and
+caches ripgrep; writes the launcher script and a desktop-entry generator; and archives
 both a `.tar.gz` (wrapped in one top-level folder, the normal convention for that format) and a `.zip`
 (deliberately *not* wrapped in one, to avoid the same double-nesting bug already fixed for the Windows zip
 --- a file manager's "Extract Here" proposes its own destination folder).
@@ -314,3 +318,33 @@ both a `.tar.gz` (wrapped in one top-level folder, the normal convention for tha
 To update the bundle after you change anything in `config/`: run it again, then run
 `python3 -m unittest tests.test_dist`, which checks both bundles (whichever have been built) and fails if
 either one's settings differ from the repository.
+
+## macOS --- **not supported yet**
+
+There is no `./build.sh dist macos` and no `tools/dist-macos.sh` --- honestly, not a missing
+command, a real gap. Full plan and reasoning: [CROSS-PLATFORM.md](CROSS-PLATFORM.md).
+
+### Why this one is different from Windows
+
+Windows got a real, working bundle without ever cross-compiling Emacs itself: this project uses
+the **official, pre-built Emacs 31.1 for Windows** (downloaded and checksum-verified) and only
+cross-compiles the small glue code (the launcher, the tree-sitter grammars) with `zig`, which
+*can* target Windows from Linux.
+
+macOS has no equivalent shortcut. GNU does not publish an official pre-built macOS binary the
+way it does for Windows, and Emacs's own build (Cocoa libraries, code signing, the `.app` bundle
+structure) genuinely needs Apple's own SDK and toolchain --- confirmed in Emacs's own source
+(`emacs-src/nextstep/INSTALL`), not assumed. `zig cc` cannot target macOS the way it targets
+Windows here. The only realistic ways to build this for macOS: on a real Mac, or a macOS CI
+runner (e.g. GitHub Actions' `macos-latest`) --- neither available in this environment.
+
+### What building it would actually look like, if you have a real Mac
+
+Not yet written or tried --- `tools/dist-macos.sh` does not exist --- but the shape, from
+[CROSS-PLATFORM.md](CROSS-PLATFORM.md)'s own plan: `brew install` the same dependencies
+`build.sh` already lists for Linux (GnuTLS, tree-sitter, HarfBuzz, ...), configure with
+`--with-ns` (Cocoa) instead of `--with-pgtk`, build with Emacs's own `make`/`make install`, then
+a dist script would need writing from scratch (no Linux `ldd`/`patchelf` equivalent --- macOS
+uses `otool -L`/`install_name_tool` for the same "find every library, make it relocatable" job).
+Want this built for real? It needs access to a real Mac (or a macOS CI runner) to actually try
+and verify each step on, not something this Linux machine can do alone.
