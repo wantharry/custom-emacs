@@ -266,7 +266,7 @@ Goal: do open, unlock, edit, save, quit **without the mouse or arrow keys**.
 | `C-w` | `kill-region` | Cut the selection |
 | `M-w` | `kill-ring-save` | Copy it |
 | `C-y` | `yank` | Paste |
-| `M-y` | `yank-pop` | Right after pasting, swap in an older cut |
+| `M-y` | `consult-yank-pop` | Browse and paste from the kill-ring history, searchable (this config) |
 | `C-d` | `delete-char` | Delete the letter under the cursor |
 
 Goal: move a line to another place with only the keyboard.

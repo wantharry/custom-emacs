@@ -40,7 +40,7 @@ keyboard. Every key below is checked against this project's own built Emacs by
 | `M-d` | `kill-word` | cut the word forward |
 | `C-w` | `kill-region` | cut the selected region |
 | `C-y` | `yank` | paste the last kill |
-| `M-y` | `yank-pop` | paste an earlier kill (right after `C-y`) |
+| `M-y` | `consult-yank-pop` | paste an earlier kill, searchable (this config) |
 | `C-/` | `undo` | undo the last change |
 | `C-x u` | `undo` | the same |
 | `C-SPC` | `set-mark-command` | start a selection region |
