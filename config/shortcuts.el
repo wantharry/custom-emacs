@@ -89,6 +89,35 @@
      (("platform prompt" . "X, Instagram, Threads, Facebook or TikTok")
       ("topic prompt, blank" . "that platform's own trending/explore page")
       ("topic prompt, filled in" . "a real search for it on that platform")))
+    ;; WHAT/WHY: user request --- encrypt/decrypt a file or a whole folder, either
+    ;; with a plain password (symmetric, no key needed) or a real GPG key, using
+    ;; GnuPG itself (already on this machine; bundled for Windows too). No buffer
+    ;; of its own either --- each key just prompts, runs `gpg', and reports the
+    ;; result in the echo area.
+    ("Encryption (this config, real GnuPG)" "C-c x e / C-c x d"
+     "(no buffer to close; each key just prompts and reports in the echo area)"
+     (("C-c x e" . "encrypt a file --- pick a GPG key, or leave blank for a password")
+      ("C-c x d" . "decrypt a file --- tries with no password first, asks only if needed")
+      ("C-c x E" . "encrypt a whole FOLDER into one file (tarred first, then encrypted)")
+      ("C-c x D" . "decrypt a C-c x E archive back into a real folder")))
+    ;; WHAT/WHY: user request --- the standard Unix password manager (`pass'),
+    ;; bundled here, built on the exact same GnuPG `C-c x' above already uses.
+    ;; No buffer of its own either --- copies via Emacs's own clipboard, never
+    ;; `pass -c' (needs xclip/wl-copy, not installed here).
+    ("Password manager (this config, real pass)" "C-c p f / C-c p i"
+     "(no buffer to close; each key just prompts and reports in the echo area)"
+     (("C-c p f" . "find an entry and copy its password (clipboard clears in 45s)")
+      ("C-c p i" . "store/overwrite an entry --- secret typed into a hidden prompt")
+      ("C-c p g" . "generate a new random password for an entry, and copy it")
+      ("C-c p I" . "set the store up the first time (generates a GPG key if needed)")))
+    ;; WHAT/WHY: user request --- "clipboard history", both senses: a nicer browser
+    ;; for Emacs's OWN kill-ring (M-y), and a genuinely separate, system-wide history
+    ;; of every real copy from ANY app, which the kill-ring alone never sees. Kept
+    ;; as two distinct histories/commands by explicit request, not merged into one.
+    ("Clipboard history (this config)" "C-c C-y / M-y"
+     "(no buffer to close; each key just prompts and reports in the echo area)"
+     (("C-c C-y" . "browse the real system-wide clipboard history, copy one back")
+      ("M-y" . "browse Emacs's own kill-ring (consult-yank-pop, searchable)")))
     ;; WHAT/WHY: user request, after asking what exists in this family --- both share
     ;; the Magit-style transient-popup idea, applied to containers/a Kubernetes cluster
     ;; instead of git. `docker''s own menu (opened by the single `docker' command, the
