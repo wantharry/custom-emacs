@@ -78,6 +78,17 @@
       ("RET on an item" . "show it")
       ("o" . "mark that item read")
       ("g / G" . "update this feed / every feed")))
+    ;; WHAT/WHY: `C-c o' (my/social-search, init.el) is not a "world" with its own
+    ;; keymap the way everything else here is --- it just prompts twice (platform,
+    ;; then topic) and opens a browser tab, no buffer of its own to document keys
+    ;; for. Listed here anyway since it is the one command in this section that
+    ;; is not self-explanatory from its name alone (why there is no in-Emacs feed
+    ;; for it, unlike newsticker just above).
+    ("Social media search (this config)" "C-c o"
+     "(opens your browser; nothing to close inside Emacs)"
+     (("platform prompt" . "X, Instagram, Threads, Facebook or TikTok")
+      ("topic prompt, blank" . "that platform's own trending/explore page")
+      ("topic prompt, filled in" . "a real search for it on that platform")))
     ;; WHAT/WHY: user request, after asking what exists in this family --- both share
     ;; the Magit-style transient-popup idea, applied to containers/a Kubernetes cluster
     ;; instead of git. `docker''s own menu (opened by the single `docker' command, the

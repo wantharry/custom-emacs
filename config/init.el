@@ -1744,13 +1744,63 @@ what actually gets back to a clean, single plain-Dired window afterward."
         ("Science"       "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml")
         ("Health"        "http://feeds.bbci.co.uk/news/health/rss.xml")
         ("Entertainment" "http://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml")
-        ("Sports"        "https://www.espn.com/espn/rss/news")))
+        ("Sports"        "https://www.espn.com/espn/rss/news")
+        ;; AI, specifically --- user request, three real feeds curl-verified live
+        ;; before adding (same discipline as every feed above): TechCrunch and Ars
+        ;; Technica's own AI category feeds, and The Verge's own AI topic feed (Atom,
+        ;; not RSS 2.0 --- newsticker reads both). VentureBeat's AI feed was also
+        ;; tried and dropped: it returns a bot-blocking "Vercel Security Checkpoint"
+        ;; page instead of a feed, confirmed directly, not assumed working.
+        ("AI (TechCrunch)" "https://techcrunch.com/category/artificial-intelligence/feed/")
+        ("AI (Ars Technica)" "https://arstechnica.com/ai/feed/")
+        ("AI (The Verge)" "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml")))
 ;; WHAT/WHY/HOW: bind the key straight to the built-in command; no autoload wrapper is
 ;; needed here the way `my/dictate'/`my/llm-chat' below get one, because `newsticker-
 ;; treeview' is already a normal autoloaded `net/newst-treeview.el' entry point once
 ;; that file is on the load path (restored by un-pruning), so Emacs's own autoload
 ;; machinery handles "nothing loads until first use" automatically.
 (global-set-key (kbd "C-c n") #'newsticker-treeview)
+
+;;; Social media search ---------------------------------------------------------
+;; WHAT: `C-c o' prompts for a platform, then a topic, and opens a real search
+;; for it (or, with a blank topic, that platform's own trending/explore page)
+;; in your default browser.
+;; WHY no in-Emacs feed like newsticker above: asked for directly, but none of
+;; these platforms offer anything like RSS any more --- X dropped free RSS
+;; years ago; Instagram/Threads/Facebook (all Meta) only expose content
+;; through their Graph API, which is locked to managing YOUR OWN business
+;; account, not searching arbitrary public posts by topic; TikTok's Research/
+;; Display APIs need an approved application. The only way to fake a feed from
+;; any of them is scraping, which this deliberately does not do: it violates
+;; each site's own terms of service, and is fragile by design anyway (login
+;; walls, JS rendering, anti-bot measures) --- unlike RSS, which exists
+;; specifically to be fetched by something other than a browser.
+;; HOW: just constructs the normal search URL each site already supports
+;; itself (the same one you would type by hand) and opens it --- nothing
+;; fetched or parsed on this end. The "trending" column points at each
+;; platform's own general explore/discover page rather than a guessed,
+;; specific sub-path, since several of these have moved around over time;
+;; say so if any of these ever stops resolving correctly and it can be fixed.
+(defconst my/social-search-sites
+  '(("X (Twitter)" "https://x.com/search?q=%s" "https://x.com/explore")
+    ("Instagram"   "https://www.instagram.com/explore/tags/%s/" "https://www.instagram.com/explore/")
+    ("Threads"     "https://www.threads.net/search?q=%s" "https://www.threads.net/")
+    ("Facebook"    "https://www.facebook.com/search/top/?q=%s" "https://www.facebook.com/")
+    ("TikTok"      "https://www.tiktok.com/search?q=%s" "https://www.tiktok.com/discover"))
+  "Each entry: (NAME SEARCH-URL-FORMAT TRENDING-URL).  SEARCH-URL-FORMAT takes
+one `%s', the URL-encoded topic.")
+
+(defun my/social-search (topic)
+  "Open a social-media search for TOPIC, or that platform's trending/explore
+page if TOPIC is blank, in your default browser."
+  (interactive "sTopic (blank for trending/explore): ")
+  (let* ((site (assoc (completing-read "Platform: " (mapcar #'car my/social-search-sites) nil t)
+                       my/social-search-sites))
+         (url (if (string-empty-p topic)
+                  (nth 2 site)
+                (format (nth 1 site) (url-hexify-string topic)))))
+    (browse-url url)))
+(global-set-key (kbd "C-c o") #'my/social-search)
 
 ;;; Dictation (local Whisper) ----------------------------------------------------------
 
