@@ -158,23 +158,34 @@ Every file opens read-only in this config. **Reading and navigating never need e
   `eglot-confirm-server-edits` is set to confirm with a summary.)
 - Diagnostics, hover text, definitions, references and implementations only read.
 
-## 6. Windows: the server is bundled, the JDK is not
+## 6. Windows: the server is bundled; on this `java` branch, so is the JDK
 
-The Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)) carries **`jdtls` 1.61.0** (`tools\jdtls`), but no JDK ---
-install one yourself (17 or newer), the same as Rust needs its own `rust-analyzer` installed. Eglot's own
+The Windows bundle ([DISTRIBUTION.md](DISTRIBUTION.md)) carries **`jdtls` 1.61.0** (`tools\jdtls`). On this
+`java` branch it also carries a real, portable JDK (**Eclipse Temurin 21.0.12.1+1 LTS**, `tools\jdk`,
+~249 MB unpacked) --- install nothing yourself, `M-x eglot` in a Java project just works. Eglot's own
 entry for Java looks for a program called `jdtls`, which is a Python script and would need Python; the bundle
-skips that and starts the server directly with whatever `java` it finds on `PATH` or `JAVA_HOME`:
+skips that and starts the server directly on the bundled `java.exe`:
 
 ```
-java -Declipse.application=org.eclipse.jdt.ls.core.id1 ... -jar tools\jdtls\plugins\org.eclipse.equinox.launcher_*.jar
+tools\jdk\bin\java.exe -Declipse.application=org.eclipse.jdt.ls.core.id1 ... -jar tools\jdtls\plugins\org.eclipse.equinox.launcher_*.jar
     -configuration tools\jdtls\config_win  -data config\jdtls-workspaces\<one folder per project>
 ```
 
-- If no `java` is found, `M-x eglot` fails with a clear message telling you to install a JDK first, rather than
-  a confusing Eglot error.
+- `my/bundled-jdk-java` (`config/init.el`) points straight at `tools\jdk\bin\java.exe` rather than relying on
+  `PATH`/`JAVA_HOME` --- the same "use the known bundled path directly" idea as `magit-git-executable`'s own fix,
+  one less thing to go wrong if some OTHER, older `java` is already on the user's own `PATH`. It falls back to
+  `(executable-find "java")`, then a clear error, for anyone running this config from source (no JDK bundled there).
+- `tools\jdk\bin` is also on `PATH` (the launcher, `tools/windows-launcher.c`, puts it there), so `javac` and a
+  shell you open inside Emacs (`M-x shell`) should find `java` too (I did not try the shell case).
+- Verified for real on this machine (via WSL, which can run the staged Windows `java.exe` directly): the bundled
+  `java.exe -version` prints a genuine Temurin banner, and `jdtls` itself starts and idles correctly waiting for
+  an LSP `initialize` request on the bundled JDK. One caveat found ONLY in that WSL verification environment, not
+  expected on a real Windows machine: jdtls's OSGi storage layer fails to lock its workspace files when that
+  workspace sits on a `\\wsl.localhost\...` network path (file locking is not supported there) --- irrelevant on
+  a real Windows install, where everything lives on a normal local drive; confirmed the ONLY problem by rerunning
+  with `-Dosgi.locking=none`, after which jdtls started and idled cleanly with no errors.
 - The per-project workspace lives in `config\jdtls-workspaces\`. Deleting a project's folder there forces a clean start.
-- `java` and `javac` are on that `PATH` too, so a shell you open inside Emacs (`M-x shell`) should find them (I did not try it).
-- **Rust is not bundled.** `rust-analyzer` needs a Rust toolchain; install one and Eglot uses it as on Linux.
+- **Rust is still not bundled** (out of scope for this branch). `rust-analyzer` needs a Rust toolchain; install one and Eglot uses it as on Linux.
 
 Measured on the Windows bundle: **27 of 27** `java-navigation` tests with the real server (definitions, implementations,
 references, type definition, find by name), and the screenshots above.

@@ -6,7 +6,8 @@
 #
 # What goes in the zip: Emacs.exe (a launcher), the official GNU Emacs 31 for Windows (with all its
 # libraries), your settings (config/), Evil and Magit compiled for that Emacs, tree-sitter grammars
-# for Java and Rust, ripgrep, fd, delta, dua, and a portable Git (MinGit).  See docs/DISTRIBUTION.md.
+# for Java and Rust, ripgrep, fd, delta, dua, a portable Git (MinGit), the Java language server
+# (jdtls) and, on this `java' branch, a portable JDK to run it on.  See docs/DISTRIBUTION.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"; CACHE="$DIST/cache"
@@ -19,7 +20,7 @@ FD_VERSION="${FD_VERSION:-10.5.0}"
 DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
 DUA_VERSION="${DUA_VERSION:-2.45.1}"   # my/disk-usage's own backend, config/disk-usage.el
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
-                                                # (needs a JDK 21+ on PATH or JAVA_HOME; none is bundled)
+JDK_VERSION="${JDK_VERSION:-21.0.12.1+1}"     # Eclipse Temurin, the portable JDK jdtls runs on (`java' branch only)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
 ZIG=("$DIST/.venv/bin/python" -m ziglang)
 [ -x "$DIST/.venv/bin/python" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
@@ -87,13 +88,24 @@ else
   echo "   (could not fetch a published checksum for dua-win.zip; proceeding without one)"
 fi
 
-echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
+echo "== Java: the Java language server, plus a portable JDK to run it on (this \`java' branch only)"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
 JDTLS_FILE="$(curl -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
 fetch "$JDTLS_BASE/$JDTLS_FILE" "$JDTLS_FILE"
 [ "$(sha256sum "$CACHE/$JDTLS_FILE" | cut -d' ' -f1)" = "$(curl -fsSL "$JDTLS_BASE/$JDTLS_FILE.sha256" | cut -d' ' -f1 | tr -d '\r\n')" ] \
   || { echo "CHECKSUM MISMATCH for $JDTLS_FILE" >&2; exit 1; }
 echo "   $JDTLS_FILE matches the checksum published by Eclipse"
+# Eclipse Temurin (Adoptium): a real, official OpenJDK build distributed as a plain .zip
+# (not an installer) specifically for this "unzip and go" use case.  Asset/tag naming
+# follows Adoptium's own convention: version "21.0.12.1+1" -> release tag
+# "jdk-21.0.12.1%2B1" (URL-encoded '+') and asset "..._21.0.12.1_1.zip" ('+' -> '_').
+JDK_TAG="jdk-${JDK_VERSION/+/%2B}"
+JDK_ASSET="OpenJDK21U-jdk_x64_windows_hotspot_${JDK_VERSION/+/_}.zip"
+JDK_URL="https://github.com/adoptium/temurin21-binaries/releases/download/$JDK_TAG/$JDK_ASSET"
+fetch "$JDK_URL" "$JDK_ASSET"
+[ "$(sha256sum "$CACHE/$JDK_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$JDK_URL.sha256.txt" | cut -d' ' -f1 | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $JDK_ASSET" >&2; exit 1; }
+echo "   $JDK_ASSET matches the checksum published by Adoptium"
 
 echo "== tree-sitter grammars for Windows (cross-compiled with zig, same versions as on Linux)"
 mkdir -p "$CACHE/gram"
@@ -132,9 +144,22 @@ unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
 unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
 unzip -q -j "$CACHE/delta-win.zip" "*/delta.exe" -d "$STAGE/tools/delta"
 unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
-# the language server: only the Windows part (it is started with whatever `java' the user has on
-# PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
+# the language server: only the Windows part (it is started on the bundled JDK below, no
+# Python needed --- see init.el's my/bundled-jdtls-command).
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
+# a real, portable JDK so jdtls has a `java' to run without installing anything.  Skips
+# jmods\ and include\ --- confirmed by `du -sh' on the real unpacked JDK that jmods\ alone
+# is 81 MB of the ~332 MB unpacked total (it is only for `jlink' custom runtime images,
+# never needed just to RUN java/jdtls) and include\ is JNI headers for compiling native
+# code against the JDK, also unneeded here; bin\, conf\ and lib\ are what running java
+# actually touches, legal\ is kept for the license texts.  The zip's own top-level entry
+# is the release folder itself ("jdk-21.0.12.1+1/"), so extract to a scratch folder and
+# move its one subfolder into place, the same "strip the top-level dir" idea as the font/
+# MinGit extraction above, giving a flat tools\jdk\bin\java.exe like tools\jdtls.
+rm -rf "$CACHE/jdk-tmp"; mkdir -p "$CACHE/jdk-tmp"
+unzip -q "$CACHE/$JDK_ASSET" -d "$CACHE/jdk-tmp" "*/bin/*" "*/conf/*" "*/legal/*" "*/lib/*"
+mv "$CACHE"/jdk-tmp/*/ "$STAGE/tools/jdk"
+rm -rf "$CACHE/jdk-tmp"
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative

@@ -771,20 +771,34 @@ so it costs nothing until then.  If either is not installed, offer to install it
 (when (treesit-language-available-p 'json)
   (add-to-list 'major-mode-remap-alist '(js-json-mode . json-ts-mode)))
 
-;; Windows bundle: it carries the Java language server itself (tools\jdtls), but no JDK ---
-;; Java needs one installed, the same way Rust needs rust-analyzer installed (neither is
-;; bundled).  Eglot's own entry looks for a program called `jdtls' (a Python script), so
-;; tell it to start the bundled jdtls with whatever `java' it finds on PATH or JAVA_HOME
-;; instead.  Only used when the launcher (Emacs.exe) says where the bundle is; anywhere
-;; else Eglot's normal entry applies.
+;; Windows bundle: it carries the Java language server itself (tools\jdtls) AND, on this
+;; `java' branch, a real portable JDK (tools\jdk, Temurin 21 LTS --- see tools/dist-
+;; windows.sh).  Eglot's own entry looks for a program called `jdtls' (a Python script),
+;; so tell it to start the bundled jdtls with the bundled `java.exe' directly instead ---
+;; WHY the direct path rather than relying on `executable-find'/`PATH': the launcher
+;; (tools/windows-launcher.c) DOES also put `tools\jdk\bin' on `PATH', so `executable-
+;; find "java"' would likely find it too, but going straight to the known bundled path is
+;; the same "skip the probe, use the real file we know is there" pattern already used for
+;; `magit-git-executable' above --- one less thing that can go wrong if the user also has
+;; some OTHER `java' earlier on their own `PATH' (an old JRE, a different JDK) that is
+;; older than the 17+ jdtls needs.  Falls back to `executable-find' (then a clear error)
+;; for anyone running this config from source, where no JDK is bundled.  Only used when
+;; the launcher (Emacs.exe) says where the bundle is; anywhere else Eglot's normal entry
+;; applies.
 (defun my/bundled-jdtls-dir ()
   (let ((home (getenv "CUSTOM_EMACS_HOME")))
     (and home (expand-file-name "tools/jdtls/" home))))
 
+(defun my/bundled-jdk-java ()
+  (let* ((home (getenv "CUSTOM_EMACS_HOME"))
+         (exe (and home (expand-file-name "tools/jdk/bin/java.exe" home))))
+    (and exe (file-exists-p exe) exe)))
+
 (defun my/bundled-jdtls-command (&rest _)
-  "The command line that runs the bundled jdtls on your own Java (none is bundled)."
+  "The command line that runs the bundled jdtls on the bundled JDK (or your own Java)."
   (let* ((dir (my/bundled-jdtls-dir))
-         (java (or (executable-find "java")
+         (java (or (my/bundled-jdk-java)
+                   (executable-find "java")
                    (user-error "No Java found.  Install a JDK (17+) so `java' is on PATH or JAVA_HOME, then try M-x eglot again")))
          (jar (car (file-expand-wildcards (expand-file-name "plugins/org.eclipse.equinox.launcher_*.jar" dir))))
          (root (file-name-as-directory

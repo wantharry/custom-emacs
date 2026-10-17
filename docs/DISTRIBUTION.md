@@ -5,7 +5,7 @@ anywhere and open `Emacs.exe`. Nothing is installed and nothing is downloaded.
 
 | Bundle | File | Status |
 |---|---|---|
-| **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 247 MB zipped, 644 MB unpacked, with Java) | **Built and tested**, described below |
+| **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 247 MB zipped, 644 MB unpacked; **this `java` branch: about 320 MB zipped, 752 MB unpacked**, with a real portable JDK so Java fully works with zero install) | **Built and tested**, described below |
 | **Linux x86-64** | `custom-emacs-linux-x86_64.tar.gz`/`.zip` (about 146/153 MB, 410 MB unpacked) | **Built and tested**, see [Linux](#linux) |
 
 Each archive is in `dist/` after `./build.sh dist windows`/`./build.sh dist linux` and is **not** committed to
@@ -59,7 +59,8 @@ custom-emacs-windows-x64/
 │   ├── rg/            ripgrep: the fast finder, project text search, and Consult
 │   ├── fd/            fd: file finding for Consult (`C-c s f`) and for finding git repositories (`C-c f p`)
 │   ├── fonts/         12 of the 20 `C-c F` fonts, real files --- select them all, right-click, Install (see tools/fonts/README.md)
-│   └── jdtls/         the Java language server (needs your own JDK 17+ on PATH/JAVA_HOME; not bundled)
+│   ├── jdtls/         the Java language server
+│   └── jdk/           **this `java` branch only:** a real, portable JDK (Temurin 21.0.12.1+1 LTS) so jdtls has a `java` to run on
 ├── docs/              every guide, plain text, read from inside Emacs with `C-c d` (see below)
 ├── README.md          this project's own overview (also inside the `C-c d` buffer)
 ├── README.txt         this bundle's own quick-start
@@ -97,7 +98,7 @@ by the startup fallback, or genuinely too large to ship, like Iosevka at ~114 MB
 | Speed | startup 0.05 s (measured, headless) | 0.23 s until the window is ready, measured in a real window |
 | Line endings for new files | LF | LF: the config sets UTF-8 with LF on Windows (Windows Emacs would otherwise write CRLF). Files that already have CRLF keep them |
 | Whole-disk file index | the whole `/`, minus system folders | the drive of your home folder (normally `C:\`), minus `Windows`, `Program Files`, `ProgramData` and a few noisy `AppData` folders |
-| Java | install a JDK and `jdtls` yourself | `jdtls` **included**; install your own JDK (17+) so `java` is on PATH/JAVA_HOME ([EGLOT.md](EGLOT.md)) |
+| Java | install a JDK and `jdtls` yourself | `jdtls` **and a real portable JDK (Temurin 21 LTS) both included, this `java` branch only** --- nothing to install ([EGLOT.md](EGLOT.md)) |
 | Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain), same as Java's JDK |
 | HTML/CSS/JS/TS/JSX/JSON editing (tree-sitter) | install grammars yourself | **included**: fast highlighting/indent/imenu, no language server yet (see [LANGUAGES.md](LANGUAGES.md)) |
 | `fd` (for Consult's `C-c s f`) | download yourself (no `apt`/`sudo` route; see [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md#9-setting-up-rg-and-fd-again)) | **included** |
@@ -243,7 +244,7 @@ folder and project history, backups, anything `M-x customize` saves. Keep the fo
 | Packages | compiled here | **copied as-is**: no recompiling needed, since it is the exact same Emacs that built them | recompiled: a different Emacs (31.1) runs them |
 | `git` (for Magit) | your system's | **your system's** (not bundled; almost always already installed on Linux) | bundled (MinGit) |
 | `fd` (Consult's `C-c s f`) | your system's, if installed | **your system's, if installed**; `C-c f p`'s own script falls back to plain `find` if not | bundled |
-| Java language server (`jdtls`) | install yourself | **not bundled yet** (install `jdtls` yourself, or just use the Linux build directly) | bundled (bring your own JDK) |
+| Java language server (`jdtls`) | install yourself | **not bundled yet** (install `jdtls` yourself, or just use the Linux build directly) | bundled; **this `java` branch also bundles the JDK itself** |
 | Rust (`rust-analyzer`) | install yourself | not bundled, same as Java's JDK | not bundled, same as Java's JDK |
 
 The Linux bundle's one real gap next to the Windows one, today, is the Java language server: the Windows

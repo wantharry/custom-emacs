@@ -44,8 +44,11 @@ class Scripts(unittest.TestCase):
     def test_the_launcher_source_passes_the_arguments_on_and_sets_the_settings_folder(self):
         with open(os.path.join(ROOT, "tools", "windows-launcher.c")) as fh:
             src = fh.read()
-        for needle in ["--init-directory=", "runemacs.exe", "GetCommandLineW", "CUSTOM_EMACS_PORTABLE", "CUSTOM_EMACS_HOME", "JAVA_HOME",
-                       "tools\\\\git\\\\cmd", "tools\\\\rg"]:
+        for needle in ["--init-directory=", "runemacs.exe", "GetCommandLineW", "CUSTOM_EMACS_PORTABLE", "CUSTOM_EMACS_HOME",
+                       # `JAVA_HOME` is deliberately NOT checked here any more on this `java` branch:
+                       # a real JDK is now bundled (tools\\jdk), so the launcher comment no longer
+                       # needs to explain a JAVA_HOME fallback the way it did on main/bundle-all-fonts.
+                       "tools\\\\git\\\\cmd", "tools\\\\rg", "tools\\\\jdk"]:
             with self.subTest(needle=needle):
                 self.assertIn(needle, src)
 
@@ -80,7 +83,7 @@ class WindowsBundle(unittest.TestCase):
         for f in ["Emacs.exe", "README.txt", "README.md", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
                   "emacs/bin/emacsclient.exe", "emacs/bin/libtree-sitter-0.26.dll",
                   "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe", "tools/fd/fd.exe",
-                  "tools/jdtls/config_win/config.ini", "docs/SEARCHING.md", "docs/EGLOT.md",
+                  "tools/jdtls/config_win/config.ini", "tools/jdk/bin/java.exe", "docs/SEARCHING.md", "docs/EGLOT.md",
                   "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll",
                   "config/tree-sitter/libtree-sitter-html.dll", "config/tree-sitter/libtree-sitter-css.dll",
                   "config/tree-sitter/libtree-sitter-javascript.dll", "config/tree-sitter/libtree-sitter-jsdoc.dll",
@@ -110,10 +113,14 @@ class WindowsBundle(unittest.TestCase):
                             for n in self.names), "no jdtls launcher jar")
         self.assertTrue(any(n.startswith(TOP + "tools/jdtls/plugins/org.eclipse.jdt.ls.core_") for n in self.names))
 
-    def test_no_jdk_is_bundled(self):
-        # Java needs its own JDK installed, the same as Rust needs rust-analyzer installed;
-        # see my/bundled-jdtls-command in config/init.el.
-        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/")], "no tools/jdk/ should be shipped")
+    def test_a_real_jdk_is_bundled(self):
+        # This `java' branch bundles a portable JDK (Temurin) so the already-bundled jdtls
+        # has a `java' to run on with zero install; see my/bundled-jdk-java in config/init.el.
+        # Rust is unaffected: rust-analyzer/a Rust toolchain still need installing by hand.
+        self.assertIn(TOP + "tools/jdk/bin/java.exe", self.names)
+        self.assertTrue(any(n.startswith(TOP + "tools/jdk/lib/") for n in self.names), "no tools/jdk/lib/ (the JDK's own runtime libraries)")
+        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/jmods/")], "tools/jdk/jmods/ should be stripped (only needed for jlink, not for running java)")
+        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/include/")], "tools/jdk/include/ should be stripped (JNI headers, not needed to run java)")
 
     def test_evil_and_magit_are_there_and_compiled(self):
         for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult", "vertico", "orderless", "marginalia", "embark", "embark-consult"]:

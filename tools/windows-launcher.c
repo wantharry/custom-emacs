@@ -1,8 +1,8 @@
 /* Emacs.exe: the one-click launcher for the portable Windows bundle.
  *
- * Finds the folder it lives in, puts the bundled Git, ripgrep, fd, delta and dua first
- * on PATH, points Emacs at the bundled settings (config\), and starts it without a
- * console window.
+ * Finds the folder it lives in, puts the bundled Git, ripgrep, fd, delta, dua and (on
+ * this `java' branch) JDK first on PATH, points Emacs at the bundled settings (config\),
+ * and starts it without a console window.
  * Any files or options given to Emacs.exe are passed on to Emacs.
  *
  * Built by tools/dist-windows.sh with zig cc (a cross compiler): no Windows needed.
@@ -33,14 +33,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
   wcscpy(home, self);
 
   /* PATH: bundled Git (for Magit), ripgrep/fd (fast search), delta (nicer Magit
-   * diffs, magit-delta-mode) and dua (my/disk-usage, config/disk-usage.el) come
+   * diffs, magit-delta-mode), dua (my/disk-usage, config/disk-usage.el) and (on this
+   * `java' branch) the bundled JDK's own bin\ (so `java' is found even without
+   * `my/bundled-jdk-java''s direct path, e.g. from `M-x compile'/`M-x shell') come
    * first. */
   wchar_t oldpath[32768];
   DWORD len = GetEnvironmentVariableW(L"PATH", oldpath, 32768);
   if (len == 0 || len >= 32768) oldpath[0] = 0;
   wchar_t newpath[32768 + 1024];
-  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\tools\\fd;%s\\tools\\delta;%s\\tools\\dua;%s\\emacs\\bin;%s",
-           self, self, self, self, self, self, self, oldpath);
+  swprintf(newpath, 32768 + 1024, L"%s\\tools\\git\\cmd;%s\\tools\\git\\usr\\bin;%s\\tools\\rg;%s\\tools\\fd;%s\\tools\\delta;%s\\tools\\dua;%s\\tools\\jdk\\bin;%s\\emacs\\bin;%s",
+           self, self, self, self, self, self, self, self, oldpath);
   SetEnvironmentVariableW(L"PATH", newpath);
   SetEnvironmentVariableW(L"CUSTOM_EMACS_PORTABLE", L"1");
   SetEnvironmentVariableW(L"CUSTOM_EMACS_HOME", self);   /* where tools\\jdtls is found */
@@ -53,8 +55,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
       SetEnvironmentVariableW(L"HOME", up);
   }
 
-  /* No JDK is bundled: Java (like Rust) needs its own toolchain installed, so JAVA_HOME
-   * and PATH are left exactly as the user already has them. */
+  /* A JDK IS bundled on this `java' branch (tools\jdk, see tools/dist-windows.sh) ---
+   * its bin\ is already on PATH above.  Rust is unaffected: it still needs its own
+   * toolchain installed, same as before. */
 
   wchar_t *args = skip_program_name(GetCommandLineW());
   wchar_t cmd[32768];
