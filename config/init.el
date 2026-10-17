@@ -863,6 +863,62 @@ stdin, exactly like a real terminal would."
     (compile compile-command t)))
 (global-set-key (kbd "C-c J") #'my/run-java-file)
 
+;; `C-c j': run Maven goals on a real multi-file project (`C-c J' above only ever
+;; handles one file, no classpath) --- user request, after being told the honest
+;; answer that there was no multi-file build command at all, only `jdtls' navigation.
+;; WHY `mvn' specifically, not a hand-rolled `javac' classpath walk: a project with a
+;; `pom.xml' already declares its own dependencies/classpath/source layout, which
+;; `mvn' already knows how to read; re-deriving that here would just be a worse `mvn'.
+(defun my/bundled-maven-bin ()
+  "Full path to the bundled Maven's mvn.cmd (this `java' branch's Windows bundle),
+or nil."
+  (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+              (mvn (expand-file-name "tools/maven/bin/mvn.cmd" home)))
+    (and (file-exists-p mvn) mvn)))
+
+(defun my/maven-command ()
+  "The `mvn' to run: bundled first (see above), then whatever is on PATH."
+  (or (my/bundled-maven-bin) (executable-find "mvn") "mvn"))
+
+(defun my/maven-root ()
+  "The nearest directory above the current file with a pom.xml, or the project
+root."
+  (or (and buffer-file-name (locate-dominating-file buffer-file-name "pom.xml"))
+      (locate-dominating-file default-directory "pom.xml")
+      (and (fboundp 'project-current)
+           (when-let* ((pr (project-current))) (project-root pr)))))
+
+(defun my/maven-run (goals)
+  "Run `mvn GOALS' from the project's pom.xml root, in a Comint compile buffer.
+
+Comint (not plain `compilation-mode'), same reason as `my/run-java-file' above:
+some goals (e.g. `archetype:generate') prompt interactively, and a program a
+test goal runs may read stdin --- plain `compile' cannot send either anything
+typed."
+  (let ((root (my/maven-root)))
+    (unless (and root (file-exists-p (expand-file-name "pom.xml" root)))
+      (user-error "No pom.xml found above this file or project"))
+    (let* ((default-directory root)
+           (compile-command (format "%s %s" (shell-quote-argument (my/maven-command)) goals)))
+      (compile compile-command t))))
+
+(defun my/maven-compile () "Run `mvn compile'." (interactive) (my/maven-run "compile"))
+(defun my/maven-test () "Run `mvn test'." (interactive) (my/maven-run "test"))
+(defun my/maven-package () "Run `mvn package'." (interactive) (my/maven-run "package"))
+(defun my/maven-install () "Run `mvn install'." (interactive) (my/maven-run "install"))
+(defun my/maven-clean () "Run `mvn clean'." (interactive) (my/maven-run "clean"))
+(defun my/maven-goals (goals)
+  "Run an arbitrary Maven GOALS string, e.g. \"clean install -DskipTests\"."
+  (interactive "sMaven goals: ")
+  (my/maven-run goals))
+
+(global-set-key (kbd "C-c j c") #'my/maven-compile)
+(global-set-key (kbd "C-c j t") #'my/maven-test)
+(global-set-key (kbd "C-c j p") #'my/maven-package)
+(global-set-key (kbd "C-c j i") #'my/maven-install)
+(global-set-key (kbd "C-c j C") #'my/maven-clean)
+(global-set-key (kbd "C-c j g") #'my/maven-goals)
+
 ;; Language servers (rust-analyzer, jdtls) are started by hand with M-x eglot and
 ;; never automatically: a JVM-based server takes seconds and a large amount of
 ;; memory, and most editing does not need it.  Skip logging every protocol message.

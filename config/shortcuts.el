@@ -328,6 +328,18 @@ by hand.")
     ;; in init.el for how it finds `javac'/`java' (bundled first, then `PATH').
     ("Java"
      ("C-c J" my/run-java-file "compile and run the current buffer's .java file"))
+    ;; WHAT/WHY: follow-up to `C-c J' above --- that only ever handles one file, no
+    ;; classpath, so a real multi-file project (anything with its own `pom.xml') needs
+    ;; a real build tool instead. Maven is bundled the same way the JDK is on this
+    ;; `java' branch (see `my/bundled-maven-bin' in init.el), so these work with zero
+    ;; install on the Windows bundle too.
+    ("Maven"
+     ("C-c j c" my/maven-compile "mvn compile")
+     ("C-c j t" my/maven-test "mvn test")
+     ("C-c j p" my/maven-package "mvn package")
+     ("C-c j i" my/maven-install "mvn install")
+     ("C-c j C" my/maven-clean "mvn clean")
+     ("C-c j g" my/maven-goals "mvn <goals you type>, e.g. \"clean install -DskipTests\""))
     ("Frame"
      ("C-c u" my/toggle-frame-chrome "hide/show the menu bar, tool bar and window decorations together")
      ("C-c U" my/reset-to-defaults "put frame and theme back to this config's own defaults, and save it"))

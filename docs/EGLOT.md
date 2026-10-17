@@ -198,6 +198,25 @@ Eglot only gives you navigation and diagnostics --- it never compiles or runs an
 lookup `my/bundled-jdk-java` already does for `jdtls` above --- so it works with zero install on this bundle too,
 falling back to whatever `javac`/`java` are on `PATH` everywhere else.
 
+### A real, multi-file project: Maven (`C-c j`)
+
+`C-c J` only ever handles the one file in the current buffer, with no classpath --- a real project with its own
+`pom.xml` needs a real build tool. Apache Maven is bundled the same way the JDK is on this `java` branch
+(`tools\maven`, `my/bundled-maven-bin` in `config/init.el`), so these also work with zero install on the Windows
+bundle, falling back to whatever `mvn` is on `PATH` everywhere else. Each command finds the nearest `pom.xml`
+above the current file (or the project root) and runs there, in the same Comint-mode `*compilation*` buffer `C-c J`
+uses, so a prompt or a test reading stdin still works.
+
+<!-- keymap: global -->
+| Key | Command | What it does |
+|---|---|---|
+| `C-c j c` | `my/maven-compile` | `mvn compile` |
+| `C-c j t` | `my/maven-test` | `mvn test` |
+| `C-c j p` | `my/maven-package` | `mvn package` |
+| `C-c j i` | `my/maven-install` | `mvn install` |
+| `C-c j C` | `my/maven-clean` | `mvn clean` |
+| `C-c j g` | `my/maven-goals` | prompts for any goals, e.g. `clean install -DskipTests` |
+
 ## 7. Troubleshooting
 
 | Symptom | Cause and fix |

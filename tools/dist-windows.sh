@@ -21,6 +21,7 @@ DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
 DUA_VERSION="${DUA_VERSION:-2.45.1}"   # my/disk-usage's own backend, config/disk-usage.el
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
 JDK_VERSION="${JDK_VERSION:-21.0.12.1+1}"     # Eclipse Temurin, the portable JDK jdtls runs on (`java' branch only)
+MAVEN_VERSION="${MAVEN_VERSION:-3.10.0}"      # Apache Maven, bundled so `C-c j' works with zero install (`java' branch only)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
 ZIG=("$DIST/.venv/bin/python" -m ziglang)
 [ -x "$DIST/.venv/bin/python" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
@@ -106,6 +107,15 @@ fetch "$JDK_URL" "$JDK_ASSET"
 [ "$(sha256sum "$CACHE/$JDK_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$JDK_URL.sha256.txt" | cut -d' ' -f1 | tr -d '\r\n')" ] \
   || { echo "CHECKSUM MISMATCH for $JDK_ASSET" >&2; exit 1; }
 echo "   $JDK_ASSET matches the checksum published by Adoptium"
+# Apache Maven: a plain, official .zip (no installer), the same "unzip and go" shape as the
+# JDK above --- Maven itself is pure Java, so it only needs the bundled JDK's `java' on PATH
+# (already true, see the launcher below) plus `JAVA_HOME' (set in the launcher too).
+MAVEN_ASSET="apache-maven-$MAVEN_VERSION-bin.zip"
+MAVEN_URL="https://dlcdn.apache.org/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_ASSET"
+fetch "$MAVEN_URL" "$MAVEN_ASSET"
+[ "$(sha512sum "$CACHE/$MAVEN_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$MAVEN_URL.sha512" | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $MAVEN_ASSET" >&2; exit 1; }
+echo "   $MAVEN_ASSET matches the checksum published by Apache"
 
 echo "== tree-sitter grammars for Windows (cross-compiled with zig, same versions as on Linux)"
 mkdir -p "$CACHE/gram"
@@ -160,6 +170,12 @@ rm -rf "$CACHE/jdk-tmp"; mkdir -p "$CACHE/jdk-tmp"
 unzip -q "$CACHE/$JDK_ASSET" -d "$CACHE/jdk-tmp" "*/bin/*" "*/conf/*" "*/legal/*" "*/lib/*"
 mv "$CACHE"/jdk-tmp/*/ "$STAGE/tools/jdk"
 rm -rf "$CACHE/jdk-tmp"
+# Maven: same "strip the top-level release folder" unzip idiom as the JDK above (the zip's
+# own top-level entry is "apache-maven-$MAVEN_VERSION/"), giving a flat tools\maven\bin\mvn.cmd.
+rm -rf "$CACHE/maven-tmp"; mkdir -p "$CACHE/maven-tmp"
+unzip -q "$CACHE/$MAVEN_ASSET" -d "$CACHE/maven-tmp"
+mv "$CACHE"/maven-tmp/*/ "$STAGE/tools/maven"
+rm -rf "$CACHE/maven-tmp"
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
@@ -232,17 +248,19 @@ Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
   config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
   tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
-            Git (for Magit), and the Java language server (needs your own JDK 17+ on PATH or
-            JAVA_HOME; not bundled)
+            Git (for Magit), the Java language server, a portable JDK to run it on, and Apache
+            Maven (C-c j) --- nothing to install for Java
   docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
 
 Notes: this is Emacs 31.1, not the Emacs 32 development build the Linux version uses, and it has no
 native compilation (the official Windows build ships without it), so it runs byte-compiled code.
-Java: the language server (jdtls) is included, but not a JDK --- install one yourself (17+), so
-"java" is on PATH or JAVA_HOME, then M-x eglot in a Java project (definitions, references, etc.).
-Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK.
+Java: the language server (jdtls) and a real JDK (Temurin 21 LTS) are both included --- nothing
+to install, M-x eglot in a Java project just works (definitions, references, etc.). C-c J compiles
+and runs a single .java file; C-c j runs Maven (compile/test/package/install/clean) in a project
+with a pom.xml, also on the bundled JDK --- Maven itself is bundled too.
+Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK on other branches.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
 Magit diffs are rendered with delta (bundled) via magit-delta-mode, on by default.
 C-c W browses real disk usage (biggest first) using the bundled dua.
