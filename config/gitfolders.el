@@ -438,13 +438,28 @@ every local drive is already included, so the prefix argument has no extra effec
             (make-process
              :name "git-repos" :buffer buf :noquery t :command command
              :filter (lambda (p out)
-                       (with-current-buffer (process-buffer p) (my/git-repos--handle-output out)))
+                       ;; `(process-buffer p)' can be nil --- a real, found-the-hard-way
+                       ;; race, not hypothetical: if whatever owns this buffer kills it
+                       ;; while the scan is still running (a test's own teardown doing
+                       ;; exactly that is what first surfaced it), Emacs clears the
+                       ;; process's buffer slot to nil, and the NEXT output chunk's
+                       ;; filter call would otherwise crash with `(with-current-buffer
+                       ;; nil ...)' -- "Selecting deleted buffer" -- instead of simply
+                       ;; having nothing left to update.
+                       (when (buffer-live-p (process-buffer p))
+                         (with-current-buffer (process-buffer p) (my/git-repos--handle-output out))))
              :sentinel (lambda (p event)
-                         ;; the `eq' check matters: if a later scan has already replaced
-                         ;; `my/git-repos--process' (see the `delete-process' above), this is
-                         ;; that OLD process's sentinel firing late, and must not clobber the
-                         ;; newer scan's in-progress or already-finished results.
+                         ;; Same `buffer-live-p' guard as the filter above, for the same
+                         ;; reason --- `(buffer-local-value ... (process-buffer p))' would
+                         ;; otherwise also crash once the buffer is gone, not just the
+                         ;; `with-current-buffer' below it.
+                         ;; The `eq' check matters separately: if a later scan has already
+                         ;; replaced `my/git-repos--process' (see the `delete-process'
+                         ;; above), this is that OLD process's sentinel firing late, and
+                         ;; must not clobber the newer scan's in-progress or already-
+                         ;; finished results.
                          (when (and (memq (process-status p) '(exit signal))
+                                    (buffer-live-p (process-buffer p))
                                     (eq p (buffer-local-value 'my/git-repos--process (process-buffer p))))
                            (with-current-buffer (process-buffer p)
                              (my/git-repos--flush)
