@@ -114,6 +114,49 @@
     (let ((default-directory d))
       (should-not (magit-toplevel d)))))
 
+(ert-deftest magit/a-real-repository-toplevel-is-reported-correctly ()
+  (mg-need-magit)
+  (mg-with-repo
+    (should (file-equal-p (magit-toplevel mg-dir) mg-dir))))
+
+(ert-deftest magit/unstaging-moves-the-change-back-to-unstaged ()
+  (mg-need-magit)
+  (mg-with-repo
+    (magit-stage-files '("a.txt"))
+    (should (magit-anything-staged-p))
+    (should-not (magit-anything-unstaged-p))
+    (magit-unstage-files '("a.txt"))
+    (should-not (magit-anything-staged-p))
+    (should (magit-anything-unstaged-p))))
+
+(ert-deftest magit/anything-staged-p-is-nil-again-after-a-real-commit ()
+  (mg-need-magit)
+  (mg-with-repo
+    (magit-stage-files '("a.txt"))
+    (should (magit-anything-staged-p))
+    (test-git mg-dir "commit" "-qm" "second")
+    (should-not (magit-anything-staged-p))))
+
+(ert-deftest magit/get-current-branch-matches-a-newly-created-branch ()
+  (mg-need-magit)
+  (mg-with-repo
+    (test-git mg-dir "checkout" "-qb" "feature")
+    (should (equal (magit-get-current-branch) "feature"))))
+
+(ert-deftest magit/log-shows-multiple-commits-in-order ()
+  (mg-need-magit)
+  (mg-with-repo
+    (test-git mg-dir "commit" "-qam" "second")
+    (let ((buf (magit-log-setup-buffer '("HEAD") nil nil)))
+      (unwind-protect
+          (with-current-buffer buf
+            (should (string-match-p "second" (buffer-string)))
+            (should (string-match-p "first" (buffer-string)))
+            ;; the most recent commit is listed first
+            (should (< (string-match-p "second" (buffer-string))
+                       (string-match-p "first" (buffer-string)))))
+        (kill-buffer buf)))))
+
 (ert-deftest magit/log-shows-the-commit ()
   (mg-need-magit)
   (mg-with-repo

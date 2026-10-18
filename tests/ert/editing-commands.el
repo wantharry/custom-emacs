@@ -100,4 +100,50 @@
     (execute-kbd-macro "ab")
     (should (equal (buffer-string) "ab"))))
 
+(ert-deftest editing/kill-line ()
+  (test-in-buffer #'text-mode "hello world\nsecond line\n"
+    (kill-line)
+    (should (equal (buffer-string) "\nsecond line\n"))
+    (should (equal (current-kill 0) "hello world"))))
+
+(ert-deftest editing/kill-whole-line ()
+  (test-in-buffer #'text-mode "first\nsecond\nthird\n"
+    (goto-char (point-min)) (forward-line 1)
+    (kill-whole-line)
+    (should (equal (buffer-string) "first\nthird\n"))))
+
+(ert-deftest editing/zap-to-char ()
+  (test-in-buffer #'text-mode "hello, world"
+    (zap-to-char 1 ?,)
+    (should (equal (buffer-string) " world"))))
+
+(ert-deftest editing/undo-restores-prior-text ()
+  (test-in-buffer #'text-mode ""
+    ;; An explicit `undo-boundary' between the two inserts: without one, they
+    ;; amalgamate into a single undo step (only a real command loop adds
+    ;; boundaries between separate edits automatically), so one `undo' would
+    ;; wipe both instead of just the second.
+    (insert "hello") (undo-boundary)
+    (insert " world") (undo-boundary)
+    (should (equal (buffer-string) "hello world"))
+    (undo)
+    (should (equal (buffer-string) "hello"))))
+
+(ert-deftest editing/mark-whole-buffer-and-exchange-point-and-mark ()
+  (test-in-buffer #'text-mode "hello world"
+    (mark-whole-buffer) ; point at the beginning, mark at the end
+    (should (= (point) (point-min)))
+    (should (= (mark) (point-max)))
+    (exchange-point-and-mark)
+    (should (= (point) (point-max)))
+    (should (= (mark) (point-min)))))
+
+(ert-deftest editing/tabify-and-untabify ()
+  (test-in-buffer #'text-mode "        indented\n"
+    (let ((tab-width 8))
+      (tabify (point-min) (point-max))
+      (should (equal (buffer-string) "\tindented\n"))
+      (untabify (point-min) (point-max))
+      (should (equal (buffer-string) "        indented\n")))))
+
 ;;; editing-commands.el ends here

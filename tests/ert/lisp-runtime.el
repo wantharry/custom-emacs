@@ -109,4 +109,32 @@
   (should (special-form-p 'if))
   (should (macrop 'when)))
 
+(ert-deftest lisp/cl-destructuring-bind-with-an-optional-default ()
+  (should (equal (cl-destructuring-bind (a b &optional (c 9)) (list 1 2) (list a b c))
+                  '(1 2 9))))
+
+(ert-deftest lisp/cl-defstruct-makes-a-real-accessor-and-predicate ()
+  (cl-defstruct lisp-test-pt x y)
+  (let ((p (make-lisp-test-pt :x 1 :y 2)))
+    (should (= 1 (lisp-test-pt-x p)))
+    (should (lisp-test-pt-p p))
+    (should-not (lisp-test-pt-p (list 1 2)))))
+
+(ert-deftest lisp/named-let-recurses-under-its-own-name ()
+  (should (= 120 (named-let loop ((n 5) (acc 1))
+                   (if (= n 0) acc (loop (1- n) (* acc n)))))))
+
+(ert-deftest lisp/cl-case-matches-the-first-fitting-clause ()
+  (should (eq 'two (cl-case 2 (1 'one) (2 'two) (t 'other))))
+  (should (eq 'other (cl-case 99 (1 'one) (2 'two) (t 'other)))))
+
+(ert-deftest lisp/string-trim-join-and-split ()
+  (should (equal (string-trim "  hi  ") "hi"))
+  (should (equal (string-join '("a" "b") ",") "a,b"))
+  (should (equal (split-string "a,b,c" ",") '("a" "b" "c"))))
+
+(ert-deftest lisp/rx-builds-a-working-regexp ()
+  (should (string-match-p (rx bol (+ digit) eol) "12345"))
+  (should-not (string-match-p (rx bol (+ digit) eol) "12a45")))
+
 ;;; lisp-runtime.el ends here

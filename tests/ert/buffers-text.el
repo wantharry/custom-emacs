@@ -91,4 +91,87 @@
     (goto-char 10)
     (should (= 1234 (thing-at-point 'number)))))
 
+(ert-deftest buffers/position-predicates-and-char-at-point ()
+  (test-in-buffer #'text-mode "ab\ncd"
+    (should (bobp))
+    (should-not (eobp))
+    (should (= (char-after) ?a))
+    (goto-char (point-max))
+    (should (eobp))
+    (should (= (char-before) ?d))
+    (goto-char 3) ; right after "ab", before the newline
+    (should (eolp))
+    (should-not (bolp))
+    (goto-char 4) ; right after the newline, start of "cd"
+    (should (bolp))
+    (should-not (eolp))))
+
+(ert-deftest buffers/search-forward-and-replace-match ()
+  (test-in-buffer #'text-mode "one two three"
+    (should (search-forward "two" nil t))
+    (should (= (match-beginning 0) 5))
+    (replace-match "TWO")
+    (should (equal (buffer-string) "one TWO three"))
+    (goto-char (point-min))
+    (should (re-search-forward "t[a-z]+e" nil t))
+    (should (equal (match-string 0) "three"))))
+
+(ert-deftest buffers/buffer-modified-p-tracks-real-edits ()
+  (test-in-buffer #'text-mode "hello"
+    (set-buffer-modified-p nil) ; the setup insert above already marked it modified
+    (should-not (buffer-modified-p))
+    (insert "!")
+    (should (buffer-modified-p))
+    (set-buffer-modified-p nil)
+    (should-not (buffer-modified-p))))
+
+(ert-deftest buffers/marker-insertion-type-controls-which-side-it-sticks-to ()
+  (test-in-buffer #'text-mode "abcdef"
+    (let ((sticky-before (copy-marker 3 nil))  ; stays before text inserted at it
+          (sticky-after (copy-marker 3 t)))    ; advances past text inserted at it
+      (goto-char 3) (insert "XX")
+      (should (= (marker-position sticky-before) 3))
+      (should (= (marker-position sticky-after) 5))
+      (set-marker sticky-before nil) (set-marker sticky-after nil))))
+
+(ert-deftest buffers/propertize-then-strip-properties ()
+  (let ((s (propertize "hi" 'face 'bold)))
+    (should (eq (get-text-property 0 'face s) 'bold))
+    (should (equal (substring-no-properties s) "hi"))
+    (test-in-buffer #'text-mode ""
+      (insert s)
+      (should (eq (get-text-property 1 'face) 'bold))
+      (should (equal (buffer-substring-no-properties (point-min) (point-max)) "hi")))))
+
+(ert-deftest buffers/forward-and-backward-paragraph ()
+  (test-in-buffer #'text-mode "one\ntwo\n\nthree\nfour\n"
+    (goto-char (point-min))
+    (forward-paragraph)
+    (should (= (point) 9)) ; just past "one\ntwo\n", at the blank line
+    (forward-paragraph)
+    (should (= (point) (point-max)))
+    (backward-paragraph)
+    (should (= (point) 9)))) ; the blank line itself, the paragraph separator
+
+(ert-deftest buffers/overlays-in-finds-every-overlay-touching-a-range ()
+  (test-in-buffer #'text-mode "0123456789"
+    (let ((a (make-overlay 1 3))
+          (b (make-overlay 5 8))
+          (c (make-overlay 9 10)))
+      (should (equal (list a b) (overlays-in 2 6)))
+      (mapc #'delete-overlay (list a b c)))))
+
+(ert-deftest buffers/generate-new-buffer-name-avoids-collisions ()
+  (let ((b (get-buffer-create "buffers-test-dup")))
+    (unwind-protect
+        (should (equal (generate-new-buffer-name "buffers-test-dup") "buffers-test-dup<2>"))
+      (kill-buffer b))))
+
+(ert-deftest buffers/forward-sexp-skips-a-balanced-form ()
+  (test-in-buffer #'emacs-lisp-mode "(foo (bar baz) qux) trailing"
+    (goto-char (point-min))
+    (forward-sexp)
+    (should (= (point) 20))
+    (should (equal (buffer-substring (point-min) (point)) "(foo (bar baz) qux)"))))
+
 ;;; buffers-text.el ends here

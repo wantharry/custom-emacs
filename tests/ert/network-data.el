@@ -86,4 +86,81 @@
 (ert-deftest network/localhost-resolves ()
   (should (network-lookup-address-info "localhost")))
 
+(ert-deftest data/url-expand-file-name-resolves-relative-urls ()
+  (should (equal (url-expand-file-name "b.html" "http://e.x/a/c.html") "http://e.x/a/b.html"))
+  (should (equal (url-expand-file-name "/z.html" "http://e.x/a/c.html") "http://e.x/z.html")))
+
+(ert-deftest data/url-recreate-url-roundtrips ()
+  (should (equal (url-recreate-url (url-generic-parse-url "https://a.b/c?d=1")) "https://a.b/c?d=1")))
+
+(ert-deftest data/json-null-and-false-are-distinct-objects ()
+  (should (eq (json-parse-string "null") :null))
+  (should (eq (json-parse-string "false") :false))
+  (should (eq (json-parse-string "null" :null-object 'my-null) 'my-null)))
+
+(ert-deftest data/json-serialize-false-and-null ()
+  (should (equal (json-serialize '((a . :false) (b . :null))) "{\"a\":false,\"b\":null}")))
+
+(ert-deftest data/xml-decodes-entities-in-text-content ()
+  (let ((tree (with-temp-buffer
+                (insert "<a>&lt;hi&amp;bye&gt;</a>")
+                (car (xml-parse-region (point-min) (point-max))))))
+    (should (equal (car (xml-node-children tree)) "<hi&bye>"))))
+
+(ert-deftest data/dom-by-class-finds-matching-elements ()
+  (let ((dom (with-temp-buffer
+               (insert "<div><p class='x'>a</p><p class='y'>b</p></div>")
+               (libxml-parse-html-region (point-min) (point-max)))))
+    (should (= 1 (length (dom-by-class dom "x"))))
+    (should (equal (dom-texts (car (dom-by-class dom "x"))) "a"))))
+
+(ert-deftest data/dom-search-finds-nodes-matching-a-predicate ()
+  (let ((dom (with-temp-buffer
+               (insert "<div><a href='x'>1</a><a>2</a></div>")
+               (libxml-parse-html-region (point-min) (point-max)))))
+    (should (equal (dom-attr (car (dom-search dom (lambda (n) (dom-attr n 'href)))) 'href) "x"))))
+
+(ert-deftest data/sqlite-parameterized-select-update-and-delete ()
+  (let ((db (sqlite-open)))
+    (unwind-protect
+        (progn
+          (sqlite-execute db "create table t (id integer primary key, name text)")
+          (sqlite-execute db "insert into t (name) values (?)" '("ann"))
+          (should (equal (sqlite-select db "select name from t where name = ?" '("ann")) '(("ann"))))
+          (sqlite-execute db "update t set name = ? where name = ?" '("annie" "ann"))
+          (should (equal (sqlite-select db "select name from t") '(("annie"))))
+          (sqlite-execute db "delete from t where name = ?" '("annie"))
+          (should (equal (sqlite-select db "select count(*) from t") '((0)))))
+      (sqlite-close db))))
+
+(ert-deftest network/tcp-server-handles-two-clients-independently ()
+  (let* ((srv (make-network-process
+               :name "echo2" :server t :host "127.0.0.1" :service t :family 'ipv4 :noquery t
+               :filter (lambda (proc s) (process-send-string proc (upcase s)))))
+         (port (process-contact srv :service))
+         (got1 "") (got2 "")
+         (c1 (make-network-process :name "c1" :host "127.0.0.1" :service port :noquery t
+                                   :filter (lambda (_ s) (setq got1 (concat got1 s)))))
+         (c2 (make-network-process :name "c2" :host "127.0.0.1" :service port :noquery t
+                                   :filter (lambda (_ s) (setq got2 (concat got2 s))))))
+    (unwind-protect
+        (progn
+          (process-send-string c1 "one")
+          (process-send-string c2 "two")
+          (with-timeout (5 (ert-fail "timeout"))
+            (while (or (string= got1 "") (string= got2 ""))
+              (accept-process-output nil 0.1)))
+          (should (equal got1 "ONE"))
+          (should (equal got2 "TWO")))
+      (delete-process c1) (delete-process c2) (delete-process srv))))
+
+(ert-deftest network/process-contact-reports-the-real-bound-address ()
+  (let ((srv (make-network-process
+              :name "pc" :server t :host "127.0.0.1" :service t :family 'ipv4 :noquery t)))
+    (unwind-protect
+        (progn
+          (should (equal (process-contact srv :host) "127.0.0.1"))
+          (should (integerp (process-contact srv :service))))
+      (delete-process srv))))
+
 ;;; network-data.el ends here
