@@ -15,9 +15,11 @@ name: Test (Linux + Windows)
 # through cmd.exe/WSL interop, the same way building the Windows dist locally in this
 # project's own WSL2 dev sandbox always has) -- so `Vampire/setup-wsl' sets one up on the
 # `windows-latest' runner first. Once the bundle is built, the actual test run against it
-# happens on the NATIVE Windows side (plain `bash' from the runner's already-installed Git
-# for Windows), not through WSL and not through Wine -- this is genuinely real Windows, the
-# same OS class the bug above only showed up on.
+# happens on the NATIVE Windows side (Git for Windows' own `bash.exe', found by its well-
+# known install path rather than a bare `bash' lookup -- see test_repo.py's own BASH for
+# why that lookup alone is not safe once a step earlier in the job has set up WSL), not
+# through WSL and not through Wine -- this is genuinely real Windows, the same OS class
+# the bug above only showed up on.
 
 on:
   push:
@@ -104,17 +106,6 @@ jobs:
                      (princ (format \"\nvterm-module-compile failed: %S\n\" err))
                      (kill-emacs 1))))"
 
-      # tools/dist-windows.sh needs config/elpa to already exist (it compiles THOSE
-      # packages for the real Windows Emacs itself, later, in its own pipeline) --- the
-      # Windows job below reuses this instead of building its own Emacs from source a
-      # second time just to populate the same package source files again.
-      - name: Upload the installed packages for the Windows job to reuse
-        uses: actions/upload-artifact@v4
-        with:
-          name: elpa
-          path: config/elpa
-          retention-days: 1
-
       - name: Build the tree-sitter grammars
         run: ./build.sh grammars
 
@@ -122,11 +113,13 @@ jobs:
         run: ./build.sh test
 
   test-windows:
-    needs: test-linux
-    # Only the uploaded elpa artifact (an EARLIER step) is actually needed from the
-    # Linux job --- a later test failure there should not also skip this one, or every
-    # real Windows signal would be hostage to the Linux suite being 100% green first.
-    if: ${{ !cancelled() }}
+    # Deliberately independent of test-linux: the only thing this job ever needed from
+    # it was config/elpa's installed package SOURCE files, and `./build.sh packages'
+    # itself needs no particular Emacs to run (`pick_emacs' in build.sh honors a plain
+    # EMACS= override) --- a quick stock `emacs-nox' inside this job's own WSL does the
+    # exact same job in seconds, instead of waiting out test-linux's ~20-minute
+    # from-source build just to borrow its artifact. Real Windows signal no longer
+    # waits on the Linux suite being 100% green, or even on it having started at all.
     runs-on: windows-latest
     steps:
       # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
@@ -140,17 +133,18 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Download the packages the Linux job already installed
-        uses: actions/download-artifact@v4
-        with:
-          name: elpa
-          path: config/elpa
-
       - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)
         uses: Vampire/setup-wsl@v5
         with:
           distribution: Ubuntu-22.04
-          additional-packages: p7zip-full unzip wget python3-venv python3-pip
+          additional-packages: p7zip-full unzip wget python3-venv python3-pip emacs-nox
+
+      # This job's own quick stand-in Emacs, only ever used to run package.el once ---
+      # see this job's own top comment for why it does not need test-linux's slow
+      # from-source build for this.
+      - name: Install this config's Elisp packages
+        shell: wsl-bash {0}
+        run: EMACS=/usr/bin/emacs ./build.sh packages
 
       - name: Build the Windows dist bundle (same recipe as building it locally)
         shell: wsl-bash {0}
