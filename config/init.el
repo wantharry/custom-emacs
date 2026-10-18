@@ -2587,13 +2587,49 @@ only asks for one if that first, cheap attempt genuinely needed it."
 PASSWORD_STORE_DIR is set in the real environment, in which case `pass'
 itself (not this config) already honors that instead.")
 
+(defun my/pass--shell-program ()
+  "A real POSIX shell to run the bundled `pass' script through on Windows ---
+see `my/pass-program''s own comment for why a bare `#!/usr/bin/env bash'
+script cannot just be launched directly there. `tools/git/usr/bin/sh.exe'
+(bundled with MinGit for Magit's own use) is a real bash under that name,
+not the much smaller `dash.exe' sitting right next to it in the same
+bundle --- confirmed by size, not assumed. nil anywhere else, where pass
+can simply be executed on its own."
+  (when (eq system-type 'windows-nt)
+    (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+                (exe (expand-file-name "tools/git/usr/bin/sh.exe" home))
+                ((file-exists-p exe)))
+      exe)))
+
 (defun my/pass-program ()
-  "The bundled `tools/pass/pass' if present (same resolution --- a sibling of
-`config/' --- `my/git-repos-script' already uses for `tools/find-repos.sh'),
-else a real `pass' already on PATH, else nil."
+  "The bundled `tools/pass/pass' script if present (same sibling-of-`config/'
+resolution `my/git-repos-script' already uses for `tools/find-repos.sh'),
+else a real `pass' already on PATH, else nil.
+A real, user-found bug: `pass' is a plain `#!/usr/bin/env bash' script ---
+on MS-Windows, `file-executable-p' only ever answers yes for a file ending
+in `.exe'/`.bat'/`.cmd'/`.com' (Emacs's own documented behavior there;
+Windows has no POSIX execute bit to check otherwise), so the bundled
+script alone never counted as present there, and `C-c p' silently fell
+back to `my/pass-missing' for every sub-command even with the real script
+sitting right there in `tools/pass/'. `my/pass--invocation' (below) is
+what actually RUNS pass once this function has found it; this one only
+answers whether it is available at all, bundled or not."
   (let ((bundled (expand-file-name "../tools/pass/pass" user-emacs-directory)))
     (cond ((file-executable-p bundled) bundled)
+          ((and (file-exists-p bundled) (my/pass--shell-program)) bundled)
           ((executable-find "pass") "pass"))))
+
+(defun my/pass--invocation ()
+  "(PROGRAM . LEADING-ARGS): PROGRAM, called with LEADING-ARGS followed by
+the real `pass' arguments, is how every caller below actually runs it. On
+Windows, running the bundled SCRIPT means going through a real shell (see
+`my/pass--shell-program') with the script's own path as its first
+argument; everywhere else (including a real `pass' already on PATH, which
+`my/pass-program' can also return), its result is already directly
+runnable on its own, no shell needed."
+  (let* ((prog (my/pass-program))
+         (sh (and prog (not (equal prog "pass")) (my/pass--shell-program))))
+    (if sh (cons sh (list prog)) (cons prog nil))))
 
 (defun my/pass-missing ()
   (interactive)
