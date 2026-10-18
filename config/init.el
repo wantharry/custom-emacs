@@ -99,15 +99,30 @@ between the cached position and now, falling back to one correct-but-slower
 
 (defun my/absolute-line-numbers--line-at (pos)
   "Line number of POS, via the cache above when it is still valid, else a
-plain `line-number-at-pos' (still correct, just the slower path)."
+plain `line-number-at-pos' (still correct, just the slower path).
+
+Both positions are normalized to their own line's beginning before calling
+`count-lines' --- `window-start' (the only POS this is ever called with) is
+NOT always at the beginning of a buffer line: when a long line word-wraps
+(more likely once a side window narrows the frame) a downward scroll can
+land it mid-line, on that line's second (or later) visual row. `count-lines'
+has a documented quirk --- when its END argument is not itself at a line's
+beginning, it counts that trailing partial line as one whole extra line ---
+so calling it directly on two possibly-mid-line positions overcounts by one
+exactly in that case. Found the hard way: a real, reproducible off-by-one
+confirmed by scrolling a buffer with a wrapped long line and comparing every
+drawn margin number against ground-truth `line-number-at-pos' at every step."
   (let ((tick (buffer-chars-modified-tick)))
     (if (and my/absolute-line-numbers--cache
              (= tick (nth 2 my/absolute-line-numbers--cache)))
         (let ((cpos (nth 0 my/absolute-line-numbers--cache))
               (cline (nth 1 my/absolute-line-numbers--cache)))
-          (if (>= pos cpos)
-              (+ cline (count-lines cpos pos))
-            (- cline (count-lines pos cpos))))
+          (save-excursion
+            (let ((cbol (progn (goto-char cpos) (line-beginning-position)))
+                  (pbol (progn (goto-char pos) (line-beginning-position))))
+              (if (>= pbol cbol)
+                  (+ cline (count-lines cbol pbol))
+                (- cline (count-lines pbol cbol))))))
       (line-number-at-pos pos))))
 
 (defun my/absolute-line-numbers--update (&rest _)
