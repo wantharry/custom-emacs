@@ -137,7 +137,19 @@ jobs:
         uses: Vampire/setup-wsl@v5
         with:
           distribution: Ubuntu-22.04
-          additional-packages: p7zip-full unzip wget python3-venv python3-pip emacs-nox
+          additional-packages: p7zip-full unzip wget python3-venv python3-pip software-properties-common
+
+      # Ubuntu 22.04's own stock `emacs-nox' is 27.1 --- confirmed directly, this
+      # job's own first real run: too old even to parse `--init-directory' (added in
+      # 29.1), and tools/install-packages.el itself needs `package-vc' (also 29+).
+      # A PPA build is still much faster than compiling our own from source here, and
+      # this stand-in only ever needs to run package.el once, nothing version-sensitive.
+      - name: Install a modern stand-in Emacs (Ubuntu 22.04's own is too old for package-vc)
+        shell: wsl-bash {0}
+        run: |
+          sudo add-apt-repository -y ppa:ubuntuhandbook1/emacs
+          sudo apt-get update
+          sudo apt-get install -y emacs-nox
 
       # This job's own quick stand-in Emacs, only ever used to run package.el once ---
       # see this job's own top comment for why it does not need test-linux's slow
