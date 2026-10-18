@@ -133,6 +133,23 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # Keyed only on what actually ends up IN the bundle (config/*.el, the dist/
+      # launcher scripts themselves, the bundled tools/pass, tools/pdf-tools) --- not
+      # on tests/, so a push that only touches test files (the overwhelming majority
+      # while iterating on this very workflow) reuses the exact zip a previous run
+      # already built and tested, instead of paying the full ~40+ minute rebuild
+      # again for bytes that did not change. A real, accepted trade-off: packages
+      # pulled from GNU ELPA/MELPA are not version-pinned, so their very latest
+      # version could in principle drift between two runs with an IDENTICAL key;
+      # reusing exactly what a previous run already built and tested is the point
+      # here, not chasing the newest possible package build on every single push.
+      - name: Cache the Windows dist bundle
+        id: cache-dist
+        uses: actions/cache@v4
+        with:
+          path: dist/custom-emacs-windows-x64.zip
+          key: windows-dist-${{ hashFiles('config/**', 'tools/dist-windows.sh', 'tools/windows-launcher.c', 'tools/install-packages.el', 'tools/install-grammars.el', 'tools/pass/**', 'tools/pdf-tools/**', 'tools/find-repos.sh') }}
+
       - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)
         uses: Vampire/setup-wsl@v5
         with:
@@ -145,6 +162,7 @@ jobs:
       # A PPA build is still much faster than compiling our own from source here, and
       # this stand-in only ever needs to run package.el once, nothing version-sensitive.
       - name: Install a modern stand-in Emacs (Ubuntu 22.04's own is too old for package-vc)
+        if: steps.cache-dist.outputs.cache-hit != 'true'
         shell: wsl-bash {0}
         run: |
           sudo add-apt-repository -y ppa:ubuntuhandbook1/emacs
@@ -155,6 +173,7 @@ jobs:
       # see this job's own top comment for why it does not need test-linux's slow
       # from-source build for this.
       - name: Install this config's Elisp packages
+        if: steps.cache-dist.outputs.cache-hit != 'true'
         shell: wsl-bash {0}
         run: EMACS=/usr/bin/emacs ./build.sh packages
 
@@ -164,10 +183,26 @@ jobs:
       # WSLENV comment below); build.sh's own dist_env() reads this to redirect its
       # venv off the slow DrvFs-mounted checkout, see that function's own comment.
       - name: Build the Windows dist bundle (same recipe as building it locally)
+        if: steps.cache-dist.outputs.cache-hit != 'true'
         shell: wsl-bash {0}
         env:
           CI: "true"
         run: ./build.sh dist windows
+
+      # Cache hit: the zip above already IS the bundle a previous run both built and
+      # tested, so just unpack it where the later steps expect it --- same contents a
+      # real rebuild would have produced, just not re-derived. config/elpa is
+      # restored too (not only inside the bundle): tests/run-all.sh's own "config"
+      # harness symlinks packages in from $ROOT/config/elpa directly, which only the
+      # (skipped, on a cache hit) packages-install step above would otherwise create.
+      - name: Unpack the cached dist bundle instead of rebuilding it
+        if: steps.cache-dist.outputs.cache-hit == 'true'
+        shell: wsl-bash {0}
+        run: |
+          mkdir -p dist/stage/custom-emacs-windows-x64
+          (cd dist/stage/custom-emacs-windows-x64 && 7z x -y ../../custom-emacs-windows-x64.zip >/dev/null)
+          rm -rf config/elpa
+          cp -a dist/stage/custom-emacs-windows-x64/config/elpa config/elpa
 
       # The real end-user launch goes through `Emacs.exe' (tools/windows-launcher.c), which
       # prepends the bundled tools (dua, rg, fd, delta, git) to PATH and sets

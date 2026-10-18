@@ -2527,6 +2527,14 @@ it blank (or no key exists yet at all) for a plain password instead ---
 symmetric, no key needed."
   (interactive "fFile to encrypt: ")
   (setq file (expand-file-name file))
+  ;; `"f"' in the `interactive' spec above lets you navigate into/select a directory
+  ;; too, even though this command only ever makes sense on a real file --- a real,
+  ;; user-hit bug: pointed at a folder, this used to hand the raw directory straight to
+  ;; `gpg', which failed with a low-level, confusing error ("read error: Is a
+  ;; directory") instead of ever explaining what actually went wrong. `C-c x E' (below)
+  ;; is the real command for a folder.
+  (when (file-directory-p file)
+    (user-error "%s is a folder --- use `C-c x E' (encrypt-folder) instead" file))
   (let ((recipient (my/gpg--select-recipient))
         (out (concat file ".gpg")))
     (if recipient
@@ -2545,6 +2553,13 @@ silently for a key-encrypted file whose secret key itself has no passphrase);
 only asks for one if that first, cheap attempt genuinely needed it."
   (interactive "fFile to decrypt: ")
   (setq file (expand-file-name file))
+  ;; Same real, user-hit bug as `my/encrypt-file''s own guard above, but worse here:
+  ;; pointed at a plain, not-yet-encrypted folder (e.g. by mistake for `C-c x E'), this
+  ;; used to hand it straight to `gpg --decrypt', which failed with "gpg: decrypt_
+  ;; message failed: Unknown system error" --- a genuinely confusing message for what
+  ;; is simply the wrong command on the wrong kind of path.
+  (when (file-directory-p file)
+    (user-error "%s is a folder, not an encrypted file --- did you mean `C-c x E' (encrypt-folder)?" file))
   (let ((out (if (string-suffix-p ".gpg" file)
                  (string-remove-suffix ".gpg" file)
                (concat file ".decrypted"))))
