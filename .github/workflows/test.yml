@@ -165,36 +165,26 @@ jobs:
           path: dist/custom-emacs-windows-x64.zip
           key: windows-dist-${{ hashFiles('config/**', 'tools/dist-windows.sh', 'tools/windows-launcher.c', 'tools/install-packages.el', 'tools/install-grammars.el', 'tools/pass/**', 'tools/pdf-tools/**', 'tools/find-repos.sh') }}
 
+      # Ubuntu 24.04 (Noble), not 22.04 --- its own stock `emacs-nox' is 29.3, new
+      # enough for both `--init-directory' and `package-vc' (both 29.1+) that
+      # tools/install-packages.el needs, confirmed directly after 22.04's own 27.1
+      # was NOT (see the step below). Switching the base distribution avoids needing
+      # a PPA for this at all --- which turned out to be its own real reliability
+      # problem (see that step's history: its GPG-key fetch, a keyserver lookup
+      # outside this project's control, hung for over 4 hours once, then failed
+      # outright on a later run even with a hard timeout added) --- a plain
+      # `apt-get install' of an already-current Ubuntu package has no such
+      # dependency at all.
       - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)
         uses: Vampire/setup-wsl@v5
         with:
-          distribution: Ubuntu-22.04
-          additional-packages: p7zip-full unzip wget python3-venv python3-pip software-properties-common
+          distribution: Ubuntu-24.04
+          additional-packages: p7zip-full unzip wget python3-venv python3-pip emacs-nox
 
-      # Ubuntu 22.04's own stock `emacs-nox' is 27.1 --- confirmed directly, this
-      # job's own first real run: too old even to parse `--init-directory' (added in
-      # 29.1), and tools/install-packages.el itself needs `package-vc' (also 29+).
-      # A PPA build is still much faster than compiling our own from source here, and
-      # this stand-in only ever needs to run package.el once, nothing version-sensitive.
-      # `timeout 120' on the network-touching commands, and `DEBIAN_FRONTEND=
-      # noninteractive' throughout --- found the hard way: `add-apt-repository''s own
-      # GPG-key fetch (a keyserver lookup, not under this project's control) can simply
-      # hang, with no output and no error, for hours, not minutes --- a real CI run
-      # sat on this exact step for over 4 hours before anyone noticed. A hard timeout
-      # turns that into a clean, fast failure instead of silently burning CI time.
-      - name: Install a modern stand-in Emacs (Ubuntu 22.04's own is too old for package-vc)
-        if: steps.cache-dist.outputs.cache-hit != 'true'
-        shell: wsl-bash {0}
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          sudo -E timeout 120 add-apt-repository -y ppa:ubuntuhandbook1/emacs
-          sudo -E timeout 120 apt-get update
-          sudo -E timeout 120 apt-get install -y emacs-nox
-
-      # This job's own quick stand-in Emacs, only ever used to run package.el once ---
-      # see this job's own top comment for why it does not need test-linux's slow
-      # from-source build for this.
+      # This job's own quick stand-in Emacs (already installed above, via
+      # additional-packages on a modern-enough base distribution), only ever used to
+      # run package.el once --- see this job's own top comment for why it does not
+      # need test-linux's slow from-source build for this.
       - name: Install this config's Elisp packages
         if: steps.cache-dist.outputs.cache-hit != 'true'
         shell: wsl-bash {0}
