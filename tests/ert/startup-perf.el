@@ -17,7 +17,7 @@
     best))
 
 (ert-deftest startup/under-half-a-second ()
-  (should (< (sp--startup-seconds) 0.5)))
+  (should (< (sp--startup-seconds) (test-startup-budget))))
 
 (ert-deftest startup/package-el-not-loaded ()
   ;; `browse-url' is checked here, not for its own sake, but as a second, independent

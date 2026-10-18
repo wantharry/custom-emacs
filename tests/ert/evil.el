@@ -7,12 +7,25 @@
 ;; either install prompt for real will skip those tests rather than fail.
 
 (defmacro evil-test-with-clean-state (&rest body)
-  "Run BODY, then make sure Evil is switched off again."
+  "Run BODY, then make sure Evil is switched off again.
+Stubs `y-or-n-p' to decline for the duration --- `my/toggle-evil' (what every
+test here actually calls to turn Evil on) asks whether to also install
+`evil-collection' the first time, if it is not already present; found the
+hard way, running this suite for real on GitHub Actions for the first time:
+on a genuinely fresh checkout (`evil-collection' is deliberately on-demand
+only, never installed by `./build.sh packages', see this file's own top
+comment), `y-or-n-p' in batch mode falls back to reading a real character
+from stdin, which a true CI batch run closes outright --- an immediate
+`end-of-file' error, not a hang, failing nearly every test in this file
+despite none of them being about evil-collection at all. Declining it here
+matches what every one of these tests actually needs (plain Evil, not the
+Dired/Magit/Treemacs integrations only evil-collection adds)."
   (declare (indent 0))
   `(progn
      (skip-unless (locate-library "evil"))
-     (unwind-protect (progn ,@body)
-       (when (bound-and-true-p evil-mode) (evil-mode -1)))))
+     (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) nil)))
+       (unwind-protect (progn ,@body)
+         (when (bound-and-true-p evil-mode) (evil-mode -1))))))
 
 (ert-deftest evil/no-post-command-hook-errors-on-emacs-32 ()
   "Regression: Evil 1.15 needs `evil-mode-buffers', which Emacs 32 dropped."

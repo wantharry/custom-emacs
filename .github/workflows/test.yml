@@ -41,6 +41,20 @@ jobs:
             liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
             p7zip-full python3-venv
 
+      # Real optional tools some tests exercise for real rather than skip around (the
+      # same "don't break the basics" spirit as everything else in this workflow) ---
+      # found missing the hard way, the first real run of this suite on a fresh runner:
+      # `rustup' (already on ubuntu-latest) ships a `rust-analyzer' stub that errors
+      # until the component is added, exactly what langs/rust-analyzer-component-is-
+      # installed already checks for; `dua' (config/disk-usage.el's own backend, `C-c
+      # W') is not on this runner at all, same version tools/dist-windows.sh bundles.
+      - name: Install rust-analyzer and dua (real optional tools some tests need)
+        run: |
+          rustup component add rust-analyzer
+          curl -fsSL "https://github.com/Byron/dua-cli/releases/download/v2.45.1/dua-v2.45.1-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C /tmp
+          sudo install /tmp/dua-v2.45.1-x86_64-unknown-linux-musl/dua /usr/local/bin/dua
+
       - name: Fetch Emacs source
         run: |
           git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src || \
@@ -70,6 +84,15 @@ jobs:
   test-windows:
     runs-on: windows-latest
     steps:
+      # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
+      # script `Vampire/setup-wsl''s `wsl-bash' shell type generates for every `run:'
+      # step below (a literal CRLF ends up inside it, so `/usr/bin/env' sees the command
+      # name "bash\r", not "bash", and fails outright) --- found the hard way, this
+      # workflow's own first real run; the documented fix for exactly this is disabling
+      # it before checkout, not after (autocrlf converts line endings AT checkout time).
+      - name: Disable autocrlf (see comment above)
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v4
 
       - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)

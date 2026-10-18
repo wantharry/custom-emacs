@@ -69,7 +69,7 @@ index isolated (see `gr-isolated')."
                       "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                       "--eval" "(kill-emacs)")
         (setq best (min best (- (float-time) t0)))))
-    (should (< best 0.5))))
+    (should (< best (test-startup-budget)))))
 
 ;;; The pure, parameterized functions: safe and meaningful to test on every platform, since
 ;;; none of them reads `system-type' (or anything else) from a live global itself.
