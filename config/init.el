@@ -1837,10 +1837,20 @@ what actually gets back to a clean, single plain-Dired window afterward."
 ;; used, same as that one only loads the first time `C-c a c' is.
 (autoload 'my/disk-usage (expand-file-name "disk-usage" user-emacs-directory)
   "Browse a directory's disk usage, largest first, powered by `dua'." t)
+(defun my/dua-command ()
+  "The `dua' binary config/disk-usage.el actually runs: the bundled
+tools/dua/dua.exe when `CUSTOM_EMACS_HOME' says where the bundle is (the
+real launcher sets it; a bare `--batch' process testing the bundle directly,
+as CI's own Windows job does, has to set it by hand --- same gap `my/pass--
+shell-program' exists for), else whatever `dua' resolves to on PATH (Linux,
+or Windows outside the bundle)."
+  (let ((bundled (and (getenv "CUSTOM_EMACS_HOME")
+                       (expand-file-name "tools/dua/dua.exe" (getenv "CUSTOM_EMACS_HOME")))))
+    (if (and bundled (file-executable-p bundled)) bundled "dua")))
 (defun my/disk-usage-missing ()
   (interactive)
   (message "`dua' is not installed/not on PATH --- see docs/DISK-USAGE.md"))
-(global-set-key (kbd "C-c W") (if (executable-find "dua") #'my/disk-usage #'my/disk-usage-missing))
+(global-set-key (kbd "C-c W") (if (executable-find (my/dua-command)) #'my/disk-usage #'my/disk-usage-missing))
 
 ;;; Start screen ---------------------------------------------------------------
 
@@ -2543,9 +2553,20 @@ already picked at startup (this runs later, so it wins)."
 ;; piece, turning an ALREADY-plain file/folder into an encrypted one and
 ;; back, which nothing built-in does on its own. `tar' is bundled with
 ;; Windows 10+ itself (confirmed: `tar.exe', really bsdtar, has shipped in
-;; the box since build 17063/2018), so nothing extra is needed there; `gpg'
-;; itself is bundled for Windows below (`tools/gnupg'), the same zero-install
-;; pattern as pdf-tools/fonts/the JDK.
+;; the box since build 17063/2018), so nothing extra is needed there.
+;; `gpg' itself is NOT bundled, unlike the comment that used to live here
+;; claimed --- confirmed directly, checking the real built zip: there is no
+;; tools/gnupg anywhere in it, and tools/dist-windows.sh never fetches one.
+;; GnuPG's own Windows distribution (Gpg4win) ships only as a full NSIS
+;; installer with no official standalone/portable download, unlike
+;; rg/fd/delta/dua's plain zips, so it is not bundled here either, the same
+;; as the JDK genuinely isn't --- a real user needs their own `gpg' on PATH
+;; (e.g. via Git for Windows' own full installer, which includes one) until
+;; this gets a real bundling story. `tools/gnupg/gpg.exe' below is dead code
+;; today (the directory never exists), kept only so a future `dist-windows.sh'
+;; that does bundle one needs no change here --- `my/gpg--run' itself fails
+;; fast and clearly via `executable-find' when no working `gpg' exists at
+;; all, instead of a confusing low-level error or, worse, hanging.
 (require 'epg)
 (when (eq system-type 'windows-nt)
   (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
@@ -2578,9 +2599,21 @@ local user could see for real via `ps'."
 
 (defun my/gpg--run (args)
   "Run gpg with ARGS (a list), batch/non-interactive, signaling a real error
-on any nonzero exit so a caller's `unwind-protect'/`condition-case' sees it."
+on any nonzero exit so a caller's `unwind-protect'/`condition-case' sees it.
+Uses `epg-gpg-program' (set above to the bundled binary when one exists),
+never a bare \"gpg\" --- a real, found-the-hard-way bug: this used to call
+`call-process' with the literal string \"gpg\" directly, ignoring that
+variable entirely, so even a correctly bundled/configured gpg was never
+actually used here. Checks `executable-find' itself first and fails fast
+and clearly if nothing resolves at all, rather than letting `call-process'
+either signal a less helpful low-level error or --- worse, confirmed
+directly as a real risk on a machine with some OTHER stray `gpg' on PATH
+but no working gpg-agent/pinentry reachable --- hang the whole of Emacs
+indefinitely waiting on a prompt nothing can ever answer."
+  (unless (executable-find epg-gpg-program)
+    (user-error "`gpg' is not installed/not on PATH (checked `%s') --- install GnuPG to use encryption" epg-gpg-program))
   (with-temp-buffer
-    (let ((status (apply #'call-process "gpg" nil t nil "--batch" "--yes"
+    (let ((status (apply #'call-process epg-gpg-program nil t nil "--batch" "--yes"
                           "--pinentry-mode" "loopback" args)))
       (unless (zerop status)
         (error "gpg failed (exit %s): %s" status (string-trim (buffer-string)))))))
@@ -2605,6 +2638,14 @@ it blank (or no key exists yet at all) for a plain password instead ---
 symmetric, no key needed."
   (interactive "fFile to encrypt: ")
   (setq file (expand-file-name file))
+  ;; `"f"' in the `interactive' spec above lets you navigate into/select a directory
+  ;; too, even though this command only ever makes sense on a real file --- a real,
+  ;; user-hit bug: pointed at a folder, this used to hand the raw directory straight to
+  ;; `gpg', which failed with a low-level, confusing error ("read error: Is a
+  ;; directory") instead of ever explaining what actually went wrong. `C-c x E' (below)
+  ;; is the real command for a folder.
+  (when (file-directory-p file)
+    (user-error "%s is a folder --- use `C-c x E' (encrypt-folder) instead" file))
   (let ((recipient (my/gpg--select-recipient))
         (out (concat file ".gpg")))
     (if recipient
@@ -2623,6 +2664,13 @@ silently for a key-encrypted file whose secret key itself has no passphrase);
 only asks for one if that first, cheap attempt genuinely needed it."
   (interactive "fFile to decrypt: ")
   (setq file (expand-file-name file))
+  ;; Same real, user-hit bug as `my/encrypt-file''s own guard above, but worse here:
+  ;; pointed at a plain, not-yet-encrypted folder (e.g. by mistake for `C-c x E'), this
+  ;; used to hand it straight to `gpg --decrypt', which failed with "gpg: decrypt_
+  ;; message failed: Unknown system error" --- a genuinely confusing message for what
+  ;; is simply the wrong command on the wrong kind of path.
+  (when (file-directory-p file)
+    (user-error "%s is a folder, not an encrypted file --- did you mean `C-c x E' (encrypt-folder)?" file))
   (let ((out (if (string-suffix-p ".gpg" file)
                  (string-remove-suffix ".gpg" file)
                (concat file ".decrypted"))))
@@ -2698,13 +2746,49 @@ only asks for one if that first, cheap attempt genuinely needed it."
 PASSWORD_STORE_DIR is set in the real environment, in which case `pass'
 itself (not this config) already honors that instead.")
 
+(defun my/pass--shell-program ()
+  "A real POSIX shell to run the bundled `pass' script through on Windows ---
+see `my/pass-program''s own comment for why a bare `#!/usr/bin/env bash'
+script cannot just be launched directly there. `tools/git/usr/bin/sh.exe'
+(bundled with MinGit for Magit's own use) is a real bash under that name,
+not the much smaller `dash.exe' sitting right next to it in the same
+bundle --- confirmed by size, not assumed. nil anywhere else, where pass
+can simply be executed on its own."
+  (when (eq system-type 'windows-nt)
+    (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+                (exe (expand-file-name "tools/git/usr/bin/sh.exe" home))
+                ((file-exists-p exe)))
+      exe)))
+
 (defun my/pass-program ()
-  "The bundled `tools/pass/pass' if present (same resolution --- a sibling of
-`config/' --- `my/git-repos-script' already uses for `tools/find-repos.sh'),
-else a real `pass' already on PATH, else nil."
+  "The bundled `tools/pass/pass' script if present (same sibling-of-`config/'
+resolution `my/git-repos-script' already uses for `tools/find-repos.sh'),
+else a real `pass' already on PATH, else nil.
+A real, user-found bug: `pass' is a plain `#!/usr/bin/env bash' script ---
+on MS-Windows, `file-executable-p' only ever answers yes for a file ending
+in `.exe'/`.bat'/`.cmd'/`.com' (Emacs's own documented behavior there;
+Windows has no POSIX execute bit to check otherwise), so the bundled
+script alone never counted as present there, and `C-c p' silently fell
+back to `my/pass-missing' for every sub-command even with the real script
+sitting right there in `tools/pass/'. `my/pass--invocation' (below) is
+what actually RUNS pass once this function has found it; this one only
+answers whether it is available at all, bundled or not."
   (let ((bundled (expand-file-name "../tools/pass/pass" user-emacs-directory)))
     (cond ((file-executable-p bundled) bundled)
+          ((and (file-exists-p bundled) (my/pass--shell-program)) bundled)
           ((executable-find "pass") "pass"))))
+
+(defun my/pass--invocation ()
+  "(PROGRAM . LEADING-ARGS): PROGRAM, called with LEADING-ARGS followed by
+the real `pass' arguments, is how every caller below actually runs it. On
+Windows, running the bundled SCRIPT means going through a real shell (see
+`my/pass--shell-program') with the script's own path as its first
+argument; everywhere else (including a real `pass' already on PATH, which
+`my/pass-program' can also return), its result is already directly
+runnable on its own, no shell needed."
+  (let* ((prog (my/pass-program))
+         (sh (and prog (not (equal prog "pass")) (my/pass--shell-program))))
+    (if sh (cons sh (list prog)) (cons prog nil))))
 
 (defun my/pass-missing ()
   (interactive)

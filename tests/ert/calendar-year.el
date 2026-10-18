@@ -34,7 +34,7 @@
                       "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                       "--eval" "(kill-emacs)")
         (setq best (min best (- (float-time) t0)))))
-    (should (< best 0.5))))
+    (should (< best (test-startup-budget)))))
 
 ;;; The row-building primitive
 

@@ -72,7 +72,7 @@
                       "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                       "--eval" "(kill-emacs)")
         (setq best (min best (- (float-time) t0)))))
-    (should (< best 0.5))))
+    (should (< best (test-startup-budget)))))
 
 ;;; Configuration: every value here is deliberate, not a default left untouched --- see
 ;;; config/emacs-session.el's own comments for the real reasoning (and, for desktop-auto-save-

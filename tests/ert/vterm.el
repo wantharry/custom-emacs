@@ -1,16 +1,44 @@
 ;;; vterm.el --- a real terminal emulator, wired in and really working  -*- lexical-binding: t; -*-
 ;; harness: config
-;; Needs vterm installed (./build.sh packages); skips without it. The real terminal
-;; session itself (a real shell prompt, a real command run inside it, real output read
-;; back) is covered by tests/test_tui.py instead --- `vterm' needs a real pty, which
-;; --batch cannot give it; what IS checked here, without a display, is the one thing
-;; that actually took real research this session: that the native module really
-;; compiles on this machine without needing anything installed by hand first.
+;; Needs vterm installed (./build.sh packages); skips without it, and skips entirely on
+;; Windows (see `vterm-need''s own comment --- vterm-module.c is POSIX-only, a real
+;; upstream limitation, not something to chase here). The real terminal session itself
+;; (a real shell prompt, a real command run inside it, real output read back) is
+;; covered by tests/test_tui.py instead --- `vterm' needs a real pty, which --batch
+;; cannot give it; what IS checked here, without a display, is the one thing that
+;; actually took real research this session: that the native module really compiles on
+;; this machine without needing anything installed by hand first.
 
 (defmacro vterm-need (&rest body)
   (declare (indent 0))
-  `(if (locate-library "vterm") (progn ,@body)
-     (ert-skip "vterm is not installed (./build.sh packages)")))
+  `(cond
+    ;; Checked directly in `vterm-module.c' itself, not assumed: it unconditionally
+    ;; includes `<termios.h>' and uses POSIX-only pty APIs (`forkpty'/`openpty'), with
+    ;; no `#ifdef _WIN32' anywhere in the file --- there is no Windows code path at all,
+    ;; so the module cannot even compile there with MSVC, let alone open a real
+    ;; terminal session. This is a real, permanent upstream limitation of the C
+    ;; module, not a packaging or environment problem this project can fix; skipping
+    ;; here keeps that honest instead of chasing a compile failure that was never
+    ;; going to resolve.
+    ((eq system-type 'windows-nt)
+     (ert-skip "vterm's native module is POSIX-only (termios.h, forkpty); not supported on Windows"))
+    ((locate-library "vterm") ,@body)
+    (t (ert-skip "vterm is not installed (./build.sh packages)"))))
+
+;; Set unconditionally, at file-load time, before any `ert-deftest' below runs ---
+;; found the hard way, running this file for real: ERT's actual execution order here is
+;; alphabetical by test name, not file definition order, so leaving this `setq' inside
+;; `vterm/native-module-compiles-without-a-system-libvterm' only (as a one-off) meant
+;; every ALPHABETICALLY EARLIER test (e.g. `vterm/a-nonnumeric-prefix-arg-...',
+;; `vterm/backspace-...', `vterm/bookmark-...') still made vterm's own top-level
+;; `(require 'vterm-module ...)' check (vterm.el's own code, not this file's) see this
+;; variable still nil and call `y-or-n-p' to ask about compiling --- which crashes with
+;; `(end-of-file "Error reading from stdin")' in a real `--batch' run with closed stdin,
+;; exactly like the `evil'/`readonly' fix elsewhere in this suite. Same top-level
+;; `setq', never a `let', as explained inside that test below (an enclosing `let' here
+;; would bind it as a lexical variable before vterm.el's own `defcustom' ever runs,
+;; which then collides with the dynamic variable it declares).
+(when (locate-library "vterm") (setq vterm-always-compile-module t))
 
 (ert-deftest vterm/key-is-bound ()
   (vterm-need
@@ -70,10 +98,15 @@
 
 (defun vt-wait (seconds predicate)
   "Poll PREDICATE (a function of no args) for up to SECONDS, processing the
-real pty's output as it arrives, via the buffer-local vterm process."
-  (with-timeout (seconds (ert-fail "timed out waiting for the terminal"))
-    (while (not (funcall predicate))
-      (accept-process-output (get-buffer-process (current-buffer)) 0.1))))
+real pty's output as it arrives, via the buffer-local vterm process. Tripled
+under CI (same reasoning as `test-startup-budget') --- a real shell starting
+inside a real pty for the first time on a shared runner is genuinely slower
+than on a dedicated dev machine, confirmed directly: a real CI run timed out
+waiting 5s for a shell prompt that was clearly going to arrive, just late."
+  (let ((seconds (if (getenv "CI") (* seconds 3) seconds)))
+    (with-timeout (seconds (ert-fail "timed out waiting for the terminal"))
+      (while (not (funcall predicate))
+        (accept-process-output (get-buffer-process (current-buffer)) 0.1)))))
 
 (ert-deftest vterm/starting-creates-a-live-buffer-with-a-real-process ()
   (vt-with-vterm buf

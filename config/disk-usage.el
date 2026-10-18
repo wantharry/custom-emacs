@@ -70,12 +70,14 @@
 (require 'tabulated-list)
 (require 'dired)
 
-(defvar my/disk-usage-dua-command "dua"
+(defvar my/disk-usage-dua-command (my/dua-command)
   "The `dua' (disk usage analyzer) binary used by `my/disk-usage'.
 See https://github.com/Byron/dua-cli --- on Windows, bundled with this project's own
 dist zip (`tools/dist-windows.sh'); on Linux, expected to already be on PATH (not
 bundled here, the same treatment `fd'/`delta' already get, see that script's own
-comment on the difference between those and the bundled `rg').")
+comment on the difference between those and the bundled `rg'). Resolved via
+`my/dua-command' (config/init.el) so this matches the same keybinding check that
+decides whether `C-c W' even reaches this file at all.")
 
 (defconst my/disk-usage-buffer-name "*Disk Usage*")
 
@@ -246,6 +248,16 @@ never land in the buffer after the newer one already has.")
 (defun my/disk-usage--refresh (&optional force)
   "Show `my/disk-usage--directory', from the cache if valid or by starting a
 real `dua' scan otherwise, async or sync depending on `my/disk-usage-async'."
+  ;; `default-directory' kept in sync with what is actually ON SCREEN --- a real,
+  ;; user-found bug: this buffer used to never touch it at all, so `M-!'/`find-file'/
+  ;; anything else that runs relative to "the current directory" silently used
+  ;; whatever directory the buffer happened to inherit when FIRST created (often
+  ;; wherever Emacs itself started up from, not whatever folder this buffer is
+  ;; actually showing right now) --- confirmed directly: `M-!' + `ls' ran in the
+  ;; Emacs install folder while this buffer was visibly showing `~/Downloads'. Dired
+  ;; always keeps this in sync; this buffer drills in/out/refreshes without ever being
+  ;; recreated, so it has to do the same here, every time, not just once at creation.
+  (setq default-directory (file-name-as-directory my/disk-usage--directory))
   (when (process-live-p my/disk-usage--pending-process)
     (delete-process my/disk-usage--pending-process))
   (let* ((dir my/disk-usage--directory) (buf (current-buffer))

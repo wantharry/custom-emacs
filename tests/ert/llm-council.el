@@ -37,7 +37,7 @@
                       "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                       "--eval" "(kill-emacs)")
         (setq best (min best (- (float-time) t0)))))
-    (should (< best 0.5))))
+    (should (< best (test-startup-budget)))))
 
 ;;; Picking models: 3 meaningfully different council models, 1 distinct bigger summarizer,
 ;;; using only whatever `my/llm-ollama-models' actually reports (never hardcoded).

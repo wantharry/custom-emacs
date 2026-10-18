@@ -63,7 +63,13 @@
 (ert-deftest processes/call-process-shell-command-runs-a-real-shell ()
   (with-temp-buffer
     (should (= 0 (call-process-shell-command "echo hi && exit 0" nil t nil)))
-    (should (equal (buffer-string) "hi\n"))))
+    ;; `call-process-shell-command' goes through `cmd.exe' on native Windows (not the
+    ;; bundled bash), confirmed directly, first real run of this suite on real Windows:
+    ;; `cmd''s own `echo' does not trim the trailing space before an `&&' operator the
+    ;; way a POSIX shell's word-splitting does --- a genuine, documented platform
+    ;; difference in the shell being exercised here, not a bug in anything this project
+    ;; wrote.
+    (should (equal (buffer-string) (if (eq system-type 'windows-nt) "hi \n" "hi\n")))))
 
 (ert-deftest processes/stderr-can-be-captured-separately-from-stdout ()
   (let ((errfile (make-temp-file "test-stderr-")))
@@ -135,7 +141,11 @@
     (kill-process p)
     (with-timeout (5 (ert-fail "timeout"))
       (while (not done) (accept-process-output p 0.1)))
-    (should (eq (process-status p) 'signal))))
+    ;; MS-Windows has no POSIX signals --- `kill-process' there terminates the process
+    ;; but Emacs reports its status as `exit', never `signal' (confirmed directly, first
+    ;; real run of this suite on real Windows); everywhere else `signal' is the real,
+    ;; meaningful expectation.
+    (should (eq (process-status p) (if (eq system-type 'windows-nt) 'exit 'signal)))))
 
 (ert-deftest processes/process-send-eof-closes-stdin-and-the-process-exits ()
   (let* ((out "") (done nil)

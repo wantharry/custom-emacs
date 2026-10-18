@@ -23,8 +23,8 @@ JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same v
 JDK_VERSION="${JDK_VERSION:-21.0.12.1+1}"     # Eclipse Temurin, the portable JDK jdtls runs on (`java' branch only)
 MAVEN_VERSION="${MAVEN_VERSION:-3.10.0}"      # Apache Maven, bundled so `C-c j' works with zero install (`java' branch only)
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
-ZIG=("$DIST/.venv/bin/python" -m ziglang)
-[ -x "$DIST/.venv/bin/python" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
+ZIG=("${ZIG_PYTHON:-$DIST/.venv/bin/python}" -m ziglang)
+[ -x "${ZIG[0]}" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
 command -v 7z >/dev/null || { echo "7z is needed to make the zip (sudo apt-get install p7zip-full)" >&2; exit 1; }
 command -v cmd.exe >/dev/null || { echo "this needs WSL (it runs the Windows Emacs to compile packages)" >&2; exit 1; }
 [ -d "$ROOT/config/elpa" ] || { echo "no packages: run ./build.sh packages" >&2; exit 1; }

@@ -170,7 +170,7 @@
 
 (ert-deftest magit/does-not-slow-startup ()
   ;; Same threshold as startup/under-half-a-second; Magit must add nothing at startup.
-  (should (< (sp--startup-seconds) 0.5)))
+  (should (< (sp--startup-seconds) (test-startup-budget))))
 
 ;;; Delta (nicer diffs via magit-delta-mode)
 
@@ -208,6 +208,6 @@
     (should (string-match-p "(nil nil)" out))))
 
 (ert-deftest magit-delta/does-not-slow-startup ()
-  (should (< (sp--startup-seconds) 0.5)))
+  (should (< (sp--startup-seconds) (test-startup-budget))))
 
 ;;; magit.el ends here

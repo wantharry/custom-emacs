@@ -51,7 +51,7 @@ alone, the same as the real code does between real sessions: it is meant to pers
                       "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                       "--eval" "(kill-emacs)")
         (setq best (min best (- (float-time) t0)))))
-    (should (< best 0.5))))
+    (should (< best (test-startup-budget)))))
 
 ;;; Declining clearly when something is missing, without needing the real tools installed
 

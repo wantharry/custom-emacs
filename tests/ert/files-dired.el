@@ -111,7 +111,13 @@
   (test-with-temp-dir d
     (let ((f (test-write-file (concat d "rc.txt") "")))
       (recentf-add-file f)
-      (should (member f recentf-list)))))
+      ;; `recentf-list' stores `abbreviate-file-name''s result, not the raw path ---
+      ;; harmless to compare directly everywhere the temp directory isn't under
+      ;; `$HOME' (true on Linux: `/tmp' isn't), but found the hard way on Windows,
+      ;; where the real per-user temp directory IS under the profile folder
+      ;; `abbreviate-file-name' abbreviates to `~', so `recentf-list' there held
+      ;; "~/AppData/Local/Temp/..." while `f' was still the unabbreviated form.
+      (should (member (abbreviate-file-name f) recentf-list)))))
 
 (defmacro fd--with-dired (dir &rest body)
   "Run BODY with a Dired buffer on DIR current, killed afterward."

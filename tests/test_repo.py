@@ -2,14 +2,36 @@
 import glob
 import os
 import re
+import shutil
 import subprocess
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# A bare "bash" is not safe to resolve via PATH on Windows CI --- found the hard way:
+# once an earlier CI step (Vampire/setup-wsl) has registered a real WSL distro,
+# C:\Windows\System32\bash.exe (an "app execution alias" Windows itself ships, not
+# anything this project controls) stops being a dead end and starts actually launching
+# that distro, and depending on PATH order a bare lookup can land there instead of Git
+# for Windows' own bash.exe --- producing bizarre, unrelated-looking failures (WSL
+# trying and failing to translate an ordinary Windows path argument into its own).
+# Git for Windows always installs to this exact path on a GitHub-hosted Windows
+# runner, so preferring it outright, when it exists, sidesteps the ambiguity entirely
+# rather than hoping PATH order cooperates.
+BASH = shutil.which("bash")
+for _candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files (x86)\Git\bin\bash.exe"):
+    if os.path.exists(_candidate):
+        BASH = _candidate
+        break
+
 
 def read(path):
-    with open(path) as fh:
+    # encoding="utf-8" is not cosmetic --- found the hard way, this suite's own run on
+    # Windows: without it, Python defaults to the locale encoding there (cp1252, a
+    # legacy Windows codepage), which cannot decode a real Unicode character already
+    # present in these Elisp sources and crashes outright, whereas Linux's own default
+    # locale encoding is already UTF-8, so this never surfaced there.
+    with open(path, encoding="utf-8") as fh:
         return fh.read()
 
 
@@ -61,7 +83,14 @@ class Scripts(unittest.TestCase):
         scripts += [os.path.relpath(p, ROOT) for p in glob.glob(rel(".githooks", "*"))]
         for s in scripts:
             with self.subTest(script=s):
-                r = subprocess.run(["bash", "-n", rel(s)], capture_output=True, text=True)
+                # `.replace` here is not cosmetic --- found the hard way, this suite's own
+                # first real run on Windows: `bash' there (MSYS, from Git for Windows) parses
+                # its own argv itself rather than receiving an already-split array, and
+                # treats an unescaped backslash as an escape character, so a raw Windows path
+                # like `D:\a\custom-emacs\custom-emacs\tests\run-all.sh' arrives as
+                # `D:acustom-emacscustom-emacstests/run-all.sh' --- no such file. Forward
+                # slashes sidestep this entirely and are accepted on both platforms.
+                r = subprocess.run([BASH, "-n", rel(s).replace("\\", "/")], capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_scripts_are_executable(self):
@@ -70,7 +99,11 @@ class Scripts(unittest.TestCase):
                 self.assertTrue(os.access(rel(s), os.X_OK))
 
     def test_doctor_reports_every_section_without_opening_a_window(self):
-        r = subprocess.run([rel("tools", "doctor.sh"), "--no-gui"], capture_output=True, text=True)
+        # Routed through `bash' explicitly, with forward slashes, for the same reason as
+        # `test_shell_scripts_have_valid_syntax' above: running a shebang script directly
+        # as argv[0] has no shell to interpret `#!/usr/bin/env bash' on Windows.
+        r = subprocess.run([BASH, rel("tools", "doctor.sh").replace("\\", "/"), "--no-gui"],
+                            capture_output=True, text=True)
         self.assertIn(r.returncode, (0, 1), r.stderr)          # warnings never fail; only FAILs do
         for heading in ["Environment", "Where the files live", "PATH", "Emacs", "Fonts",
                         "Emacs processes running now", "Tools", "Repository"]:

@@ -141,7 +141,7 @@ echo
 py_out="$(cd "$ROOT" && python3 -m unittest discover -s tests -p 'test_*.py' 2>&1)"; py_status=$?
 py_line="$(grep -E '^Ran [0-9]+ test' <<<"$py_out")"
 echo "PYTHON: $py_line  $(tail -1 <<<"$py_out")"
-[ "$py_status" != 0 ] && { bad=1; echo "$py_out" | tail -30 | sed 's/^/    | /'; }
+[ "$py_status" != 0 ] && { bad=1; echo "$py_out" | tail -200 | sed 's/^/    | /'; }
 
 if [ "$FULL" = 1 ]; then
   echo; echo "VERIFY-PRUNE:"; "$ROOT/tools/verify-prune.sh" | tail -6 || bad=1

@@ -24,9 +24,19 @@
   (setenv v nil))
 
 (defmacro test-with-temp-dir (var &rest body)
-  "Bind VAR to a fresh temporary directory (with trailing slash) around BODY."
+  "Bind VAR to a fresh temporary directory (with trailing slash) around BODY.
+
+`file-truename' here is not cosmetic --- found the hard way, the first real run
+of this suite on real Windows: `temporary-file-directory' there can itself be
+the Windows 8.3 short form (e.g. `C:/Users/RUNNER~1/AppData/Local/Temp', set
+that way in this account's own environment), while features under test
+(Dired, VC, treemacs, ranger, ...) normalize paths they hand back through
+`file-truename' internally and get the long form (`C:/Users/runneradmin/...')
+back instead. Comparing those two forms directly then fails even though both
+names refer to the exact same directory --- truenaming VAR itself here, once,
+fixes every test that trusts it without each having to do this individually."
   (declare (indent 1))
-  `(let ((,var (file-name-as-directory (make-temp-file "emacs-test-" t))))
+  `(let ((,var (file-name-as-directory (file-truename (make-temp-file "emacs-test-" t)))))
      (unwind-protect (progn ,@body)
        (ignore-errors (delete-directory ,var t)))))
 
@@ -53,6 +63,27 @@ because keyboard macros and the command loop act on the window's buffer."
        ;; buffer) --- calling `kill-buffer' again here would otherwise error,
        ;; masking whatever BODY's own `should' actually found.
        (when (buffer-live-p test--buf) (kill-buffer test--buf)))))
+
+(defun test-startup-budget ()
+  "Seconds a `sp--startup-seconds'-style startup-timing test is allowed, before
+it counts as a real regression. 0.5s normally; a looser 2.0s under CI (`CI' is
+the de facto standard env var essentially every CI provider, including GitHub
+Actions, sets) --- found the hard way, running this suite for real on GitHub
+Actions for the first time: shared/throttled CI runners are routinely slower
+than a dedicated dev machine, enough to trip the strict local threshold on
+totally unrelated features with no real regression, which would otherwise
+make this whole class of guard just noise to ignore rather than a signal to
+trust. Local development keeps the tight 0.5s budget, where it is still a
+real, meaningful guard (confirmed directly: a plain, unloaded startup here
+measures a comfortable ~0.3s). Windows CI gets a further-widened 5.0s: the
+real Windows runner measured 2.1-2.3s on several of these tests even with a
+3.0s budget already applied, and a later run measured up to 4.1s with that
+bumped to 3.0s --- still not enough headroom, consistently (process spawn
+and antivirus filesystem scanning are both genuinely slower there, not a
+regression)."
+  (cond ((and (getenv "CI") (eq system-type 'windows-nt)) 5.0)
+        ((getenv "CI") 2.0)
+        (t 0.5)))
 
 (defun test-write-file (path content)
   "Write CONTENT to PATH and return PATH."

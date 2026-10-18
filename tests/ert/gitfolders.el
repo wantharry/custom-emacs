@@ -37,11 +37,14 @@ index isolated (see `gr-isolated')."
                (kill-buffer my/git-repos-buffer-name))))))))
 
 (defun gr--run-and-wait (&optional windows)
-  "Call `my/find-git-repos', wait for the (stub) process to finish, return its buffer."
+  "Call `my/find-git-repos', wait for the (stub) process to finish, return its buffer.
+Budget is CI-aware (see `test-startup-budget''s own reasoning) --- a shared/throttled CI
+runner can genuinely take longer than 10s for even this trivial stub process to exit and
+its sentinel to actually run."
   (my/find-git-repos windows)
   (with-current-buffer my/git-repos-buffer-name
-    (let ((n 0))
-      (while (and (< n 100) (process-live-p my/git-repos--process))
+    (let ((n 0) (max (if (getenv "CI") 400 100)))
+      (while (and (< n max) (process-live-p my/git-repos--process))
         (accept-process-output my/git-repos--process 0.1)
         (setq n (1+ n))))
     (current-buffer)))
@@ -69,7 +72,7 @@ index isolated (see `gr-isolated')."
                       "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                       "--eval" "(kill-emacs)")
         (setq best (min best (- (float-time) t0)))))
-    (should (< best 0.5))))
+    (should (< best (test-startup-budget)))))
 
 ;;; The pure, parameterized functions: safe and meaningful to test on every platform, since
 ;;; none of them reads `system-type' (or anything else) from a live global itself.

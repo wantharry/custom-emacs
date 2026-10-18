@@ -84,6 +84,29 @@ to nil for the duration, so the callback --- real `dua' or a cache hit either wa
                 (should (equal (file-truename my/disk-usage--directory) (file-truename dir)))))
           (when (buffer-live-p buf) (kill-buffer buf)))))))
 
+(ert-deftest disk-usage/default-directory-tracks-what-is-actually-shown ()
+  "A real, user-found bug: `default-directory' used to never be touched by this
+buffer at all, so `M-!'/`find-file'/anything else that runs relative to \"the
+current directory\" silently used whatever directory this buffer happened to
+inherit when first created --- not whatever folder it is actually showing."
+  (disk-usage-test-needs-dua
+    (test-with-temp-dir dir
+      (make-directory (expand-file-name "sub" dir))
+      (let (buf (my/disk-usage-async nil))
+        (unwind-protect
+            (progn
+              (my/disk-usage dir)
+              (setq buf (current-buffer))
+              (with-current-buffer buf
+                (should (equal (file-truename default-directory) (file-truename dir)))
+                (goto-char (point-min))
+                (my/disk-usage-visit)
+                (should (equal (file-truename default-directory)
+                               (file-truename (file-name-as-directory (expand-file-name "sub" dir)))))
+                (my/disk-usage-up)
+                (should (equal (file-truename default-directory) (file-truename dir)))))
+          (when (buffer-live-p buf) (kill-buffer buf)))))))
+
 (ert-deftest disk-usage/async-scan-really-runs-in-the-background ()
   ;; A real, user-raised concern: the first version of this file used `call-process',
   ;; which blocks all of Emacs for as long as `dua' takes --- confirmed directly

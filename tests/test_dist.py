@@ -7,11 +7,22 @@ than the settings in the repo is reported as stale: rebuild it before handing it
 import glob
 import os
 import re
+import shutil
 import subprocess
 import unittest
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# A bare "bash" is not safe to resolve via PATH on Windows CI --- see test_repo.py's
+# own BASH for the full reasoning (a real WSL distro's own bash.exe can shadow Git for
+# Windows' one once an earlier CI step has registered it).
+BASH = shutil.which("bash")
+for _candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files (x86)\Git\bin\bash.exe"):
+    if os.path.exists(_candidate):
+        BASH = _candidate
+        break
+
 ZIP = os.path.join(ROOT, "dist", "custom-emacs-windows-x64.zip")
 TOP = ""  # the zip has no wrapping top-level folder (fixed 2026-09-27: it doubled on Windows' own
           # "Extract All", which proposes a same-named destination folder)
@@ -28,7 +39,9 @@ class Scripts(unittest.TestCase):
             with self.subTest(script=s):
                 p = os.path.join(ROOT, s)
                 self.assertTrue(os.access(p, os.X_OK))
-                r = subprocess.run(["bash", "-n", p], capture_output=True, text=True)
+                # Forward slashes: see test_repo.py's test_shell_scripts_have_valid_syntax
+                # for why a raw Windows backslash path breaks MSYS `bash' argv parsing.
+                r = subprocess.run([BASH, "-n", p.replace("\\", "/")], capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_build_sh_knows_the_dist_command(self):

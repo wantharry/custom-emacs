@@ -181,6 +181,10 @@ hook runs.  Also binds `ro-file' to the path."
 
 (ert-deftest readonly/evil-typing-changes-nothing ()
   (skip-unless (locate-library "evil"))
+  ;; `my/toggle-evil' asks (via `y-or-n-p') whether to also install
+  ;; `evil-collection' the first time, if not already present --- stubbed to
+  ;; decline, same reason/fix as `evil-test-with-clean-state' in evil.el.
+  (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) nil)))
   (ro-with-file (b "a.txt" "hello\n")
     (my/toggle-evil)
     (unwind-protect
@@ -188,7 +192,7 @@ hook runs.  Also binds `ro-file' to the path."
                  (ignore-errors (execute-kbd-macro (kbd keys)))
                  (ignore-errors (execute-kbd-macro (kbd "<escape>"))))
                (should (equal (buffer-string) "hello\n")))
-      (evil-mode -1))))
+      (evil-mode -1)))))
 
 ;;; Key bindings for the two commands (deliberate three-key chords)
 
@@ -239,6 +243,8 @@ hook runs.  Also binds `ro-file' to the path."
 
 (ert-deftest readonly/the-chord-is-not-shadowed-by-evil ()
   (skip-unless (locate-library "evil"))
+  ;; See `readonly/evil-typing-changes-nothing''s own comment on this stub.
+  (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) nil)))
   (ro-with-file (b "a.txt" "hello\n")
     (my/toggle-evil)
     (unwind-protect
@@ -247,7 +253,7 @@ hook runs.  Also binds `ro-file' to the path."
                (should-not buffer-read-only)
                (execute-kbd-macro (kbd "C-c e l"))
                (should buffer-read-only))
-      (evil-mode -1))))
+      (evil-mode -1)))))
 
 (ert-deftest readonly/the-chord-is-not-shadowed-in-dired-or-ibuffer ()
   (test-with-temp-dir d

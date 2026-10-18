@@ -1,0 +1,235 @@
+name: Test (Linux + Windows)
+
+# Runs the full regression suite on real Linux and real Windows, automatically, on every
+# push to main/utilities/java (plus any PR into them) -- found worth having the hard way:
+# a real, user-reported bug (the bundled `pass' password-manager script could never run on
+# Windows, since `file-executable-p' only recognizes .exe/.bat/.cmd/.com there) that no
+# amount of testing on this project's own Linux/WSL dev sandbox could ever have caught,
+# because the bug was in how Windows itself treats a plain shebang script -- a genuinely
+# different OS, not a config mistake. workflow_dispatch exists as a manual "run it now"
+# escape hatch (e.g. to try this workflow itself without waiting for a push).
+#
+# The Linux job mirrors release.yml's own proven build recipe (docs/BUILD.md end to end).
+# The Windows job needs WSL -- tools/dist-windows.sh itself requires it (see that script's
+# own top comment: it compiles packages by running the real downloaded Windows Emacs
+# through cmd.exe/WSL interop, the same way building the Windows dist locally in this
+# project's own WSL2 dev sandbox always has) -- so `Vampire/setup-wsl' sets one up on the
+# `windows-latest' runner first. Once the bundle is built, the actual test run against it
+# happens on the NATIVE Windows side (Git for Windows' own `bash.exe', found by its well-
+# known install path rather than a bare `bash' lookup -- see test_repo.py's own BASH for
+# why that lookup alone is not safe once a step earlier in the job has set up WSL), not
+# through WSL and not through Wine -- this is genuinely real Windows, the same OS class
+# the bug above only showed up on.
+
+on:
+  push:
+    branches: [main, utilities, java]
+  pull_request:
+    branches: [main, utilities, java]
+  workflow_dispatch: {}
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          # `libtool-bin', not just `libtool': on Debian/Ubuntu the `libtool' package is
+          # only the m4 macros/`libtoolize'/docs --- the actual `/usr/bin/libtool' script
+          # that vterm's own CMakeLists.txt shells out to build its vendored libvterm
+          # comes from the separate `libtool-bin' package, confirmed directly (`dpkg -S
+          # /usr/bin/libtool' on a machine with both installed). `libtool' alone being
+          # "already the newest version" in an earlier run's log was a red herring: the
+          # package existed, but the actual command still wasn't on PATH, which is
+          # exactly why every vterm test kept failing even after adding it.
+          sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
+            libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
+            libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
+            liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
+            p7zip-full python3-venv cmake libtool libtool-bin
+
+      # Real optional tools some tests exercise for real rather than skip around (the
+      # same "don't break the basics" spirit as everything else in this workflow) ---
+      # found missing the hard way, the first real run of this suite on a fresh runner:
+      # `rustup' (already on ubuntu-latest) ships a `rust-analyzer' stub that errors
+      # until the component is added, exactly what langs/rust-analyzer-component-is-
+      # installed already checks for; `dua' (config/disk-usage.el's own backend, `C-c
+      # W') is not on this runner at all, same version tools/dist-windows.sh bundles.
+      - name: Install rust-analyzer and dua (real optional tools some tests need)
+        run: |
+          rustup component add rust-analyzer
+          curl -fsSL "https://github.com/Byron/dua-cli/releases/download/v2.45.1/dua-v2.45.1-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C /tmp
+          sudo install /tmp/dua-v2.45.1-x86_64-unknown-linux-musl/dua /usr/local/bin/dua
+
+      - name: Fetch Emacs source
+        run: |
+          git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src || \
+          git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git emacs-src
+          echo "EMACS_SRC_REV=$(git -C emacs-src rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Cache the Emacs build tree
+        uses: actions/cache@v4
+        with:
+          path: |
+            build
+            install
+          key: linux-build-${{ env.EMACS_SRC_REV }}-${{ hashFiles('build.sh') }}
+
+      - name: Build this Emacs (configure + make + install + prune)
+        run: ./build.sh all
+
+      - name: Install this config's Elisp packages
+        run: ./build.sh packages
+
+      # `vterm-module-compile' normally runs lazily, the first time a real user's own
+      # `(require 'vterm)' needs it (see tests/ert/vterm.el's own comment) --- fine for an
+      # interactive user compiling once on their own machine, but it writes its real
+      # compiler output to an Emacs buffer, not stdout, so a build failure there during
+      # the test run earlier showed up as nothing more informative than a generic
+      # `file-missing' on `vterm-module', with no way to see the real `cmake'/`make'
+      # error behind it. Doing it here explicitly, printing that buffer unconditionally,
+      # gives CI the same real visibility a local terminal already has.
+      - name: Compile vterm's native module (visible output, not hidden in a buffer)
+        run: |
+          ./install/bin/emacs --batch --eval "
+          (progn
+            (dolist (d (directory-files \"config/elpa\" t \"^[^.]\"))
+              (when (file-directory-p d) (add-to-list 'load-path d)))
+            (condition-case err
+                (progn (setq vterm-always-compile-module t) (require 'vterm) (vterm-module-compile)
+                       (princ (with-current-buffer vterm-install-buffer-name (buffer-string))))
+              (error (princ (with-current-buffer vterm-install-buffer-name (buffer-string)))
+                     (princ (format \"\nvterm-module-compile failed: %S\n\" err))
+                     (kill-emacs 1))))"
+
+      - name: Build the tree-sitter grammars
+        run: ./build.sh grammars
+
+      - name: Run the full test suite
+        run: ./build.sh test
+
+  test-windows:
+    # Deliberately independent of test-linux: the only thing this job ever needed from
+    # it was config/elpa's installed package SOURCE files, and `./build.sh packages'
+    # itself needs no particular Emacs to run (`pick_emacs' in build.sh honors a plain
+    # EMACS= override) --- a quick stock `emacs-nox' inside this job's own WSL does the
+    # exact same job in seconds, instead of waiting out test-linux's ~20-minute
+    # from-source build just to borrow its artifact. Real Windows signal no longer
+    # waits on the Linux suite being 100% green, or even on it having started at all.
+    runs-on: windows-latest
+    steps:
+      # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
+      # script `Vampire/setup-wsl''s `wsl-bash' shell type generates for every `run:'
+      # step below (a literal CRLF ends up inside it, so `/usr/bin/env' sees the command
+      # name "bash\r", not "bash", and fails outright) --- found the hard way, this
+      # workflow's own first real run; the documented fix for exactly this is disabling
+      # it before checkout, not after (autocrlf converts line endings AT checkout time).
+      - name: Disable autocrlf (see comment above)
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      # Keyed only on what actually ends up IN the bundle (config/*.el, the dist/
+      # launcher scripts themselves, the bundled tools/pass, tools/pdf-tools) --- not
+      # on tests/, so a push that only touches test files (the overwhelming majority
+      # while iterating on this very workflow) reuses the exact zip a previous run
+      # already built and tested, instead of paying the full ~40+ minute rebuild
+      # again for bytes that did not change. A real, accepted trade-off: packages
+      # pulled from GNU ELPA/MELPA are not version-pinned, so their very latest
+      # version could in principle drift between two runs with an IDENTICAL key;
+      # reusing exactly what a previous run already built and tested is the point
+      # here, not chasing the newest possible package build on every single push.
+      - name: Cache the Windows dist bundle
+        id: cache-dist
+        uses: actions/cache@v4
+        with:
+          path: dist/custom-emacs-windows-x64.zip
+          key: windows-dist-${{ hashFiles('config/**', 'tools/dist-windows.sh', 'tools/windows-launcher.c', 'tools/install-packages.el', 'tools/install-grammars.el', 'tools/pass/**', 'tools/pdf-tools/**', 'tools/find-repos.sh') }}
+
+      - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)
+        uses: Vampire/setup-wsl@v5
+        with:
+          distribution: Ubuntu-22.04
+          additional-packages: p7zip-full unzip wget python3-venv python3-pip software-properties-common
+
+      # Ubuntu 22.04's own stock `emacs-nox' is 27.1 --- confirmed directly, this
+      # job's own first real run: too old even to parse `--init-directory' (added in
+      # 29.1), and tools/install-packages.el itself needs `package-vc' (also 29+).
+      # A PPA build is still much faster than compiling our own from source here, and
+      # this stand-in only ever needs to run package.el once, nothing version-sensitive.
+      - name: Install a modern stand-in Emacs (Ubuntu 22.04's own is too old for package-vc)
+        if: steps.cache-dist.outputs.cache-hit != 'true'
+        shell: wsl-bash {0}
+        run: |
+          sudo add-apt-repository -y ppa:ubuntuhandbook1/emacs
+          sudo apt-get update
+          sudo apt-get install -y emacs-nox
+
+      # This job's own quick stand-in Emacs, only ever used to run package.el once ---
+      # see this job's own top comment for why it does not need test-linux's slow
+      # from-source build for this.
+      - name: Install this config's Elisp packages
+        if: steps.cache-dist.outputs.cache-hit != 'true'
+        shell: wsl-bash {0}
+        run: EMACS=/usr/bin/emacs ./build.sh packages
+
+      # CI=true set explicitly here (not just relying on it already being in the
+      # outer step's own environment) --- WSL's own interop forwarding of env vars has
+      # already shown real, surprising quirks in this same workflow (see the PATH/
+      # WSLENV comment below); build.sh's own dist_env() reads this to redirect its
+      # venv off the slow DrvFs-mounted checkout, see that function's own comment.
+      - name: Build the Windows dist bundle (same recipe as building it locally)
+        if: steps.cache-dist.outputs.cache-hit != 'true'
+        shell: wsl-bash {0}
+        env:
+          CI: "true"
+        run: ./build.sh dist windows
+
+      # Cache hit: the zip above already IS the bundle a previous run both built and
+      # tested, so just unpack it where the later steps expect it --- same contents a
+      # real rebuild would have produced, just not re-derived. config/elpa is
+      # restored too (not only inside the bundle): tests/run-all.sh's own "config"
+      # harness symlinks packages in from $ROOT/config/elpa directly, which only the
+      # (skipped, on a cache hit) packages-install step above would otherwise create.
+      - name: Unpack the cached dist bundle instead of rebuilding it
+        if: steps.cache-dist.outputs.cache-hit == 'true'
+        shell: wsl-bash {0}
+        run: |
+          mkdir -p dist/stage/custom-emacs-windows-x64
+          (cd dist/stage/custom-emacs-windows-x64 && 7z x -y ../../custom-emacs-windows-x64.zip >/dev/null)
+          rm -rf config/elpa
+          cp -a dist/stage/custom-emacs-windows-x64/config/elpa config/elpa
+
+      # The real end-user launch goes through `Emacs.exe' (tools/windows-launcher.c), which
+      # prepends the bundled tools (dua, rg, fd, delta, git) to PATH and sets
+      # `CUSTOM_EMACS_HOME' before ever starting the real `emacs.exe' --- confirmed directly
+      # in that launcher's own source, first real run of this suite against actual Windows:
+      # `my/disk-usage' (`dua') and `my/pass' (its bundled shell) both depend on exactly
+      # this. That launcher is GUI-only (starts `runemacs.exe' detached, no stdout to
+      # capture), so it cannot drive `--batch' tests itself; this replicates its PATH/env
+      # setup by hand instead, so the test run sees what the real shipped product does.
+      - name: Run the full test suite against the real Windows build
+        shell: bash
+        env:
+          EMACS: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64\emacs\bin\emacs.exe
+          CUSTOM_EMACS_HOME: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64
+        run: |
+          # `unset WSLENV' matters here, not just tidiness --- found the hard way: once
+          # the earlier `Vampire/setup-wsl' step has registered a real WSL distro, the
+          # `bash' Windows ships at C:\Windows\System32 stops being a dead stub and
+          # starts actually launching it, so a bare `bash' lookup (e.g. Python's own
+          # `subprocess.run(["bash", ...])' in tests/test_repo.py) can resolve there
+          # instead of Git for Windows' own `bash.exe'. `WSLENV' then auto-shares PATH
+          # into that WSL session, translating it as if it were still Windows' own
+          # semicolon-separated, backslash-style PATH --- but the colon-separated,
+          # forward-slash PATH this step builds below is not that, so the translator
+          # mangles it ("wsl: Failed to translate ...") instead of erroring cleanly.
+          # Clearing it stops any such translation from being attempted at all.
+          unset WSLENV
+          STAGE="${CUSTOM_EMACS_HOME//\\//}"
+          export PATH="$STAGE/tools/git/cmd:$STAGE/tools/git/usr/bin:$STAGE/tools/rg:$STAGE/tools/fd:$STAGE/tools/delta:$STAGE/tools/dua:$PATH"
+          ./build.sh test

@@ -27,7 +27,7 @@ EMACS = os.path.join(ROOT, "build", "src", "emacs")
 
 def read_manifest():
     pats = []
-    with open(MANIFEST) as fh:
+    with open(MANIFEST, encoding="utf-8") as fh:
         for line in fh:
             line = line.split("#", 1)[0].strip()
             if line:
@@ -42,7 +42,17 @@ def all_files():
         for f in files:
             if f.endswith(".el"):
                 p = os.path.join(root, f)
-                out[os.path.relpath(p, LISP)[:-3]] = p
+                # Forward slashes always, even on Windows: `os.path.relpath' returns
+                # backslash-joined paths there, but prune.list's own patterns
+                # (matches(), SKIP_SRC) and every `require'/`load' form this scans for
+                # are already forward-slash, same on every platform (Elisp feature
+                # names like `apps/gone' never contain a backslash). Found the hard
+                # way: this is pure Python logic with no real Windows use (the Windows
+                # dist bundle ships the official prebuilt Emacs and never runs this),
+                # but CI exercises it for real there anyway, and it should still be
+                # correct rather than quietly relying on Linux's own path separator.
+                rel = os.path.relpath(p, LISP)[:-3].replace(os.sep, "/")
+                out[rel] = p
     return out
 
 
@@ -66,7 +76,7 @@ def needs(path):
     """
     hard, soft = set(), set()
     prev = ""
-    with open(path, errors="replace") as fh:
+    with open(path, encoding="utf-8", errors="replace") as fh:
         lines = fh.readlines()
     for l in lines:
         stripped = l.lstrip()

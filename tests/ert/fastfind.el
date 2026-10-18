@@ -44,7 +44,20 @@ and the global search limited to ROOT."
 
 (defun ff--wait-for-index ()
   "Wait until the background build has finished AND its result is in place (the process being
-gone is not enough: the step that moves the finished file into place runs just after)."
+gone is not enough: the step that moves the finished file into place runs just after).
+
+First waits (up to 5s) for the process to actually become live --- a real race, found the
+hard way running this suite on a different/slower machine for the first time: when a STALE
+index file already exists (a refresh test's own setup), `file-exists-p' is already true and
+`process-live-p' is already nil before the new background build has even started (`my/ff-
+maybe-refresh''s own reindex call is not guaranteed synchronous), so without this, the main
+wait loop below can return instantly, having never actually waited for the real new scan at
+all --- fine on a machine fast/lucky enough for the new process to already be live by the
+time this runs, a real intermittent failure elsewhere."
+  (let ((n 0))
+    (while (and (< n 50) (not (process-live-p my/ff--process)))
+      (accept-process-output nil 0.1)
+      (setq n (1+ n))))
   (while (or (process-live-p my/ff--process) (not (file-exists-p (my/ff--global-index-file))))
     (accept-process-output nil 0.1)))
 
