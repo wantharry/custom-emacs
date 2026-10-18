@@ -27,7 +27,7 @@ EMACS = os.path.join(ROOT, "build", "src", "emacs")
 
 def read_manifest():
     pats = []
-    with open(MANIFEST) as fh:
+    with open(MANIFEST, encoding="utf-8") as fh:
         for line in fh:
             line = line.split("#", 1)[0].strip()
             if line:
@@ -76,7 +76,7 @@ def needs(path):
     """
     hard, soft = set(), set()
     prev = ""
-    with open(path, errors="replace") as fh:
+    with open(path, encoding="utf-8", errors="replace") as fh:
         lines = fh.readlines()
     for l in lines:
         stripped = l.lstrip()
