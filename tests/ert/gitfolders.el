@@ -43,7 +43,7 @@ runner can genuinely take longer than 10s for even this trivial stub process to 
 its sentinel to actually run."
   (my/find-git-repos windows)
   (with-current-buffer my/git-repos-buffer-name
-    (let ((n 0) (max (if (getenv "CI") 400 100)))
+    (let ((n 0) (max (if (getenv "CI") 600 100)))
       (while (and (< n max) (process-live-p my/git-repos--process))
         (accept-process-output my/git-repos--process 0.1)
         (setq n (1+ n))))
