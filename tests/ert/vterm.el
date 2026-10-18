@@ -1,16 +1,29 @@
 ;;; vterm.el --- a real terminal emulator, wired in and really working  -*- lexical-binding: t; -*-
 ;; harness: config
-;; Needs vterm installed (./build.sh packages); skips without it. The real terminal
-;; session itself (a real shell prompt, a real command run inside it, real output read
-;; back) is covered by tests/test_tui.py instead --- `vterm' needs a real pty, which
-;; --batch cannot give it; what IS checked here, without a display, is the one thing
-;; that actually took real research this session: that the native module really
-;; compiles on this machine without needing anything installed by hand first.
+;; Needs vterm installed (./build.sh packages); skips without it, and skips entirely on
+;; Windows (see `vterm-need''s own comment --- vterm-module.c is POSIX-only, a real
+;; upstream limitation, not something to chase here). The real terminal session itself
+;; (a real shell prompt, a real command run inside it, real output read back) is
+;; covered by tests/test_tui.py instead --- `vterm' needs a real pty, which --batch
+;; cannot give it; what IS checked here, without a display, is the one thing that
+;; actually took real research this session: that the native module really compiles on
+;; this machine without needing anything installed by hand first.
 
 (defmacro vterm-need (&rest body)
   (declare (indent 0))
-  `(if (locate-library "vterm") (progn ,@body)
-     (ert-skip "vterm is not installed (./build.sh packages)")))
+  `(cond
+    ;; Checked directly in `vterm-module.c' itself, not assumed: it unconditionally
+    ;; includes `<termios.h>' and uses POSIX-only pty APIs (`forkpty'/`openpty'), with
+    ;; no `#ifdef _WIN32' anywhere in the file --- there is no Windows code path at all,
+    ;; so the module cannot even compile there with MSVC, let alone open a real
+    ;; terminal session. This is a real, permanent upstream limitation of the C
+    ;; module, not a packaging or environment problem this project can fix; skipping
+    ;; here keeps that honest instead of chasing a compile failure that was never
+    ;; going to resolve.
+    ((eq system-type 'windows-nt)
+     (ert-skip "vterm's native module is POSIX-only (termios.h, forkpty); not supported on Windows"))
+    ((locate-library "vterm") ,@body)
+    (t (ert-skip "vterm is not installed (./build.sh packages)"))))
 
 ;; Set unconditionally, at file-load time, before any `ert-deftest' below runs ---
 ;; found the hard way, running this file for real: ERT's actual execution order here is
