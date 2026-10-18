@@ -2442,9 +2442,20 @@ already picked at startup (this runs later, so it wins)."
 ;; piece, turning an ALREADY-plain file/folder into an encrypted one and
 ;; back, which nothing built-in does on its own. `tar' is bundled with
 ;; Windows 10+ itself (confirmed: `tar.exe', really bsdtar, has shipped in
-;; the box since build 17063/2018), so nothing extra is needed there; `gpg'
-;; itself is bundled for Windows below (`tools/gnupg'), the same zero-install
-;; pattern as pdf-tools/fonts/the JDK.
+;; the box since build 17063/2018), so nothing extra is needed there.
+;; `gpg' itself is NOT bundled, unlike the comment that used to live here
+;; claimed --- confirmed directly, checking the real built zip: there is no
+;; tools/gnupg anywhere in it, and tools/dist-windows.sh never fetches one.
+;; GnuPG's own Windows distribution (Gpg4win) ships only as a full NSIS
+;; installer with no official standalone/portable download, unlike
+;; rg/fd/delta/dua's plain zips, so it is not bundled here either, the same
+;; as the JDK genuinely isn't --- a real user needs their own `gpg' on PATH
+;; (e.g. via Git for Windows' own full installer, which includes one) until
+;; this gets a real bundling story. `tools/gnupg/gpg.exe' below is dead code
+;; today (the directory never exists), kept only so a future `dist-windows.sh'
+;; that does bundle one needs no change here --- `my/gpg--run' itself fails
+;; fast and clearly via `executable-find' when no working `gpg' exists at
+;; all, instead of a confusing low-level error or, worse, hanging.
 (require 'epg)
 (when (eq system-type 'windows-nt)
   (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
@@ -2477,9 +2488,21 @@ local user could see for real via `ps'."
 
 (defun my/gpg--run (args)
   "Run gpg with ARGS (a list), batch/non-interactive, signaling a real error
-on any nonzero exit so a caller's `unwind-protect'/`condition-case' sees it."
+on any nonzero exit so a caller's `unwind-protect'/`condition-case' sees it.
+Uses `epg-gpg-program' (set above to the bundled binary when one exists),
+never a bare \"gpg\" --- a real, found-the-hard-way bug: this used to call
+`call-process' with the literal string \"gpg\" directly, ignoring that
+variable entirely, so even a correctly bundled/configured gpg was never
+actually used here. Checks `executable-find' itself first and fails fast
+and clearly if nothing resolves at all, rather than letting `call-process'
+either signal a less helpful low-level error or --- worse, confirmed
+directly as a real risk on a machine with some OTHER stray `gpg' on PATH
+but no working gpg-agent/pinentry reachable --- hang the whole of Emacs
+indefinitely waiting on a prompt nothing can ever answer."
+  (unless (executable-find epg-gpg-program)
+    (user-error "`gpg' is not installed/not on PATH (checked `%s') --- install GnuPG to use encryption" epg-gpg-program))
   (with-temp-buffer
-    (let ((status (apply #'call-process "gpg" nil t nil "--batch" "--yes"
+    (let ((status (apply #'call-process epg-gpg-program nil t nil "--batch" "--yes"
                           "--pinentry-mode" "loopback" args)))
       (unless (zerop status)
         (error "gpg failed (exit %s): %s" status (string-trim (buffer-string)))))))
