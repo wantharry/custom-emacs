@@ -31,6 +31,12 @@ on:
 jobs:
   test-linux:
     runs-on: ubuntu-latest
+    # Without this, GitHub's own default (360 minutes) is the only cap --- a real,
+    # found-the-hard-way problem: a hung step once sat for over 4 hours before anyone
+    # noticed, with nothing else forcing it to stop sooner. A normal run here takes
+    # well under 30 minutes; this gives real margin without masking a genuine hang for
+    # hours.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -121,6 +127,11 @@ jobs:
     # from-source build just to borrow its artifact. Real Windows signal no longer
     # waits on the Linux suite being 100% green, or even on it having started at all.
     runs-on: windows-latest
+    # Same reasoning as test-linux's own timeout-minutes --- this job has more
+    # legitimate variance (a cache miss means a real ~15-30 minute rebuild, a cache hit
+    # just unpacks a zip in a couple of minutes), so a wider cap, but still nowhere
+    # near GitHub's own 360-minute default.
+    timeout-minutes: 60
     steps:
       # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
       # script `Vampire/setup-wsl''s `wsl-bash' shell type generates for every `run:'
