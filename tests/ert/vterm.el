@@ -98,10 +98,15 @@
 
 (defun vt-wait (seconds predicate)
   "Poll PREDICATE (a function of no args) for up to SECONDS, processing the
-real pty's output as it arrives, via the buffer-local vterm process."
-  (with-timeout (seconds (ert-fail "timed out waiting for the terminal"))
-    (while (not (funcall predicate))
-      (accept-process-output (get-buffer-process (current-buffer)) 0.1))))
+real pty's output as it arrives, via the buffer-local vterm process. Tripled
+under CI (same reasoning as `test-startup-budget') --- a real shell starting
+inside a real pty for the first time on a shared runner is genuinely slower
+than on a dedicated dev machine, confirmed directly: a real CI run timed out
+waiting 5s for a shell prompt that was clearly going to arrive, just late."
+  (let ((seconds (if (getenv "CI") (* seconds 3) seconds)))
+    (with-timeout (seconds (ert-fail "timed out waiting for the terminal"))
+      (while (not (funcall predicate))
+        (accept-process-output (get-buffer-process (current-buffer)) 0.1)))))
 
 (ert-deftest vterm/starting-creates-a-live-buffer-with-a-real-process ()
   (vt-with-vterm buf
