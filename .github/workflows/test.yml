@@ -170,6 +170,18 @@ jobs:
           EMACS: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64\emacs\bin\emacs.exe
           CUSTOM_EMACS_HOME: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64
         run: |
+          # `unset WSLENV' matters here, not just tidiness --- found the hard way: once
+          # the earlier `Vampire/setup-wsl' step has registered a real WSL distro, the
+          # `bash' Windows ships at C:\Windows\System32 stops being a dead stub and
+          # starts actually launching it, so a bare `bash' lookup (e.g. Python's own
+          # `subprocess.run(["bash", ...])' in tests/test_repo.py) can resolve there
+          # instead of Git for Windows' own `bash.exe'. `WSLENV' then auto-shares PATH
+          # into that WSL session, translating it as if it were still Windows' own
+          # semicolon-separated, backslash-style PATH --- but the colon-separated,
+          # forward-slash PATH this step builds below is not that, so the translator
+          # mangles it ("wsl: Failed to translate ...") instead of erroring cleanly.
+          # Clearing it stops any such translation from being attempted at all.
+          unset WSLENV
           STAGE="${CUSTOM_EMACS_HOME//\\//}"
           export PATH="$STAGE/tools/git/cmd:$STAGE/tools/git/usr/bin:$STAGE/tools/rg:$STAGE/tools/fd:$STAGE/tools/delta:$STAGE/tools/dua:$PATH"
           ./build.sh test
