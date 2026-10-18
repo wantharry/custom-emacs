@@ -458,6 +458,50 @@ installed; wraps around at either end."
 (global-set-key (kbd "C-c }") #'my/cycle-font)
 (global-set-key (kbd "C-c {") #'my/cycle-font-previous)
 
+;; WHAT: `C-c +'/`C-c -' grow/shrink the font size for EVERY buffer at once, by
+;; changing the `default' face's `:height' (the same attribute the startup
+;; block above sets once, to 120); `C-c 0' resets to that startup size.
+;; WHY: user request, after finding that stock Emacs's own `C-x C-+'/`C-x C--'
+;; (`text-scale-adjust') only resizes the CURRENT buffer (a buffer-local face
+;; remap) with no built-in equivalent for every buffer at once.
+;; HOW: `my/font-size-height' is the single source of truth, read and written
+;; only by the three commands below --- unlike `my/session-theme' (see its own
+;; WHAT/WHY/HOW comment further down this file), nothing else in this file can
+;; change it out from under them, so no separate "remember before save" step
+;; is needed, only an "apply after restore" one --- wired up alongside `my/
+;; session-theme''s own restore hook further down, not here, since the
+;; `desktop-globals-to-save' variable this needs does not exist yet this early
+;; in the file (`desktop' itself is only `require'd once `emacs-session.el' is,
+;; later below) --- found the hard way, a real `void-variable' error on a
+;; headless load.
+(defvar my/font-size-height 120
+  "The `default' face's current `:height' (tenths of a point), applied to
+every buffer at once. Saved and restored automatically as part of the session
+(see `desktop-globals-to-save', wired up alongside `my/session-theme' further
+down this file) --- not meant to be set by hand; use `C-c +'/`C-c -'/`C-c 0'
+instead.")
+(defun my/font-size--apply ()
+  (set-face-attribute 'default nil :height my/font-size-height)
+  (message "Font size: %dpt" (/ my/font-size-height 10)))
+(defun my/font-size-increase ()
+  "Grow the font size for every buffer by one point."
+  (interactive)
+  (setq my/font-size-height (+ my/font-size-height 10))
+  (my/font-size--apply))
+(defun my/font-size-decrease ()
+  "Shrink the font size for every buffer by one point, never below 6pt."
+  (interactive)
+  (setq my/font-size-height (max 60 (- my/font-size-height 10)))
+  (my/font-size--apply))
+(defun my/font-size-reset ()
+  "Put the font size back to this config's own startup default (12pt)."
+  (interactive)
+  (setq my/font-size-height 120)
+  (my/font-size--apply))
+(global-set-key (kbd "C-c +") #'my/font-size-increase)
+(global-set-key (kbd "C-c -") #'my/font-size-decrease)
+(global-set-key (kbd "C-c 0") #'my/font-size-reset)
+
 ;;; Calendar (M-x calendar / C-c y for a whole year) ---------------------------
 
 ;; A real mistake, made and reverted in the same session: `calendar-total-months' was
@@ -2356,6 +2400,13 @@ already picked at startup (this runs later, so it wins)."
       (load-theme my/session-theme t)
     (my/ensure-visible-cursor)))
 (add-hook 'desktop-after-read-hook #'my/session--restore-theme)
+
+;; `my/font-size-height' (`C-c +'/`C-c -'/`C-c 0' above) persists the same way:
+;; nothing else in this file ever changes it, so there is no "remember before
+;; save" step to add here, only the "apply after restore" one, so a restored
+;; session's font size wins over the startup block's hardcoded 120.
+(add-to-list 'desktop-globals-to-save 'my/font-size-height)
+(add-hook 'desktop-after-read-hook #'my/font-size--apply)
 
 ;;; Encryption (GnuPG via EasyPG, already built into Emacs) -------------------
 

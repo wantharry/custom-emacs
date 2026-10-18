@@ -408,6 +408,9 @@ For finding files, text and code, see [SEARCHING.md](SEARCHING.md); for the lang
 | `C-c F` *char* | `my/load-font-by-number` | **this config:** pick a font by character --- `C-c F 1` through `C-c F 9`, then `a`-`k` (20 real fonts, see `my/fonts` in `config/init.el`). Unlike every theme above, a font is a plain OS resource Emacs cannot install for you --- picking one not actually on your machine says so plainly, with how to get it. All 20 ARE bundled as real files in both dist zips (`tools/fonts/`), one manual install step away: see [DISTRIBUTION.md](DISTRIBUTION.md) |
 | `C-c }` | `my/cycle-font` | **this config:** switch to the next INSTALLED font in `my/fonts` --- skips anything not on this machine, never gets stuck repeating a "not installed" message |
 | `C-c {` | `my/cycle-font-previous` | **this config:** switch to the previous installed font in `my/fonts`; see `C-c }` above |
+| `C-c +` | `my/font-size-increase` | **this config:** grow the font size for EVERY buffer at once, by one point --- unlike stock Emacs's `C-x C-+' (`text-scale-adjust`), which only resizes the current buffer. Persists across restarts the same way the active theme does |
+| `C-c -` | `my/font-size-decrease` | **this config:** shrink the font size for every buffer at once, by one point (floor: 6pt); see `C-c +` above |
+| `C-c 0` | `my/font-size-reset` | **this config:** put the font size back to this config's own startup default (12pt) |
 | `C-c C` | `consult-theme` | fuzzy-search any installed theme *by name*, with a live preview as candidates are highlighted --- the practical way to reach a theme without memorizing its `C-c c` character, including every one of `doom-themes`'s own 50+ variants (pulled in only as the `ember` theme's dependency, never given a `my/themes` slot of its own) |
 | `C-x p g` | `project-find-regexp` | search the whole project |
 | `C-x p p` | `project-switch-project` | switch project |
