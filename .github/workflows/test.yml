@@ -75,6 +75,27 @@ jobs:
       - name: Install this config's Elisp packages
         run: ./build.sh packages
 
+      # `vterm-module-compile' normally runs lazily, the first time a real user's own
+      # `(require 'vterm)' needs it (see tests/ert/vterm.el's own comment) --- fine for an
+      # interactive user compiling once on their own machine, but it writes its real
+      # compiler output to an Emacs buffer, not stdout, so a build failure there during
+      # the test run earlier showed up as nothing more informative than a generic
+      # `file-missing' on `vterm-module', with no way to see the real `cmake'/`make'
+      # error behind it. Doing it here explicitly, printing that buffer unconditionally,
+      # gives CI the same real visibility a local terminal already has.
+      - name: Compile vterm's native module (visible output, not hidden in a buffer)
+        run: |
+          ./install/bin/emacs --batch --eval "
+          (progn
+            (dolist (d (directory-files \"config/elpa\" t \"^[^.]\"))
+              (when (file-directory-p d) (add-to-list 'load-path d)))
+            (condition-case err
+                (progn (setq vterm-always-compile-module t) (require 'vterm) (vterm-module-compile)
+                       (princ (with-current-buffer vterm-install-buffer-name (buffer-string))))
+              (error (princ (with-current-buffer vterm-install-buffer-name (buffer-string)))
+                     (princ (format \"\nvterm-module-compile failed: %S\n\" err))
+                     (kill-emacs 1))))"
+
       # tools/dist-windows.sh needs config/elpa to already exist (it compiles THOSE
       # packages for the real Windows Emacs itself, later, in its own pipeline) --- the
       # Windows job below reuses this instead of building its own Emacs from source a
