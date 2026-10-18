@@ -1726,10 +1726,20 @@ what actually gets back to a clean, single plain-Dired window afterward."
 ;; used, same as that one only loads the first time `C-c a c' is.
 (autoload 'my/disk-usage (expand-file-name "disk-usage" user-emacs-directory)
   "Browse a directory's disk usage, largest first, powered by `dua'." t)
+(defun my/dua-command ()
+  "The `dua' binary config/disk-usage.el actually runs: the bundled
+tools/dua/dua.exe when `CUSTOM_EMACS_HOME' says where the bundle is (the
+real launcher sets it; a bare `--batch' process testing the bundle directly,
+as CI's own Windows job does, has to set it by hand --- same gap `my/pass--
+shell-program' exists for), else whatever `dua' resolves to on PATH (Linux,
+or Windows outside the bundle)."
+  (let ((bundled (and (getenv "CUSTOM_EMACS_HOME")
+                       (expand-file-name "tools/dua/dua.exe" (getenv "CUSTOM_EMACS_HOME")))))
+    (if (and bundled (file-executable-p bundled)) bundled "dua")))
 (defun my/disk-usage-missing ()
   (interactive)
   (message "`dua' is not installed/not on PATH --- see docs/DISK-USAGE.md"))
-(global-set-key (kbd "C-c W") (if (executable-find "dua") #'my/disk-usage #'my/disk-usage-missing))
+(global-set-key (kbd "C-c W") (if (executable-find (my/dua-command)) #'my/disk-usage #'my/disk-usage-missing))
 
 ;;; Start screen ---------------------------------------------------------------
 

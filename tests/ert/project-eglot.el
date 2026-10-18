@@ -79,10 +79,21 @@ symbol or a list of several, matching how the real table is shaped)?"
     (let ((project-list-file (concat store "projects.eld")))
       (test-with-temp-dir d
         (test-git d "init" "-q")
-        (project-remember-project (project-current nil d))
-        (should (member (file-truename d) (mapcar #'file-truename (project-known-project-roots))))
-        (project-forget-project d)
-        (should-not (member (file-truename d) (mapcar #'file-truename (project-known-project-roots))))))))
+        ;; `root', not `d', is what `project-forget-project' is given below --- found
+        ;; the hard way, this suite's first real run on Windows: `project-root' there
+        ;; comes back from project.el's own git backend (shelling out to `git.exe'),
+        ;; which is not guaranteed to produce the exact same string as this test's own
+        ;; `d' (already truenamed by `test-with-temp-dir', but computed a different
+        ;; way). `project-forget-project' only removes an entry that matches the
+        ;; string it is given exactly, so passing `d' when the stored root is spelled
+        ;; differently silently does nothing --- no error, just a forget that quietly
+        ;; fails. Using the project's own real root consistently for remember, the
+        ;; membership check, and forget removes the ambiguity regardless of platform.
+        (let ((root (project-root (project-current nil d))))
+          (project-remember-project (project-current nil d))
+          (should (member (file-truename root) (mapcar #'file-truename (project-known-project-roots))))
+          (project-forget-project root)
+          (should-not (member (file-truename root) (mapcar #'file-truename (project-known-project-roots)))))))))
 
 (ert-deftest project/files-respect-gitignore ()
   (test-with-temp-dir d

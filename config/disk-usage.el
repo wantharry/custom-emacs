@@ -70,12 +70,14 @@
 (require 'tabulated-list)
 (require 'dired)
 
-(defvar my/disk-usage-dua-command "dua"
+(defvar my/disk-usage-dua-command (my/dua-command)
   "The `dua' (disk usage analyzer) binary used by `my/disk-usage'.
 See https://github.com/Byron/dua-cli --- on Windows, bundled with this project's own
 dist zip (`tools/dist-windows.sh'); on Linux, expected to already be on PATH (not
 bundled here, the same treatment `fd'/`delta' already get, see that script's own
-comment on the difference between those and the bundled `rg').")
+comment on the difference between those and the bundled `rg'). Resolved via
+`my/dua-command' (config/init.el) so this matches the same keybinding check that
+decides whether `C-c W' even reaches this file at all.")
 
 (defconst my/disk-usage-buffer-name "*Disk Usage*")
 

@@ -17,9 +17,18 @@
      (ert-skip "pdf-tools is not installed (./build.sh packages)")))
 
 (ert-deftest pdf-tools/gate-matches-the-real-system-dependency ()
+  ;; Two real, independent paths to the same feature, not one --- found the hard way,
+  ;; the first real run of this suite with `CUSTOM_EMACS_HOME' actually set (see
+  ;; .github/workflows/test.yml): on Windows there is no `pkg-config'/`poppler-glib' at
+  ;; all, but `pdf-loader' still loads via `my/bundled-epdfinfo' (a real, pre-built
+  ;; `epdfinfo.exe' shipped in the bundle, init.el's own Windows-specific branch) ---
+  ;; this test's original assumption (loaded iff `pkg-config' says the Linux system
+  ;; dependency exists) only ever held on Linux, by accident, because nothing had ever
+  ;; exercised the Windows branch for real before.
   (pdft-need
-    (let ((have-dep (and (executable-find "pkg-config")
-                          (zerop (call-process "pkg-config" nil nil nil "--exists" "poppler-glib")))))
+    (let ((have-dep (or (my/bundled-epdfinfo)
+                         (and (executable-find "pkg-config")
+                              (zerop (call-process "pkg-config" nil nil nil "--exists" "poppler-glib"))))))
       (should (eq (featurep 'pdf-loader) (and have-dep t))))))
 
 (ert-deftest pdf-tools/pdf-files-still-open-in-a-real-working-mode ()
@@ -59,7 +68,13 @@
       (should (equal (my/bundled-epdfinfo) (expand-file-name "tools/pdf-tools/epdfinfo.exe" d))))))
 
 (ert-deftest pdf-tools/bundled-epdfinfo-is-nil-without-custom-emacs-home ()
-  (let ((process-environment (cl-remove-if (lambda (e) (string-prefix-p "CUSTOM_EMACS_HOME=" e))
+  ;; Case-insensitive match --- found the hard way, this suite's own CI run on
+  ;; Windows: this project's own test workflow sets a real `CUSTOM_EMACS_HOME' in the
+  ;; ambient environment (to test the bundle directly, see .github/workflows/test.yml),
+  ;; and environment variable names are conventionally case-insensitive on Windows;
+  ;; a literal-case `string-prefix-p' here left that real entry in place, so this
+  ;; "without it" test was not actually testing "without it" there.
+  (let ((process-environment (cl-remove-if (lambda (e) (string-prefix-p "CUSTOM_EMACS_HOME=" e t))
                                            process-environment)))
     (should-not (my/bundled-epdfinfo))))
 
