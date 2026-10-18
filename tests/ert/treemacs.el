@@ -287,4 +287,53 @@ actual thing each of these commands promises."
                                     "--eval" (format "%S" form))))))
         (should (string-suffix-p "t" out))))))
 
+;;; Core tree operations (expand/collapse, create, delete) --- not just navigation out to
+;;; another buffer, but the tree's own basic interactions.
+
+(ert-deftest treemacs/tab-expands-and-collapses-a-directory-node ()
+  (tm-need)
+  (tm-with-project d
+    (my/treemacs)
+    (with-current-buffer (treemacs-get-local-buffer)
+      (goto-char (point-min))
+      (search-forward "src")
+      (should-not (string-match-p "Main\\.java" (tm--tree-text)))
+      (treemacs-TAB-action)
+      (should (string-match-p "Main\\.java" (tm--tree-text)))
+      (goto-char (point-min))
+      (search-forward "src")
+      (treemacs-TAB-action)
+      (should-not (string-match-p "Main\\.java" (tm--tree-text))))))
+
+(ert-deftest treemacs/create-file-adds-a-real-file-on-disk ()
+  (tm-need)
+  (tm-with-project d
+    (my/treemacs)
+    (let ((new-file (concat d "created.txt")))
+      (should-not (file-exists-p new-file))
+      (with-current-buffer (treemacs-get-local-buffer)
+        (goto-char (point-min))
+        (cl-letf (((symbol-function 'read-file-name) (lambda (&rest _) new-file)))
+          (treemacs-create-file)))
+      (should (file-exists-p new-file))
+      (should (string-match-p "created\\.txt" (tm--tree-text))))))
+
+(ert-deftest treemacs/delete-file-removes-it-from-disk-after-confirming ()
+  (tm-need)
+  (tm-with-project d
+    (my/treemacs)
+    (let ((victim (concat d "README.md")))
+      (should (file-exists-p victim))
+      (with-current-buffer (treemacs-get-local-buffer)
+        (goto-char (point-min))
+        (search-forward "README.md")
+        ;; ARG non-nil (wipe irreversibly) skips the trash --- avoids a second, real
+        ;; "no trash support" prompt `delete-file' itself can raise, which the plain
+        ;; `yes-or-no-p' stub alone did not cover (found the hard way: "Error reading
+        ;; from stdin" even with that stub in place).
+        (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                  ((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
+          (treemacs-delete-file t)))
+      (should-not (file-exists-p victim)))))
+
 ;;; treemacs.el ends here

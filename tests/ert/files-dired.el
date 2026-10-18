@@ -113,4 +113,118 @@
       (recentf-add-file f)
       (should (member f recentf-list)))))
 
+(defmacro fd--with-dired (dir &rest body)
+  "Run BODY with a Dired buffer on DIR current, killed afterward."
+  (declare (indent 1))
+  `(let ((buf (dired-noselect ,dir)))
+     (unwind-protect (with-current-buffer buf ,@body)
+       (kill-buffer buf))))
+
+(ert-deftest dired/mark-and-get-marked-files ()
+  (test-with-temp-dir d
+    (test-write-file (concat d "alpha.txt") "")
+    (test-write-file (concat d "beta.txt") "")
+    (fd--with-dired d
+      (goto-char (point-min))
+      (dired-goto-file (concat d "alpha.txt"))
+      (dired-mark 1)
+      (should (equal (dired-get-marked-files)
+                     (list (concat d "alpha.txt")))))))
+
+(ert-deftest dired/unmark-clears-the-mark ()
+  (test-with-temp-dir d
+    (test-write-file (concat d "a.txt") "")
+    (fd--with-dired d
+      (dired-goto-file (concat d "a.txt"))
+      (dired-mark 1)
+      (should (dired-get-marked-files nil 'marked))
+      (dired-goto-file (concat d "a.txt"))
+      (dired-unmark 1)
+      (should-not (dired-get-marked-files nil 'marked)))))
+
+(ert-deftest dired/mark-all-files-regexp ()
+  (test-with-temp-dir d
+    (test-write-file (concat d "a.txt") "")
+    (test-write-file (concat d "b.txt") "")
+    (test-write-file (concat d "c.el") "")
+    (fd--with-dired d
+      (dired-mark-files-regexp "\\.txt\\'")
+      (should (= 2 (length (dired-get-marked-files nil 'marked)))))))
+
+(ert-deftest dired/flag-file-deletion-and-expunge ()
+  (test-with-temp-dir d
+    (let ((f (test-write-file (concat d "doomed.txt") "")))
+      (fd--with-dired d
+        (dired-goto-file f)
+        (dired-flag-file-deletion 1)
+        (save-window-excursion
+          (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+            (dired-do-flagged-delete)))
+        (should-not (file-exists-p f))
+        (should-not (dired-goto-file f))))))
+
+(ert-deftest dired/do-copy-regular-file ()
+  (test-with-temp-dir d
+    (let* ((src (test-write-file (concat d "src.txt") "payload"))
+           (dst (concat d "dst.txt")))
+      (fd--with-dired d
+        (dired-goto-file src)
+        (dired-copy-file src dst nil))
+      (should (equal (test-read-file dst) "payload"))
+      (should (file-exists-p src)))))
+
+(ert-deftest dired/do-rename-regular-file ()
+  (test-with-temp-dir d
+    (let* ((src (test-write-file (concat d "old.txt") "data"))
+           (dst (concat d "new.txt")))
+      (fd--with-dired d
+        (dired-goto-file src)
+        (dired-rename-file src dst nil))
+      (should-not (file-exists-p src))
+      (should (equal (test-read-file dst) "data")))))
+
+(ert-deftest dired/create-directory-appears-in-listing ()
+  (test-with-temp-dir d
+    (fd--with-dired d
+      (dired-create-directory "fresh")
+      (should (file-directory-p (concat d "fresh")))
+      (revert-buffer)
+      (should (string-match-p "fresh" (buffer-string))))))
+
+(ert-deftest dired/up-directory-visits-the-parent ()
+  (test-with-temp-dir d
+    (make-directory (concat d "child"))
+    (fd--with-dired (concat d "child")
+      (dired-up-directory)
+      (should (equal (expand-file-name default-directory) (expand-file-name d))))))
+
+(ert-deftest dired/find-file-opens-the-file-at-point ()
+  (test-with-temp-dir d
+    (let ((f (test-write-file (concat d "target.txt") "hi")))
+      (fd--with-dired d
+        (dired-goto-file f)
+        (let ((opened (dired-find-file)))
+          (ignore opened)
+          (should (equal (buffer-file-name) f))
+          (kill-buffer))))))
+
+(ert-deftest dired/hide-details-mode-hides-the-permissions-column ()
+  (test-with-temp-dir d
+    (let ((f (test-write-file (concat d "a.txt") "")))
+      (fd--with-dired d
+        (dired-hide-details-mode 1)
+        (dired-goto-file f)
+        (should (invisible-p (+ 2 (line-beginning-position))))
+        (dired-hide-details-mode -1)
+        (dired-goto-file f)
+        (should-not (invisible-p (+ 2 (line-beginning-position))))))))
+
+(ert-deftest dired/revert-buffer-picks-up-new-files ()
+  (test-with-temp-dir d
+    (fd--with-dired d
+      (should-not (string-match-p "later\\.txt" (buffer-string)))
+      (test-write-file (concat d "later.txt") "")
+      (revert-buffer)
+      (should (string-match-p "later\\.txt" (buffer-string))))))
+
 ;;; files-dired.el ends here

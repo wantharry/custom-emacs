@@ -84,4 +84,48 @@
     (indent-region (point-min) (point-max))
     (should (string-match-p "\n    echo hi" (buffer-string)))))
 
+;;; Other stock modes --- all built into Emacs itself, no extra package needed
+;;; (unlike markdown-mode/yaml-mode, which this distribution does not bundle).
+
+(ert-deftest langmodes/xml-mode-is-really-nxml-mode ()
+  ;; `xml-mode' (what `a.xml' resolves to in `auto-mode-alist') is a plain alias for
+  ;; `nxml-mode' in modern Emacs, confirmed directly rather than assumed.
+  (should (provided-mode-derived-p (lm--open-mode "a.xml" "<a><b>x</b></a>") 'nxml-mode)))
+
+(ert-deftest langmodes/xml-indentation ()
+  (test-in-buffer #'nxml-mode "<a>\n<b>x</b>\n</a>\n"
+    (indent-region (point-min) (point-max))
+    (should (equal (buffer-string) "<a>\n  <b>x</b>\n</a>\n"))))
+
+(ert-deftest langmodes/ini-and-toml-files-get-a-real-conf-mode ()
+  (should (provided-mode-derived-p (lm--open-mode "a.ini" "[section]\nkey=value\n") 'conf-mode))
+  (should (provided-mode-derived-p (lm--open-mode "a.toml" "[section]\nkey = 1\n") 'conf-mode)))
+
+(ert-deftest langmodes/js-imenu-lists-function-definitions ()
+  (test-in-buffer #'js-mode "function alpha() {}\nfunction beta() {}\n"
+    (let ((idx (imenu--make-index-alist t)))
+      (should (cl-some (lambda (e) (string-prefix-p "alpha" (car e))) idx))
+      (should (cl-some (lambda (e) (string-prefix-p "beta" (car e))) idx)))))
+
+(ert-deftest langmodes/c-comments-use-the-real-block-style ()
+  (test-in-buffer #'c-mode "int x = 1;"
+    (comment-region (point-min) (point-max))
+    (should (equal (buffer-string) "/* int x = 1; */"))
+    (uncomment-region (point-min) (point-max))
+    (should (equal (buffer-string) "int x = 1;"))))
+
+(ert-deftest langmodes/elisp-comments-use-a-real-semicolon ()
+  (test-in-buffer #'emacs-lisp-mode "(+ 1 2)"
+    (comment-region (point-min) (point-max))
+    (should (string-prefix-p ";" (buffer-string)))
+    (uncomment-region (point-min) (point-max))
+    (should (equal (buffer-string) "(+ 1 2)"))))
+
+(ert-deftest langmodes/shell-comments-use-a-real-hash ()
+  (test-in-buffer #'sh-mode "echo hi"
+    (comment-region (point-min) (point-max))
+    (should (string-prefix-p "#" (buffer-string)))
+    (uncomment-region (point-min) (point-max))
+    (should (equal (buffer-string) "echo hi"))))
+
 ;;; language-modes.el ends here

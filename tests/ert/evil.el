@@ -123,6 +123,20 @@
       (should (eq (key-binding (kbd "C-x C-f")) 'find-file))
       (should (eq (key-binding (kbd "M-x")) 'execute-extended-command)))))
 
+(ert-deftest evil/visual-state-select-and-delete ()
+  (evil-test-with-clean-state
+    (test-in-buffer #'text-mode "hello world"
+      (my/toggle-evil)
+      (execute-kbd-macro "ved")
+      (should (equal (buffer-string) " world")))))
+
+(ert-deftest evil/dot-repeats-the-last-change ()
+  (evil-test-with-clean-state
+    (test-in-buffer #'text-mode "aaa bbb ccc"
+      (my/toggle-evil)
+      (execute-kbd-macro "dw.")
+      (should (equal (buffer-string) "ccc")))))
+
 (ert-deftest evil/local-mode-affects-only-one-buffer ()
   (evil-test-with-clean-state
     (require 'evil)

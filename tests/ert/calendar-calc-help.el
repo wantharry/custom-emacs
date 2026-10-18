@@ -51,4 +51,60 @@
   (should (get 'calendar 'custom-group))
   (should-not (custom-variable-p 'lisp-test-not-an-option)))
 
+(ert-deftest calendar/day-number-counts-days-since-the-start-of-the-year ()
+  (should (= 1 (calendar-day-number '(1 1 2026))))
+  (should (= 365 (calendar-day-number '(12 31 2026))))
+  (should (= 366 (calendar-day-number '(12 31 2028)))))
+
+(ert-deftest calendar/month-and-day-name-arrays-are-populated ()
+  (should (equal (aref calendar-month-name-array 0) "January"))
+  (should (equal (aref calendar-day-name-array 0) "Sunday")))
+
+(ert-deftest calendar/days-between-two-dates-via-absolute-numbers ()
+  (should (= 365 (- (calendar-absolute-from-gregorian '(1 1 2027))
+                    (calendar-absolute-from-gregorian '(1 1 2026)))))
+  (should (= 366 (- (calendar-absolute-from-gregorian '(1 1 2029))
+                    (calendar-absolute-from-gregorian '(1 1 2028))))))
+
+(ert-deftest calc/trigonometric-functions-in-degree-mode ()
+  (let ((calc-angle-mode 'deg))
+    (should (equal (calc-eval "sin(90)") "1"))
+    (should (equal (calc-eval "cos(0)") "1"))))
+
+(ert-deftest calc/gcd-and-lcm ()
+  (should (equal (calc-eval "gcd(12,18)") "6"))
+  (should (equal (calc-eval "lcm(4,6)") "12")))
+
+(ert-deftest calc/boolean-comparisons-return-one-or-zero ()
+  (should (equal (calc-eval "5>3") "1"))
+  (should (equal (calc-eval "2>5") "0"))
+  (should (equal (calc-eval "3=3") "1")))
+
+(ert-deftest time/time-less-p-and-time-equal-p ()
+  (let ((a (encode-time '(0 0 0 1 1 2026 nil nil t)))
+        (b (encode-time '(0 0 0 2 1 2026 nil nil t))))
+    (should (time-less-p a b))
+    (should-not (time-less-p b a))
+    (should (time-equal-p a a))
+    (should-not (time-equal-p a b))))
+
+(ert-deftest time/format-seconds-is-human-readable ()
+  (should (string-match-p "2" (format-seconds "%m minutes" 125)))
+  (should (string-match-p "1" (format-seconds "%h hours" 3665))))
+
+(ert-deftest help/where-is-internal-finds-a-local-keybinding ()
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-z") 'ignore)
+    (should (equal (key-description (car (where-is-internal 'ignore map)))
+                   (key-description (kbd "C-c C-z"))))))
+
+(ert-deftest help/functionp-and-commandp-predicates ()
+  (should (functionp 'car))
+  (should (commandp 'save-buffer))
+  (should-not (commandp 'car)))
+
+(ert-deftest customize/facep-recognizes-real-faces ()
+  (should (facep 'bold))
+  (should-not (facep 'definitely-not-a-real-face)))
+
 ;;; calendar-calc-help.el ends here

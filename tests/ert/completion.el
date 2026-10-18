@@ -93,6 +93,76 @@
       (should (stringp ann))
       (should (string-match-p "Edit file" ann)))))
 
+;;; The exact style stack this config sets, not just "is it wired"
+
+(ert-deftest completion/completion-styles-is-orderless-basic-flex-in-order ()
+  (should (equal completion-styles '(orderless basic flex))))
+
+(ert-deftest completion/file-category-keeps-basic-partial-completion-flex-not-orderless ()
+  (let ((file-styles (cdr (assq 'styles (cdr (assq 'file completion-category-overrides))))))
+    (should (equal file-styles '(basic partial-completion flex)))))
+
+(ert-deftest completion/orderless-matches-three-words-in-any-order ()
+  (cpl-need
+    (should (completion-all-completions "to buf switch" '("switch-to-buffer" "unrelated") nil 6))
+    (should (completion-all-completions "switch buf to" '("switch-to-buffer" "unrelated") nil 6))))
+
+(ert-deftest completion/orderless-no-match-when-one-word-is-genuinely-absent ()
+  (cpl-need
+    (should-not (completion-all-completions "to buf zzz" '("switch-to-buffer" "unrelated") nil 6))))
+
+(ert-deftest completion/basic-style-still-matches-a-plain-prefix ()
+  ;; `basic' stays in `completion-styles' as a fallback alongside `orderless'/`flex'.
+  (should (completion-all-completions "find-fi" '("find-file" "unrelated") nil 7)))
+
+;;; Real marginalia annotations beyond the command category already checked above
+
+(ert-deftest completion/marginalia-annotates-a-real-file-with-its-size ()
+  (cpl-need
+    (require 'marginalia)
+    (let ((ann (marginalia-annotate-file (expand-file-name "README.md" test-root))))
+      (should (stringp ann))
+      (should (string-match-p "[0-9]" ann)))))
+
+(ert-deftest completion/marginalia-annotates-a-real-variable ()
+  (cpl-need
+    (require 'marginalia)
+    (should (stringp (marginalia-annotate-variable "completion-styles")))))
+
+(ert-deftest completion/marginalia-mode-is-a-real-minor-mode-toggle ()
+  (cpl-need
+    (should (fboundp 'marginalia-mode))
+    (let ((was marginalia-mode))
+      (unwind-protect
+          (progn (marginalia-mode -1) (should-not marginalia-mode)
+                 (marginalia-mode 1) (should marginalia-mode))
+        (marginalia-mode (if was 1 -1))))))
+
+(ert-deftest completion/vertico-advises-completing-read-default ()
+  ;; `vertico-mode' wires itself in by advising `completing-read-default'/`-multiple'
+  ;; (see `vertico-mode''s own definition) --- NOT by sitting permanently on
+  ;; `minibuffer-setup-hook', which it only adds itself to for the duration of one
+  ;; completion session and removes again right after.
+  (cpl-need
+    (should (advice-member-p #'vertico--advice 'completing-read-default))))
+
+;;; Embark beyond wiring/lazy-loading: real commands, a real keymap
+
+(ert-deftest completion/embark-act-and-dwim-are-real-interactive-commands ()
+  (if (locate-library "embark")
+      (progn (require 'embark)
+             (should (commandp 'embark-act))
+             (should (commandp 'embark-dwim)))
+    (ert-skip "embark is not installed (./build.sh packages)")))
+
+(ert-deftest completion/embark-general-map-is-a-real-keymap-with-real-bindings ()
+  (if (locate-library "embark")
+      (progn (require 'embark)
+             (should (keymapp embark-general-map))
+             ;; a real, well-known binding this map ships with, not an empty keymap
+             (should (where-is-internal 'embark-insert embark-general-map)))
+    (ert-skip "embark is not installed (./build.sh packages)")))
+
 (ert-deftest completion/does-not-slow-startup ()
   (let ((best most-positive-fixnum))
     (dotimes (_ 3)

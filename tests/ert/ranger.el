@@ -112,4 +112,130 @@
           (should (eq (my/mode-reference--relevant-mode) 'dired-mode))
         (kill-buffer)))))
 
+(ert-deftest ranger/toggle-mark-marks-and-unmarks-the-file-at-point ()
+  (ranger-need
+    (test-with-temp-dir d
+      (test-write-file (concat d "a.txt") "")
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (dired-goto-file (concat d "a.txt"))
+              (should-not (dired-get-marked-files nil 'marked))
+              (ranger-toggle-mark)
+              (should (dired-get-marked-files nil 'marked)))
+          (kill-buffer buf))))))
+
+(ert-deftest ranger/mark-with-a-count-marks-that-many-lines ()
+  (ranger-need
+    (test-with-temp-dir d
+      (test-write-file (concat d "a.txt") "")
+      (test-write-file (concat d "b.txt") "")
+      (test-write-file (concat d "c.txt") "")
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (goto-char (point-min))
+              (ranger-mark 2)
+              (should (= 2 (length (dired-get-marked-files nil 'marked)))))
+          (kill-buffer buf))))))
+
+(ert-deftest ranger/sort-criteria-changes-the-real-listing-switches ()
+  (ranger-need
+    (test-with-temp-dir d
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (ranger-sort-criteria ?s)
+              (should (string-match-p "S" dired-actual-switches)))
+          (kill-buffer buf))))))
+
+(ert-deftest ranger/toggle-dir-first-flips-the-real-setting ()
+  (ranger-need
+    (test-with-temp-dir d
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (let ((before ranger-listing-dir-first))
+                (ranger-toggle-dir-first)
+                (should-not (eq ranger-listing-dir-first before))))
+          (kill-buffer buf))))))
+
+(ert-deftest ranger/toggle-dotfiles-cycles-through-its-three-states ()
+  (ranger-need
+    (test-with-temp-dir d
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (let ((seen (list ranger-show-hidden)))
+                (dotimes (_ 3) (ranger-toggle-dotfiles) (push ranger-show-hidden seen))
+                ;; three real states (format/prefer/hidden), cycling back to the start.
+                (should (= 3 (length (seq-uniq (cdr seen)))))
+                (should (eq (car seen) (car (last seen))))))
+          (kill-buffer buf))))))
+
+(ert-deftest ranger/copy-and-paste-duplicates-a-marked-file ()
+  (ranger-need
+    (test-with-temp-dir d
+      (test-write-file (concat d "a.txt") "payload")
+      (make-directory (concat d "dst"))
+      (let ((buf (dired-noselect d)) (dstbuf (dired-noselect (concat d "dst"))))
+        (unwind-protect
+            (progn
+              (with-current-buffer buf
+                (ranger-mode)
+                (dired-goto-file (concat d "a.txt"))
+                (ranger-toggle-mark)
+                (ranger-copy))
+              (with-current-buffer dstbuf (ranger-paste))
+              (should (file-exists-p (concat d "dst/a.txt")))
+              (should (file-exists-p (concat d "a.txt"))) ; copy, not move: the original stays
+              (should (equal (test-read-file (concat d "dst/a.txt")) "payload")))
+          (kill-buffer buf) (kill-buffer dstbuf))))))
+
+(ert-deftest ranger/cut-and-paste-moves-a-marked-file ()
+  (ranger-need
+    (test-with-temp-dir d
+      (test-write-file (concat d "m.txt") "moved")
+      (make-directory (concat d "dst"))
+      (let ((buf (dired-noselect d)) (dstbuf (dired-noselect (concat d "dst"))))
+        (unwind-protect
+            (progn
+              (with-current-buffer buf
+                (ranger-mode)
+                (dired-goto-file (concat d "m.txt"))
+                (ranger-toggle-mark)
+                (ranger-cut))
+              (with-current-buffer dstbuf (ranger-paste))
+              (should (file-exists-p (concat d "dst/m.txt")))
+              (should-not (file-exists-p (concat d "m.txt")))) ; cut, not copy: the original is gone
+          (kill-buffer buf) (kill-buffer dstbuf))))))
+
+(ert-deftest ranger/copy-current-dir-path-puts-it-on-the-kill-ring ()
+  (ranger-need
+    (test-with-temp-dir d
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (ranger-copy-current-dir-path)
+              (should (equal (current-kill 0) d)))
+          (kill-buffer buf))))))
+
+(ert-deftest ranger/refresh-reverts-the-buffer-without-erroring ()
+  (ranger-need
+    (test-with-temp-dir d
+      (test-write-file (concat d "a.txt") "")
+      (let ((buf (dired-noselect d)))
+        (unwind-protect
+            (with-current-buffer buf
+              (ranger-mode)
+              (ranger-refresh)
+              (should (string-match-p "a\\.txt" (buffer-string))))
+          (kill-buffer buf))))))
+
 ;;; ranger.el ends here

@@ -52,4 +52,67 @@
   (should (equal (split-string " a  b c " " +" t) '("a" "b" "c")))
   (should (equal (string-join '("a" "b") "-") "a-b")))
 
+(ert-deftest search/isearch-forward-via-real-keystrokes ()
+  (test-in-buffer #'text-mode "foo bar baz bar qux"
+    (execute-kbd-macro (kbd "C-s b a r RET"))
+    (should (= (point) 8)) ; just past the first "bar"
+    (goto-char (point-min))
+    (execute-kbd-macro (kbd "C-s b a r C-s RET"))
+    (should (= (point) 16)))) ; just past the SECOND "bar"
+
+(ert-deftest search/occur-builds-a-matches-buffer ()
+  (test-in-buffer #'text-mode "apple\nbanana\napple pie\n"
+    (occur "apple")
+    (unwind-protect
+        (with-current-buffer "*Occur*"
+          (should (string-match-p "2 matches for \"apple\"" (buffer-string)))
+          (should (string-match-p "1:apple$" (buffer-string)))
+          (should (string-match-p "3:apple pie$" (buffer-string))))
+      (when (get-buffer "*Occur*") (kill-buffer "*Occur*")))))
+
+(ert-deftest search/replace-regexp-replaces-every-match ()
+  (test-in-buffer #'text-mode "cat1 cat2 cat3"
+    (goto-char (point-min))
+    (replace-regexp "cat\\([0-9]\\)" "dog\\1")
+    (should (equal (buffer-string) "dog1 dog2 dog3"))))
+
+(ert-deftest search/replace-string-is-literal-not-regexp ()
+  (test-in-buffer #'text-mode "a.b a.b axb"
+    (goto-char (point-min))
+    (replace-string "a.b" "X")
+    (should (equal (buffer-string) "X X axb")))) ; "axb" untouched: "." is literal here
+
+(ert-deftest search/re-search-backward ()
+  (test-in-buffer #'text-mode "one two three two one"
+    (goto-char (point-max))
+    (should (re-search-backward "two" nil t))
+    (should (= (match-beginning 0) 15))
+    (should (re-search-backward "two" nil t))
+    (should (= (match-beginning 0) 5))))
+
+(ert-deftest search/looking-back-checks-text-before-point ()
+  (test-in-buffer #'text-mode "hello world"
+    (goto-char 6)
+    (should (looking-back "hello" 1))
+    (should-not (looking-back "world" 1))))
+
+(ert-deftest search/save-match-data-does-not-leak ()
+  (string-match "foo" "a foo b")
+  (let ((outer (match-data)))
+    (save-match-data
+      (string-match "bar" "x bar y"))
+    (should (equal (match-data) outer))))
+
+(ert-deftest search/regexp-quote-escapes-special-characters ()
+  (should (string-match-p (regexp-quote "a.b*c") "a.b*c"))
+  (should-not (string-match-p (regexp-quote "a.b*c") "aXbYYc")))
+
+(ert-deftest search/count-matches ()
+  (test-in-buffer #'text-mode "foo\nfoobar\nbaz foo\n"
+    (should (= 3 (count-matches "foo" (point-min) (point-max))))))
+
+(ert-deftest search/word-boundary-regexp ()
+  (should (string-match-p "\\bcat\\b" "a cat sat"))
+  (should-not (string-match-p "\\bcat\\b" "concatenate")))
+
 ;;; search-regex.el ends here

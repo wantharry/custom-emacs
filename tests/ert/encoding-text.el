@@ -50,4 +50,57 @@
   (should (eq (get-char-code-property ?9 'general-category) 'Nd))
   (should (equal (url-hexify-string "a b&é") "a%20b%26%C3%A9")))
 
+(ert-deftest encoding/utf16-roundtrip ()
+  (let ((s "héllo"))
+    (should (equal (decode-coding-string (encode-coding-string s 'utf-16) 'utf-16) s))))
+
+(ert-deftest encoding/coding-system-predicates ()
+  (should (coding-system-p 'utf-8))
+  (should-not (coding-system-p 'not-a-real-coding-system))
+  (should (eq (check-coding-system 'utf-8) 'utf-8)))
+
+(ert-deftest encoding/unibyte-multibyte-roundtrip ()
+  (let ((u (string-to-unibyte "abc")))
+    (should-not (multibyte-string-p u))
+    (should (multibyte-string-p (string-to-multibyte u)))
+    (should (equal (string-to-multibyte u) "abc"))))
+
+(ert-deftest encoding/url-hexify-and-unhex-roundtrip ()
+  ;; `url-unhex-string' only undoes the percent-encoding; it hands back the raw UTF-8
+  ;; BYTES, not decoded text --- `url-hexify-string''s own multibyte characters are
+  ;; encoded as UTF-8 first, so decoding those bytes back is the caller's job too.
+  (let ((s "a b&é"))
+    (should (equal (decode-coding-string (url-unhex-string (url-hexify-string s)) 'utf-8) s))))
+
+(ert-deftest encoding/encode-decode-region-in-a-real-buffer ()
+  (with-temp-buffer
+    (insert "héllo")
+    (encode-coding-region (point-min) (point-max) 'utf-8)
+    (should (= (buffer-size) 6)) ; "é" is 2 bytes in UTF-8, the rest are 1 each
+    (decode-coding-region (point-min) (point-max) 'utf-8)
+    (should (equal (buffer-string) "héllo"))))
+
+(ert-deftest encoding/detects-crlf-line-endings ()
+  (should (= 1 (coding-system-eol-type (detect-coding-string "a\r\nb\r\n" t)))))
+
+(ert-deftest encoding/compare-strings-case-fold ()
+  (should (eq t (compare-strings "ABC" nil nil "abc" nil nil t)))
+  (should-not (eq t (compare-strings "ABC" nil nil "abc" nil nil nil))))
+
+(ert-deftest encoding/string-width-with-wide-characters ()
+  (should (= 2 (string-width "日")))
+  (should (= 7 (string-width "hi 日本"))))
+
+(ert-deftest encoding/known-sha512-vector ()
+  (should (equal (secure-hash 'sha512 "abc")
+                 (concat "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39"
+                         "a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"))))
+
+(ert-deftest encoding/unicode-normalization-nfc-and-nfd ()
+  (require 'ucs-normalize)
+  ;; "e" + a combining acute accent (U+0301), vs the single precomposed "é".
+  (let ((decomposed "é") (precomposed "é"))
+    (should (equal (ucs-normalize-NFC-string decomposed) precomposed))
+    (should (= 2 (length (ucs-normalize-NFD-string precomposed))))))
+
 ;;; encoding-text.el ends here
