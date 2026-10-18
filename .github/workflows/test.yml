@@ -39,7 +39,7 @@ jobs:
             libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
             libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
             liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
-            p7zip-full python3-venv cmake
+            p7zip-full python3-venv cmake libtool
 
       # Real optional tools some tests exercise for real rather than skip around (the
       # same "don't break the basics" spirit as everything else in this workflow) ---
@@ -94,6 +94,10 @@ jobs:
 
   test-windows:
     needs: test-linux
+    # Only the uploaded elpa artifact (an EARLIER step) is actually needed from the
+    # Linux job --- a later test failure there should not also skip this one, or every
+    # real Windows signal would be hostage to the Linux suite being 100% green first.
+    if: ${{ !cancelled() }}
     runs-on: windows-latest
     steps:
       # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
