@@ -68,12 +68,21 @@ symbol or a list of several, matching how the real table is shaped)?"
   (should-not (pe--eglot-server-for 'fundamental-mode)))
 
 (ert-deftest project/remembers-and-forgets-a-project ()
-  (test-with-temp-dir d
-    (test-git d "init" "-q")
-    (project-remember-project (project-current nil d))
-    (should (member (file-truename d) (mapcar #'file-truename (project-known-project-roots))))
-    (project-forget-project d)
-    (should-not (member (file-truename d) (mapcar #'file-truename (project-known-project-roots))))))
+  ;; `project-list-file' rebound to a throwaway path --- otherwise this writes
+  ;; straight into the REAL `~/.emacs.d/projects.eld' (a real side-effect leak
+  ;; outside this test's own sandbox, on any machine) --- found the hard way,
+  ;; running this suite on a genuinely fresh machine for the first time: there
+  ;; `~/.emacs.d/' does not exist yet at all, so the write fails outright
+  ;; (file-missing) rather than just leaking into a real file that happens to
+  ;; already be there.
+  (test-with-temp-dir store
+    (let ((project-list-file (concat store "projects.eld")))
+      (test-with-temp-dir d
+        (test-git d "init" "-q")
+        (project-remember-project (project-current nil d))
+        (should (member (file-truename d) (mapcar #'file-truename (project-known-project-roots))))
+        (project-forget-project d)
+        (should-not (member (file-truename d) (mapcar #'file-truename (project-known-project-roots))))))))
 
 (ert-deftest project/files-respect-gitignore ()
   (test-with-temp-dir d

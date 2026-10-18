@@ -39,7 +39,7 @@ jobs:
             libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
             libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
             liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
-            p7zip-full python3-venv
+            p7zip-full python3-venv cmake
 
       # Real optional tools some tests exercise for real rather than skip around (the
       # same "don't break the basics" spirit as everything else in this workflow) ---
@@ -75,6 +75,17 @@ jobs:
       - name: Install this config's Elisp packages
         run: ./build.sh packages
 
+      # tools/dist-windows.sh needs config/elpa to already exist (it compiles THOSE
+      # packages for the real Windows Emacs itself, later, in its own pipeline) --- the
+      # Windows job below reuses this instead of building its own Emacs from source a
+      # second time just to populate the same package source files again.
+      - name: Upload the installed packages for the Windows job to reuse
+        uses: actions/upload-artifact@v4
+        with:
+          name: elpa
+          path: config/elpa
+          retention-days: 1
+
       - name: Build the tree-sitter grammars
         run: ./build.sh grammars
 
@@ -82,6 +93,7 @@ jobs:
         run: ./build.sh test
 
   test-windows:
+    needs: test-linux
     runs-on: windows-latest
     steps:
       # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
@@ -94,6 +106,12 @@ jobs:
         run: git config --global core.autocrlf false
 
       - uses: actions/checkout@v4
+
+      - name: Download the packages the Linux job already installed
+        uses: actions/download-artifact@v4
+        with:
+          name: elpa
+          path: config/elpa
 
       - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)
         uses: Vampire/setup-wsl@v5
