@@ -12,6 +12,21 @@
   `(if (locate-library "vterm") (progn ,@body)
      (ert-skip "vterm is not installed (./build.sh packages)")))
 
+;; Set unconditionally, at file-load time, before any `ert-deftest' below runs ---
+;; found the hard way, running this file for real: ERT's actual execution order here is
+;; alphabetical by test name, not file definition order, so leaving this `setq' inside
+;; `vterm/native-module-compiles-without-a-system-libvterm' only (as a one-off) meant
+;; every ALPHABETICALLY EARLIER test (e.g. `vterm/a-nonnumeric-prefix-arg-...',
+;; `vterm/backspace-...', `vterm/bookmark-...') still made vterm's own top-level
+;; `(require 'vterm-module ...)' check (vterm.el's own code, not this file's) see this
+;; variable still nil and call `y-or-n-p' to ask about compiling --- which crashes with
+;; `(end-of-file "Error reading from stdin")' in a real `--batch' run with closed stdin,
+;; exactly like the `evil'/`readonly' fix elsewhere in this suite. Same top-level
+;; `setq', never a `let', as explained inside that test below (an enclosing `let' here
+;; would bind it as a lexical variable before vterm.el's own `defcustom' ever runs,
+;; which then collides with the dynamic variable it declares).
+(when (locate-library "vterm") (setq vterm-always-compile-module t))
+
 (ert-deftest vterm/key-is-bound ()
   (vterm-need
     (should (eq (key-binding (kbd "C-c V")) 'vterm))))

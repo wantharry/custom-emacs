@@ -28,7 +28,9 @@ class Scripts(unittest.TestCase):
             with self.subTest(script=s):
                 p = os.path.join(ROOT, s)
                 self.assertTrue(os.access(p, os.X_OK))
-                r = subprocess.run(["bash", "-n", p], capture_output=True, text=True)
+                # Forward slashes: see test_repo.py's test_shell_scripts_have_valid_syntax
+                # for why a raw Windows backslash path breaks MSYS `bash' argv parsing.
+                r = subprocess.run(["bash", "-n", p.replace("\\", "/")], capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_build_sh_knows_the_dist_command(self):

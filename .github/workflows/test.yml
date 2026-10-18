@@ -127,8 +127,20 @@ jobs:
         shell: wsl-bash {0}
         run: ./build.sh dist windows
 
+      # The real end-user launch goes through `Emacs.exe' (tools/windows-launcher.c), which
+      # prepends the bundled tools (dua, rg, fd, delta, git) to PATH and sets
+      # `CUSTOM_EMACS_HOME' before ever starting the real `emacs.exe' --- confirmed directly
+      # in that launcher's own source, first real run of this suite against actual Windows:
+      # `my/disk-usage' (`dua') and `my/pass' (its bundled shell) both depend on exactly
+      # this. That launcher is GUI-only (starts `runemacs.exe' detached, no stdout to
+      # capture), so it cannot drive `--batch' tests itself; this replicates its PATH/env
+      # setup by hand instead, so the test run sees what the real shipped product does.
       - name: Run the full test suite against the real Windows build
         shell: bash
         env:
           EMACS: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64\emacs\bin\emacs.exe
-        run: ./build.sh test
+          CUSTOM_EMACS_HOME: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64
+        run: |
+          STAGE="${CUSTOM_EMACS_HOME//\\//}"
+          export PATH="$STAGE/tools/git/cmd:$STAGE/tools/git/usr/bin:$STAGE/tools/rg:$STAGE/tools/fd:$STAGE/tools/delta:$STAGE/tools/dua:$PATH"
+          ./build.sh test

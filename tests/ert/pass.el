@@ -29,11 +29,30 @@ program' pointed at the real script regardless of harness path quirks."
            ,@body)))))
 
 (defun pt-need-pass ()
-  (unless (file-executable-p (pt--real-pass-program))
+  "Skip unless the real script is really runnable --- on Windows that means
+present on disk AND a real shell to run it through (`my/pass--shell-program'),
+never `file-executable-p' directly: that is exactly the check `my/pass-
+program' itself does NOT rely on there, per its own docstring, since Windows
+never reports a plain shebang script as executable regardless of its real
+permissions. Using the feature's own real-availability logic here, rather
+than a raw POSIX check, is what lets these round-trip tests actually
+exercise the Windows invocation path on Windows instead of skipping it
+outright."
+  (unless (or (file-executable-p (pt--real-pass-program))
+              (and (file-exists-p (pt--real-pass-program)) (my/pass--shell-program)))
     (ert-skip "tools/pass/pass is missing or not executable")))
 
 (ert-deftest pass/the-real-script-is-executable-and-valid-bash ()
-  (should (file-executable-p (pt--real-pass-program)))
+  ;; `file-executable-p' is skipped on Windows --- not a weaker check, a correct one:
+  ;; Windows has no POSIX execute bit, and `file-executable-p' there only ever returns
+  ;; non-nil for a file ending in .exe/.bat/.cmd/.com (Emacs's own documented behavior),
+  ;; never for a plain shebang script regardless of its real permissions. That gap is
+  ;; exactly what `my/pass--invocation' (config/init.el) exists to route around, by
+  ;; running this same script THROUGH the bundled shell instead of as a program in its
+  ;; own right --- see that function's docstring. The syntax check below is still real
+  ;; and still runs on every platform.
+  (unless (eq system-type 'windows-nt)
+    (should (file-executable-p (pt--real-pass-program))))
   (should (equal (call-process "bash" nil nil nil "-n" (pt--real-pass-program)) 0)))
 
 (ert-deftest pass/program-resolves-to-something-real-when-bundled-or-on-path ()
