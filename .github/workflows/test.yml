@@ -188,9 +188,9 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          timeout 120 sudo -E add-apt-repository -y ppa:ubuntuhandbook1/emacs
-          timeout 120 sudo -E apt-get update
-          timeout 120 sudo -E apt-get install -y emacs-nox
+          sudo -E timeout 120 add-apt-repository -y ppa:ubuntuhandbook1/emacs
+          sudo -E timeout 120 apt-get update
+          sudo -E timeout 120 apt-get install -y emacs-nox
 
       # This job's own quick stand-in Emacs, only ever used to run package.el once ---
       # see this job's own top comment for why it does not need test-linux's slow
