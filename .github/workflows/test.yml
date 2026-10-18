@@ -35,11 +35,19 @@ jobs:
       - name: Install system build dependencies
         run: |
           sudo apt-get update
+          # `libtool-bin', not just `libtool': on Debian/Ubuntu the `libtool' package is
+          # only the m4 macros/`libtoolize'/docs --- the actual `/usr/bin/libtool' script
+          # that vterm's own CMakeLists.txt shells out to build its vendored libvterm
+          # comes from the separate `libtool-bin' package, confirmed directly (`dpkg -S
+          # /usr/bin/libtool' on a machine with both installed). `libtool' alone being
+          # "already the newest version" in an earlier run's log was a red herring: the
+          # package existed, but the actual command still wasn't on PATH, which is
+          # exactly why every vterm test kept failing even after adding it.
           sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
             libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
             libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
             liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
-            p7zip-full python3-venv cmake libtool
+            p7zip-full python3-venv cmake libtool libtool-bin
 
       # Real optional tools some tests exercise for real rather than skip around (the
       # same "don't break the basics" spirit as everything else in this workflow) ---
