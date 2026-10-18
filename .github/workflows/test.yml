@@ -1,0 +1,89 @@
+name: Test (Linux + Windows)
+
+# Runs the full regression suite on real Linux and real Windows, automatically, on every
+# push to main/utilities/java (plus any PR into them) -- found worth having the hard way:
+# a real, user-reported bug (the bundled `pass' password-manager script could never run on
+# Windows, since `file-executable-p' only recognizes .exe/.bat/.cmd/.com there) that no
+# amount of testing on this project's own Linux/WSL dev sandbox could ever have caught,
+# because the bug was in how Windows itself treats a plain shebang script -- a genuinely
+# different OS, not a config mistake. workflow_dispatch exists as a manual "run it now"
+# escape hatch (e.g. to try this workflow itself without waiting for a push).
+#
+# The Linux job mirrors release.yml's own proven build recipe (docs/BUILD.md end to end).
+# The Windows job needs WSL -- tools/dist-windows.sh itself requires it (see that script's
+# own top comment: it compiles packages by running the real downloaded Windows Emacs
+# through cmd.exe/WSL interop, the same way building the Windows dist locally in this
+# project's own WSL2 dev sandbox always has) -- so `Vampire/setup-wsl' sets one up on the
+# `windows-latest' runner first. Once the bundle is built, the actual test run against it
+# happens on the NATIVE Windows side (plain `bash' from the runner's already-installed Git
+# for Windows), not through WSL and not through Wine -- this is genuinely real Windows, the
+# same OS class the bug above only showed up on.
+
+on:
+  push:
+    branches: [main, utilities, java]
+  pull_request:
+    branches: [main, utilities, java]
+  workflow_dispatch: {}
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
+            libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
+            libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
+            liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
+            p7zip-full python3-venv
+
+      - name: Fetch Emacs source
+        run: |
+          git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src || \
+          git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git emacs-src
+          echo "EMACS_SRC_REV=$(git -C emacs-src rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Cache the Emacs build tree
+        uses: actions/cache@v4
+        with:
+          path: |
+            build
+            install
+          key: linux-build-${{ env.EMACS_SRC_REV }}-${{ hashFiles('build.sh') }}
+
+      - name: Build this Emacs (configure + make + install + prune)
+        run: ./build.sh all
+
+      - name: Install this config's Elisp packages
+        run: ./build.sh packages
+
+      - name: Build the tree-sitter grammars
+        run: ./build.sh grammars
+
+      - name: Run the full test suite
+        run: ./build.sh test
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up WSL (tools/dist-windows.sh needs it -- see its own top comment)
+        uses: Vampire/setup-wsl@v5
+        with:
+          distribution: Ubuntu-22.04
+          additional-packages: p7zip-full unzip wget python3-venv python3-pip
+
+      - name: Build the Windows dist bundle (same recipe as building it locally)
+        shell: wsl-bash {0}
+        run: ./build.sh dist windows
+
+      - name: Run the full test suite against the real Windows build
+        shell: bash
+        env:
+          EMACS: ${{ github.workspace }}\dist\stage\custom-emacs-windows-x64\emacs\bin\emacs.exe
+        run: ./build.sh test
