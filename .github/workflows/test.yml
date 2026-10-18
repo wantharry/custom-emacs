@@ -67,14 +67,18 @@ jobs:
       - name: Install rust-analyzer and dua (real optional tools some tests need)
         run: |
           rustup component add rust-analyzer
-          curl -fsSL "https://github.com/Byron/dua-cli/releases/download/v2.45.1/dua-v2.45.1-x86_64-unknown-linux-musl.tar.gz" \
+          curl --connect-timeout 30 --max-time 300 -fsSL "https://github.com/Byron/dua-cli/releases/download/v2.45.1/dua-v2.45.1-x86_64-unknown-linux-musl.tar.gz" \
             | tar -xz -C /tmp
           sudo install /tmp/dua-v2.45.1-x86_64-unknown-linux-musl/dua /usr/local/bin/dua
 
+      # `timeout 300' here, not just relying on the job-level cap --- same reasoning as
+      # the PPA step: a stalled git-protocol connection has no timeout of its own, and
+      # without one a hang here is indistinguishable from slow progress until the whole
+      # job eventually dies, instead of failing clearly at the actual point of trouble.
       - name: Fetch Emacs source
         run: |
-          git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src || \
-          git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git emacs-src
+          timeout 300 git clone --depth=1 git://git.savannah.gnu.org/emacs.git emacs-src || \
+          timeout 300 git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git emacs-src
           echo "EMACS_SRC_REV=$(git -C emacs-src rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Cache the Emacs build tree

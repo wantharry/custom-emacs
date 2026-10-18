@@ -31,7 +31,14 @@ command -v cmd.exe >/dev/null || { echo "this needs WSL (it runs the Windows Ema
 mkdir -p "$CACHE"
 
 fetch() {   # fetch URL FILE
-  [ -s "$CACHE/$2" ] || { echo "   downloading $2"; curl -fSL -s -o "$CACHE/$2.part" "$1" && mv "$CACHE/$2.part" "$CACHE/$2"; }
+  # `--connect-timeout'/`--max-time': curl has no timeout of its own by default, so a
+  # stalled connection here would otherwise hang indefinitely instead of failing
+  # clearly --- found the hard way, a real CI run stuck for hours on an unrelated
+  # network call with the exact same shape (see .github/workflows/test.yml's own
+  # comment on the PPA step). 600s is generous for the largest of these (the Emacs
+  # zip, the JDK) while still failing in minutes, not hours, if something really is
+  # stuck.
+  [ -s "$CACHE/$2" ] || { echo "   downloading $2"; curl --connect-timeout 30 --max-time 600 -fSL -s -o "$CACHE/$2.part" "$1" && mv "$CACHE/$2.part" "$CACHE/$2"; }
 }
 
 echo "== downloads (cached in dist/cache)"
@@ -45,7 +52,7 @@ fetch "$MINGIT_URL" MinGit-64.zip
 fetch "https://github.com/BurntSushi/ripgrep/releases/download/$RG_VERSION/ripgrep-$RG_VERSION-x86_64-pc-windows-msvc.zip" rg-win.zip
 FD_ASSET="fd-v$FD_VERSION-x86_64-pc-windows-msvc.zip"
 fetch "https://github.com/sharkdp/fd/releases/download/v$FD_VERSION/$FD_ASSET" fd-win.zip
-FD_SHA="$(curl -fsSL "https://api.github.com/repos/sharkdp/fd/releases/tags/v$FD_VERSION" | python3 -c "
+FD_SHA="$(curl --connect-timeout 30 --max-time 60 -fsSL "https://api.github.com/repos/sharkdp/fd/releases/tags/v$FD_VERSION" | python3 -c "
 import json, sys
 name = sys.argv[1]
 for a in json.load(sys.stdin)['assets']:
@@ -60,7 +67,7 @@ else
 fi
 DELTA_ASSET="delta-$DELTA_VERSION-x86_64-pc-windows-msvc.zip"
 fetch "https://github.com/dandavison/delta/releases/download/$DELTA_VERSION/$DELTA_ASSET" delta-win.zip
-DELTA_SHA="$(curl -fsSL "https://api.github.com/repos/dandavison/delta/releases/tags/$DELTA_VERSION" | python3 -c "
+DELTA_SHA="$(curl --connect-timeout 30 --max-time 60 -fsSL "https://api.github.com/repos/dandavison/delta/releases/tags/$DELTA_VERSION" | python3 -c "
 import json, sys
 name = sys.argv[1]
 for a in json.load(sys.stdin)['assets']:
@@ -75,7 +82,7 @@ else
 fi
 DUA_ASSET="dua-v$DUA_VERSION-x86_64-pc-windows-msvc.zip"
 fetch "https://github.com/Byron/dua-cli/releases/download/v$DUA_VERSION/$DUA_ASSET" dua-win.zip
-DUA_SHA="$(curl -fsSL "https://api.github.com/repos/Byron/dua-cli/releases/tags/v$DUA_VERSION" | python3 -c "
+DUA_SHA="$(curl --connect-timeout 30 --max-time 60 -fsSL "https://api.github.com/repos/Byron/dua-cli/releases/tags/v$DUA_VERSION" | python3 -c "
 import json, sys
 name = sys.argv[1]
 for a in json.load(sys.stdin)['assets']:
@@ -91,9 +98,9 @@ fi
 
 echo "== Java: the Java language server, plus a portable JDK to run it on (this \`java' branch only)"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
-JDTLS_FILE="$(curl -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
+JDTLS_FILE="$(curl --connect-timeout 30 --max-time 60 -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
 fetch "$JDTLS_BASE/$JDTLS_FILE" "$JDTLS_FILE"
-[ "$(sha256sum "$CACHE/$JDTLS_FILE" | cut -d' ' -f1)" = "$(curl -fsSL "$JDTLS_BASE/$JDTLS_FILE.sha256" | cut -d' ' -f1 | tr -d '\r\n')" ] \
+[ "$(sha256sum "$CACHE/$JDTLS_FILE" | cut -d' ' -f1)" = "$(curl --connect-timeout 30 --max-time 60 -fsSL "$JDTLS_BASE/$JDTLS_FILE.sha256" | cut -d' ' -f1 | tr -d '\r\n')" ] \
   || { echo "CHECKSUM MISMATCH for $JDTLS_FILE" >&2; exit 1; }
 echo "   $JDTLS_FILE matches the checksum published by Eclipse"
 # Eclipse Temurin (Adoptium): a real, official OpenJDK build distributed as a plain .zip
@@ -126,7 +133,7 @@ build_grammar() {   # build_grammar LANG TAG [SUBDIR] [REPO]
   local l="$1" tag="$2" sub="${3:-src}" repo="${4:-tree-sitter-$1}"
   local d="$CACHE/gram/ts-$repo-$tag"
   [ -f "$CACHE/gram/libtree-sitter-$l.dll" ] && return
-  [ -d "$d" ] || git clone -q --depth=1 --branch "$tag" "https://github.com/tree-sitter/$repo" "$d"
+  [ -d "$d" ] || timeout 120 git clone -q --depth=1 --branch "$tag" "https://github.com/tree-sitter/$repo" "$d"
   local srcdir="$d/$sub"
   local srcs=("$srcdir/parser.c"); [ -f "$srcdir/scanner.c" ] && srcs+=("$srcdir/scanner.c")
   "${ZIG[@]}" cc -target x86_64-windows-gnu -shared -O2 -I "$srcdir" "${srcs[@]}" -o "$CACHE/gram/libtree-sitter-$l.dll"
