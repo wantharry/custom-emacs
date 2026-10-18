@@ -158,8 +158,15 @@ jobs:
         shell: wsl-bash {0}
         run: EMACS=/usr/bin/emacs ./build.sh packages
 
+      # CI=true set explicitly here (not just relying on it already being in the
+      # outer step's own environment) --- WSL's own interop forwarding of env vars has
+      # already shown real, surprising quirks in this same workflow (see the PATH/
+      # WSLENV comment below); build.sh's own dist_env() reads this to redirect its
+      # venv off the slow DrvFs-mounted checkout, see that function's own comment.
       - name: Build the Windows dist bundle (same recipe as building it locally)
         shell: wsl-bash {0}
+        env:
+          CI: "true"
         run: ./build.sh dist windows
 
       # The real end-user launch goes through `Emacs.exe' (tools/windows-launcher.c), which

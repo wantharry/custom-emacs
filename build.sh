@@ -67,10 +67,25 @@ screenshots() {
   ls "$out"/*.png
 }
 dist_env() {   # the two tools the bundles need, kept in dist/.venv so nothing is installed system-wide
-  if [ ! -x "$ROOT/dist/.venv/bin/python" ]; then
-    mkdir -p "$ROOT/dist" && python3 -m venv "$ROOT/dist/.venv"
-    "$ROOT/dist/.venv/bin/pip" install -q patchelf ziglang
+  # On CI (GitHub Actions' Windows runner, this script's own WSL job), $ROOT sits on
+  # the slow DrvFs-mounted Windows drive (/mnt/d/...) --- a venv plus ziglang's own
+  # hefty wheel (it bundles the real zig compiler) is dramatically slower to create and
+  # to run there than on WSL's native filesystem, DrvFs's well-known weak point being
+  # many-small-files I/O, which both venv creation and an unpacked compiler toolchain
+  # are full of. Confirmed directly: ~14 minutes for venv creation + pip install alone
+  # on that mount, a step that takes well under a minute natively, and every later
+  # `zig cc' invocation paying the same slow-I/O tax reading the toolchain back from
+  # there. Local dev (already on a native filesystem) keeps the original, repo-local
+  # dist/.venv; CI redirects to WSL's own home directory instead. PATCHELF/ZIG_PYTHON
+  # exported either way so dist-linux.sh/dist-windows.sh pick this up transparently,
+  # without each needing their own copy of this same CI check.
+  local venv="$ROOT/dist/.venv"
+  [ -n "${CI:-}" ] && venv="$HOME/.cache/custom-emacs-dist-venv"
+  if [ ! -x "$venv/bin/python" ]; then
+    mkdir -p "$(dirname "$venv")" && python3 -m venv "$venv"
+    "$venv/bin/pip" install -q patchelf ziglang
   fi
+  export PATCHELF="$venv/bin/patchelf" ZIG_PYTHON="$venv/bin/python"
 }
 dist() {
   case "${1:-}" in
