@@ -112,24 +112,30 @@ way `rg'/`fd'/`delta' already are.")
 ;; (31))', bumped at some point after this project last checked) then fails to install
 ;; here with "This package requires Emacs version 31", even though every REAL target
 ;; (Linux 32.0.50, macOS 31.1 via emacs-plus, Windows 31.1) genuinely satisfies it.
-;; HOW: the actual check (`package--incompatible-p', via `package-compute-
-;; transaction') does NOT re-read plain `emacs-version' itself (tried first, confirmed
-;; to do nothing) --- it compares against `package--emacs-version-list', a `defvar'
-;; computed ONCE, when `package.el' is first loaded (right at this file's own
-;; `(require 'package)' above), so by the time this runs that cached list is already
-;; fixed at the real (too old) version. `let'-binding `package--emacs-version-list'
-;; itself, instead, is safe to raise here: nothing at this stage RUNS the installed
-;; code against real Emacs-31-only runtime behavior, it only downloads and byte-
-;; compiles source, which does not need the declared version to be real, only the
+;; HOW: a first attempt `let'-bound `package--emacs-version-list' --- confirmed, by
+;; actually reproducing the failure and retrying with this fix on a real Windows CI run,
+;; to NOT be the variable that matters: `package-compute-transaction' resolves the
+;; pseudo-package `emacs' via `package-installed-p' -> `package-built-in-p' ->
+;; `(assq 'emacs package--builtin-versions)', a COMPLETELY SEPARATE `defvar' (in
+;; `subr.el', not `package.el') whose `emacs' entry is computed from `emacs-version' even
+;; earlier than `package--emacs-version-list' is --- confirmed directly, reproducing the
+;; exact real check: `(package-installed-p 'emacs '(31))' returns `nil' against a
+;; simulated old bootstrap Emacs, `t' once `package--builtin-versions' itself (not
+;; `package--emacs-version-list') is `let'-bound to report a high enough `emacs' entry,
+;; and correctly back to the real, too-old value the instant the `let' exits (no
+;; leakage). `let'-binding it here is safe to raise: nothing at this stage RUNS the
+;; installed code against real Emacs-31-only runtime behavior, it only downloads and
+;; byte-compiles source, which does not need the declared version to be real, only the
 ;; reader/byte-compiler's own (stable-across-versions) Elisp syntax support.
 (let ((missing (seq-remove #'package-installed-p my/packages)))
   (if (null missing)
       (message "All packages already installed: %S" my/packages)
     (package-refresh-contents)
-    (let ((package--emacs-version-list
-           (if (version-list-<= '(31) package--emacs-version-list)
-               package--emacs-version-list
-             '(31 1 0))))
+    (let ((package--builtin-versions
+           (if (version-list-<= '(31) (cdr (assq 'emacs package--builtin-versions)))
+               package--builtin-versions
+             (cons (cons 'emacs '(31 1 0))
+                   (assq-delete-all 'emacs (copy-alist package--builtin-versions))))))
       (dolist (p missing)
         (package-install p)
         (message "Installed %s" p)))))
