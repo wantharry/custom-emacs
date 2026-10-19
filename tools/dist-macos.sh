@@ -79,6 +79,11 @@ echo "== all 20 C-c F fonts, real files (same reasoning as the Linux/Windows bun
 echo "   tools/fonts/README.md, including the macOS install step: double-click, Install Font)"
 cp -r "$ROOT/tools/fonts" "$STAGE/tools/fonts"
 
+echo "== finding every git repository (C-c f p): a small, dependency-light script (falls"
+echo "   back from fd to plain find on its own), so it travels with the bundle like everything else"
+cp "$ROOT/tools/find-repos.sh" "$STAGE/tools/find-repos.sh"
+chmod +x "$STAGE/tools/find-repos.sh"
+
 echo "== helper tools (rg, fd, dua, delta), relocated the same way as Emacs itself"
 for t in rg fd dua delta; do
   src="$(command -v "$t" 2>/dev/null || true)"
