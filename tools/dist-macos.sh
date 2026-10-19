@@ -75,6 +75,10 @@ cp -a "$ROOT/config/tree-sitter" "$STAGE/config/tree-sitter"
 cp "$ROOT/README.md" "$STAGE/README.md"
 mkdir -p "$STAGE/docs" && cp "$ROOT"/docs/*.md "$STAGE/docs/"
 
+echo "== all 20 C-c F fonts, real files (same reasoning as the Linux/Windows bundles; see"
+echo "   tools/fonts/README.md, including the macOS install step: double-click, Install Font)"
+cp -r "$ROOT/tools/fonts" "$STAGE/tools/fonts"
+
 echo "== helper tools (rg, fd, dua, delta), relocated the same way as Emacs itself"
 for t in rg fd dua delta; do
   src="$(command -v "$t" 2>/dev/null || true)"
@@ -99,7 +103,17 @@ export EMACSDATA="$APP/Resources/etc"
 export EMACSDOC="$APP/Resources/etc"
 export EMACSPATH="$APP/libexec/arch"
 export PATH="$HERE/tools/rg:$HERE/tools/fd:$HERE/tools/dua:$HERE/tools/delta:$PATH"
-exec "$APP/MacOS/Emacs" --init-directory="$HERE/config" "$@"
+# Emacs's own portable-dump lookup is relative to the executable's real on-disk path using a
+# directory name baked in at compile time (the exact target triple, e.g.
+# "aarch64-apple-darwin24.6.0") -- this bundle renames that directory to the plain "arch" above
+# for clarity, which breaks that implicit lookup silently: Emacs still starts, but falls all the
+# way back to interpreting raw Lisp sources via loadup.el (the same bootstrap process used to
+# BUILD Emacs in the first place) instead of using the fast, already-dumped image, confirmed
+# directly ("Loading loadup.el (source)...", then a real crash partway through: "Symbol's
+# function definition is void: file-name-sans-extension"). --dump-file names the exact .pdmp
+# file explicitly, bypassing that broken path inference entirely.
+DUMP="$(find "$APP/libexec/arch" -maxdepth 1 -name '*.pdmp' | head -1)"
+exec "$APP/MacOS/Emacs" --dump-file="$DUMP" --init-directory="$HERE/config" "$@"
 LAUNCHER
 chmod +x "$STAGE/Open Custom Emacs.command"
 
