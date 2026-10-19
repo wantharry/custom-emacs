@@ -148,7 +148,16 @@ volume). Keep every folder together; you can move or copy the whole thing anywhe
 Gatekeeper note: Emacs.app here is only ad-hoc signed (not notarized by Apple), same as any
 Homebrew-built app. Because it is launched via the .command script rather than double-clicked
 directly, macOS generally does not show the usual "unidentified developer" dialog the first
-time; if it ever does, right-click > Open once, or run: xattr -cr "Emacs.app".
+time; if it ever does, right-click > Open once.
+
+If something inside this folder (e.g. the fast finder, C-c f p) gets silently killed the first
+time you use it, that is Gatekeeper too: Finder's Archive Utility stamps every file in a
+downloaded zip as quarantined when you extract it, and a plain "right-click > Open" only
+clears that for the one app you clicked, not everything else in the folder. Clear it from
+a terminal, for the WHOLE folder (cd here first, or replace the dot with its full path):
+  xattr -cr .
+(every file this bundle ships is already writable so that command cannot silently skip any
+of them with a permission error, the way it would on an unmodified, read-only Homebrew copy).
 
 This bundle does NOT include a Java language server (jdtls) or a Rust toolchain/rust-analyzer --
 install those yourself if you want Java/Rust code intelligence (M-x eglot); see LANGUAGES.md.
@@ -157,6 +166,16 @@ Emacs is licensed under the GNU GPL v3+; emacs-plus: https://github.com/d12frost
 Full guide: DISTRIBUTION.md in this folder, or https://github.com/wantharry/custom-emacs.
 EOF
 cp "$ROOT/docs/DISTRIBUTION.md" "$STAGE/DISTRIBUTION.md" 2>/dev/null || true
+
+echo "== make everything owner-writable (a real bug this avoids: Homebrew ships some binaries"
+echo "   read-only, e.g. fd/dua, 555 not 755; so do the vendored .git packs inside the VC-"
+echo "   installed theme packages -- Archive Utility stamps com.apple.quarantine on every file"
+echo "   when a downloaded, quarantined zip is extracted, and removing that xattr needs write"
+echo "   permission on the file; without this, \`xattr -cr\` on the unzipped bundle silently"
+echo "   fails on exactly these files with Permission denied, and macOS then SIGKILLs the"
+echo "   still-quarantined fd the first time C-c f p tries to run it -- confirmed directly,"
+echo "   not hypothetical)"
+chmod -R u+w "$STAGE"
 
 echo "== zip (ditto, not plain zip -- preserves the .app bundles' code signatures and resource forks)"
 rm -f "$DIST/$NAME.zip"
