@@ -68,7 +68,7 @@ jobs:
       - name: Build the Linux portable bundle
         run: ./build.sh dist linux
 
-      - name: Publish to the GitHub release (race-tolerant: another platform's job may win the create)
+      - name: "Publish to the GitHub release (race-tolerant: another platform's job may win the create)"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Emacs (emacs-plus@31: native compilation, tree-sitter, a real Cocoa GUI) and build tools
+      - name: "Install Emacs (emacs-plus@31: native compilation, tree-sitter, a real Cocoa GUI) and build tools"
         run: |
           brew tap d12frosted/emacs-plus
           brew install emacs-plus@31 dylibbundler ripgrep fd dua-cli git-delta cmake libtool automake
@@ -117,7 +117,7 @@ jobs:
       - name: Build the macOS portable bundle
         run: ./build.sh dist macos
 
-      - name: Publish to the GitHub release (race-tolerant: another platform's job may win the create)
+      - name: "Publish to the GitHub release (race-tolerant: another platform's job may win the create)"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
