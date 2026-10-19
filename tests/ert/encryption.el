@@ -7,19 +7,58 @@
 ;; confirmed necessary the hard way while building this feature: a real test key
 ;; generated without this isolation left a stray key behind in the real keyring.
 
+(defvar et--gpg-homedir-style 'unknown
+  "Cached: `posix' if the real `gpg' on PATH wants a Cygwin/MSYS-style
+homedir (\"/c/Users/...\"), `native' if it wants a plain one (\"C:/Users/
+...\") --- only ambiguous on Windows, where more than one real gpg build can
+end up on PATH (a native GnuPG4Win-style build, or an MSYS/Cygwin one such as
+Git for Windows' own bundled `gpg') and each wants its OWN flavor; handing it
+the wrong one does not fail cleanly, it silently prepends gpg's own current
+directory to the path instead --- confirmed directly, a real failure on a
+machine with Git for Windows' own MSYS `gpg' resolved from PATH and
+`GNUPGHOME' set to Emacs's native-style temp dir: every real gpg operation
+failed with a mangled, confusing \"No such file or directory\", the isolated
+temp homedir itself never at fault.")
+
+(defun et--gpg-wants-posix-homedir-p ()
+  "Non-nil if the real `gpg' on PATH expects a Cygwin/MSYS-style homedir
+path rather than a native one --- see `et--gpg-homedir-style'. Detected
+once, from `gpg --version''s own \"Home:\" line, which always echoes back
+whichever style THAT binary itself expects, so this needs no guessing at
+which gpg build is actually on PATH."
+  (when (eq et--gpg-homedir-style 'unknown)
+    (setq et--gpg-homedir-style
+          (with-temp-buffer
+            (ignore-errors (call-process "gpg" nil t nil "--version"))
+            (goto-char (point-min))
+            (if (re-search-forward "^Home: /[a-zA-Z]/" nil t) 'posix 'native))))
+  (eq et--gpg-homedir-style 'posix))
+
+(defun et--gpg-homedir (dir)
+  "DIR (a plain, native-style absolute path), converted to whichever path
+flavor the real `gpg' on PATH actually expects --- see
+`et--gpg-wants-posix-homedir-p'; a no-op on a real POSIX system, where
+there is only ever one flavor to begin with."
+  (if (and (eq system-type 'windows-nt) (et--gpg-wants-posix-homedir-p)
+           (string-match "\\`\\([a-zA-Z]\\):" dir))
+      (concat "/" (downcase (match-string 1 dir)) (substring dir (match-end 0)))
+    dir))
+
 (defmacro et-with-gpg-home (var &rest body)
   "Run BODY with a fresh, isolated GNUPGHOME in VAR."
   (declare (indent 1))
   `(test-with-temp-dir ,var
      (set-file-modes ,var #o700) ; gpg refuses a homedir with group/other access
-     (let ((process-environment (cons (concat "GNUPGHOME=" (directory-file-name ,var))
-                                       process-environment)))
+     (let ((process-environment
+            (cons (concat "GNUPGHOME=" (et--gpg-homedir (directory-file-name ,var)))
+                  process-environment)))
        ,@body)))
 
 (defun et--generate-test-key (homedir)
   "A real, no-passphrase test key, isolated to HOMEDIR."
-  (let ((process-environment (cons (concat "GNUPGHOME=" (directory-file-name homedir))
-                                    process-environment)))
+  (let ((process-environment
+         (cons (concat "GNUPGHOME=" (et--gpg-homedir (directory-file-name homedir)))
+               process-environment)))
     (call-process "gpg" nil nil nil "--batch" "--yes" "--passphrase" ""
                   "--quick-generate-key" "Test User <test@example.com>"
                   "default" "default" "never")))
