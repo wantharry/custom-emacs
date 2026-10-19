@@ -137,6 +137,14 @@ idle timer below call; with `desktop-save-mode' on (the default), it must call
   (should (memq #'my/session--start-autosave emacs-startup-hook))
   (should-not (memq #'my/session--start-autosave after-init-hook)))
 
+(ert-deftest emacs-session/start-buffer-is-also-wired-to-emacs-startup-hook ()
+  "Real, separate wiring from `my/session--start-autosave' just above --- both are
+needed on `emacs-startup-hook' (not `after-init-hook', which fires too early to matter
+for either): see `emacs-session/start-buffer-survives-a-real-restore-without-
+disturbing-it' further down for what this is actually for."
+  (skip-unless (featurep 'startpage))
+  (should (memq #'my/start-buffer emacs-startup-hook)))
+
 (ert-deftest emacs-session/start-autosave-claims-ownership-and-arms-the-idle-timer ()
   (let (claim-calls timer-args)
     (cl-letf (((symbol-function 'my/session--claim-ownership) (lambda () (push t claim-calls)))
@@ -232,6 +240,45 @@ non-nil one."
         (dolist (name '("a.txt" "b.txt"))
           (when (get-buffer name) (kill-buffer name)))
         (desktop-release-lock dir)))))
+
+;; A real, found-the-hard-way bug, caught only by a real user checking the actual buffer
+;; list after a real restore (C-x C-b), not by reading the source: Emacs's own startup
+;; order (confirmed directly in startup.el, not assumed) runs after-init-hook --- where
+;; desktop-read actually restores a session --- BEFORE command-line-1, and
+;; `initial-buffer-choice' (`my/start-initial-buffer') is only evaluated well inside
+;; THAT function, deciding whether to create the start screen by checking "is
+;; `current-buffer' still `*scratch*'". By the time that check runs after a real
+;; restore, some OTHER buffer is already current, so the check correctly (by its own,
+;; narrower logic) declines, and `*start*' is never created at all -- confirmed
+;; reproduced here with the exact real order (restore, THEN run the startup hooks),
+;; not the backwards order (create `*start*' first) an earlier version of this same
+;; test file got wrong. `my/session--start-autosave' now also ensures `*start*' exists
+;; unconditionally; this pins down that it does so WITHOUT disturbing whichever buffer
+;; a real restore actually left current (`my/start-buffer' uses `with-current-buffer',
+;; never `switch-to-buffer' or `pop-to-buffer' --- see startpage.el's own definition).
+(ert-deftest emacs-session/start-buffer-survives-a-real-restore-without-disturbing-it ()
+  (skip-unless (featurep 'startpage))
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "c.txt")))
+      (with-temp-file f (insert "file c\n"))
+      (unwind-protect
+          (progn
+            (when (get-buffer "*start*") (kill-buffer "*start*"))
+            (find-file f)
+            (desktop-save live-dir)
+            (kill-buffer "c.txt")
+            (desktop-release-lock live-dir)
+            ;; matches the real order: the restore happens, THEN the startup hooks run
+            (let ((noninteractive nil)) (desktop-read live-dir))
+            (should (equal (buffer-name (current-buffer)) "c.txt"))
+            (should-not (get-buffer "*start*"))   ; the real bug, reproduced
+            (my/session--start-autosave)
+            (my/start-buffer)                     ; same call emacs-startup-hook now makes
+            (should (get-buffer "*start*"))        ; the real bug, fixed
+            (should (equal (buffer-name (current-buffer)) "c.txt")))  ; and undisturbed
+        (dolist (name '("c.txt" "*start*"))
+          (when (get-buffer name) (kill-buffer name)))
+        (desktop-release-lock live-dir)))))
 
 ;;; Listing what's in the session (C-c w l): "can it list states like buffers?"
 
