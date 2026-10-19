@@ -305,4 +305,44 @@
       (unwind-protect (with-current-buffer b (should (eq (my/start-initial-buffer) b)))
         (kill-buffer b)))))
 
+;; WHAT/WHY: a direct user request --- a real window split (`*start*' in one window,
+;; `*shortcuts*' in another) open when a session is saved should come back as that same
+;; split, not silently collapse to nothing. Real gap, confirmed first, not assumed:
+;; `desktop-save-buffer-p' (desktop.el) only saves a buffer with no visited file at all
+;; if its own buffer-local `desktop-save-buffer' is non-nil --- `nil' here by default,
+;; same as any other buffer that never opts in, so a real split like this used to save
+;; and restore to neither window nor buffer existing at all.
+(ert-deftest start/desktop-save-buffer-is-on-so-a-real-restore-can-find-it ()
+  (with-current-buffer (my/start-buffer)
+    (should desktop-save-buffer)))
+
+(ert-deftest start/registers-a-desktop-buffer-mode-handler ()
+  (should (eq (alist-get 'my/start-mode desktop-buffer-mode-handlers) #'my/start--desktop-restore)))
+
+(ert-deftest start/window-split-with-shortcuts-survives-a-real-restore ()
+  (skip-unless (featurep 'shortcuts))
+  (test-with-temp-dir dir
+    (unwind-protect
+        (progn
+          (my/start-buffer)
+          (switch-to-buffer "*start*")
+          (delete-other-windows)
+          (split-window nil nil 'right)
+          (other-window 1)
+          (switch-to-buffer (my/shortcuts-buffer))
+          (other-window 1)
+          (desktop-save dir)
+          (kill-buffer "*start*") (kill-buffer "*shortcuts*")
+          (delete-other-windows)
+          (desktop-release-lock dir)
+          (let ((noninteractive nil)) (desktop-read dir))
+          (should (= 2 (length (window-list))))
+          (should (equal (mapcar (lambda (w) (buffer-name (window-buffer w)))
+                                 (window-list nil nil (frame-first-window)))
+                         '("*start*" "*shortcuts*"))))
+      (dolist (name '("*start*" "*shortcuts*"))
+        (when (get-buffer name) (kill-buffer name)))
+      (delete-other-windows)
+      (desktop-release-lock dir))))
+
 ;;; startpage.el ends here
