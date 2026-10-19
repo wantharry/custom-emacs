@@ -1,4 +1,4 @@
-name: Build and release Linux bundle
+name: Build and release bundles
 
 # Push a tag (e.g. "v1.0") whenever you cross a milestone -- that's the only thing that
 # triggers a real release. Nothing runs on ordinary pushes to main, so this never eats CI
@@ -6,13 +6,24 @@ name: Build and release Linux bundle
 # "run it right now" escape hatch (e.g. to test the pipeline itself), and publishes a release
 # tagged by run number instead of a version, so it can never collide with a real tag release.
 #
-# Builds docs/BUILD.md's own recipe end to end (system deps -> clone Emacs -> ./build.sh all
-# -> packages -> grammars -> dist linux) on a stock ubuntu-latest runner, then publishes the
-# resulting bundle to a GitHub Release with `gh` (already authenticated via GITHUB_TOKEN; no
-# secrets or repo settings to configure by hand). The Windows bundle is NOT built here --
-# tools/dist-windows.sh needs WSL (it runs a real Windows Emacs.exe through cmd.exe to compile
-# packages), which a Linux runner can't do; keep building that one locally and attach it to
-# the same release afterwards if you want both platforms on one release.
+# Two independent jobs, one per platform, both publishing to the SAME release (see the
+# race-tolerant publish step each one runs: whichever job finishes first creates the release,
+# the other one uploads its own file into it instead of failing).
+#
+# Linux: builds docs/BUILD.md's own recipe end to end (system deps -> clone Emacs ->
+# ./build.sh all -> packages -> grammars -> dist linux) on a stock ubuntu-latest runner.
+#
+# macOS: builds this config's own real recipe (brew install emacs-plus@31 -> packages ->
+# grammars -> dist macos) on a stock macos-latest (Apple Silicon) runner. tools/dist-macos.sh
+# fully relocates Emacs.app (every Homebrew dylib it needs, plus its lisp/etc/libexec trees,
+# copied inside Contents/ and relinked with dylibbundler) so the result needs no Homebrew and
+# no compiling on the machine that unzips it -- verified directly by running the built bundle
+# with its own source Homebrew keg renamed out of the way first. See docs/DISTRIBUTION.md.
+#
+# The Windows bundle is NOT built here -- tools/dist-windows.sh needs WSL (it runs a real
+# Windows Emacs.exe through cmd.exe to compile packages), which neither runner can do; keep
+# building that one locally and attach it to the same release afterwards if you want all
+# three platforms on one release.
 
 on:
   push:
@@ -24,7 +35,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build-and-release-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +68,7 @@ jobs:
       - name: Build the Linux portable bundle
         run: ./build.sh dist linux
 
-      - name: Publish the GitHub release
+      - name: Publish to the GitHub release (race-tolerant: another platform's job may win the create)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -65,11 +76,62 @@ jobs:
             TAG="$GITHUB_REF_NAME"
           else
             TAG="manual-run-${GITHUB_RUN_NUMBER}"
-            git tag "$TAG"
-            git push origin "$TAG"
+            git tag "$TAG" 2>/dev/null || true
+            git push origin "$TAG" 2>/dev/null || true
           fi
           gh release create "$TAG" \
             dist/custom-emacs-linux-x86_64.tar.gz \
             dist/custom-emacs-linux-x86_64.zip \
             --title "$TAG" \
-            --generate-notes
+            --generate-notes \
+          || gh release upload "$TAG" \
+            dist/custom-emacs-linux-x86_64.tar.gz \
+            dist/custom-emacs-linux-x86_64.zip \
+            --clobber
+
+  build-and-release-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Emacs (emacs-plus@31: native compilation, tree-sitter, a real Cocoa GUI) and build tools
+        run: |
+          brew tap d12frosted/emacs-plus
+          brew install emacs-plus@31 dylibbundler ripgrep fd dua-cli git-delta cmake libtool automake
+
+      - name: Install this config's Elisp packages
+        run: EMACS="$(brew --prefix emacs-plus@31)/bin/emacs" ./build.sh packages
+
+      - name: Build the tree-sitter grammars
+        run: EMACS="$(brew --prefix emacs-plus@31)/bin/emacs" ./build.sh grammars
+
+      # vterm's native module needs an explicit CMake build the first time (package.el's own
+      # install step does not trigger it); without this the module is simply missing and
+      # vterm falls back to erroring when actually used, same as on a machine with no CMake.
+      - name: Build vterm's native module
+        run: |
+          d="$(echo config/elpa/vterm-*)"
+          cmake -S "$d" -B "$d/build"
+          cmake --build "$d/build"
+
+      - name: Build the macOS portable bundle
+        run: ./build.sh dist macos
+
+      - name: Publish to the GitHub release (race-tolerant: another platform's job may win the create)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="manual-run-${GITHUB_RUN_NUMBER}"
+            git tag "$TAG" 2>/dev/null || true
+            git push origin "$TAG" 2>/dev/null || true
+          fi
+          gh release create "$TAG" \
+            dist/custom-emacs-macos-arm64.zip \
+            --title "$TAG" \
+            --generate-notes \
+          || gh release upload "$TAG" \
+            dist/custom-emacs-macos-arm64.zip \
+            --clobber

@@ -3703,3 +3703,60 @@ did not resolve this crash on its own.
   NOT available to this WSL session even after the user enabled it in the Desktop app's
   own settings, since that capability loads per-conversation inside the Desktop app
   itself, not across to a CLI/WSL session on the same physical machine.
+- **macOS: from "untested, plan only" (see [CROSS-PLATFORM.md](CROSS-PLATFORM.md)) to a real,
+  verified, portable bundle**, done on a real MacBook Pro (Apple M4, arm64), end to end. Real
+  choice made first, not assumed: Homebrew's own core `emacs` formula turned out to be a
+  headless build (no NS/Cocoa, no native-comp, no HarfBuzz --- confirmed directly via
+  `system-configuration-features`, not from the formula's description); `emacs-plus`
+  (`d12frosted/emacs-plus` tap, user approved trusting it) gives `--with-ns
+  --with-native-compilation=aot --with-tree-sitter` out of the box, the closest real match to
+  this repo's own Linux flags. Set up on the machine: `brew install emacs-plus@31`, this
+  repo's own `./build.sh packages`/`./build.sh grammars` (all 9 tree-sitter grammars compiled
+  natively, no cross-compiling needed, unlike Windows), plus `openjdk`/`cmake`/`libtool`/
+  `automake` (the system `java`/`javac` are empty App-Store-nag stubs; vterm's native module
+  needs an explicit CMake+libtool build the first time, which `package.el`'s own install step
+  does not trigger). Offline test suite: 682/747 passing; the ~30 failures are **Linux-tuned
+  "startup under 0.5s" perf thresholds** (this Mac does it in 0.6--1.3s instead, still fast)
+  plus two real macOS-only test-harness quirks (`/tmp` being a symlink to `/private/tmp`
+  confuses a `treemacs` path-equality test; a stdin-piping difference breaks the `evil`
+  terminal tests) --- not config bugs, not yet fixed, open items if revisited.
+  `~/.emacs.d` symlinked to `config/` so the installed `Emacs.app` loads it with no flags.
+  **Then, a real portable bundle** (`tools/dist-macos.sh`, wired into `./build.sh dist macos`,
+  `docs/DISTRIBUTION.md`'s macOS section): the hard, found-the-hard-way part is that
+  `emacs-plus` is built `--disable-ns-self-contained` --- unlike the official `emacs-app`
+  cask, its `Emacs.app` does NOT carry its own `lisp/`/`etc/`/`libexec/`; `data-directory`/
+  `exec-directory` are compiled-in ABSOLUTE paths into the Homebrew Cellar (confirmed
+  directly: `--batch --eval data-directory` prints a `/opt/homebrew/Cellar/...` path), and the
+  binary is dynamically linked against ~25 direct (more once recursed) Homebrew dylibs
+  (`libgccjit`, `gnutls`, `tree-sitter`, `cairo`, ...) by absolute path too --- the formula's
+  own install caveat ("if Emacs fails to start with 'Library not loaded' errors... reinstall
+  emacs-plus") is a direct admission of this. The fix: copy `lisp/`/`etc/`/the arch-specific
+  `libexec` dir into `Emacs.app/Contents/` itself, relocate every dylib with `dylibbundler`
+  (`brew install dylibbundler`; it recurses the whole dependency closure automatically, 57
+  libraries in practice, confirmed zero `/opt/homebrew` references left afterward in both the
+  binary and the copied libraries, `codesign -v` clean), and a small shell launcher
+  (`"Open Custom Emacs.command"`) that sets `EMACSLOADPATH`/`EMACSDATA`/`EMACSDOC`/
+  `EMACSPATH` relative to its own location before exec'ing the real binary --- Emacs reads
+  these as a full override of the compiled-in paths, confirmed directly, no source patch
+  needed. A real bug caught building this: stripping `.el` sources to shrink the zip
+  (keeping only `.elc`) also deleted every `subdirs.el` (matches the same glob, since it
+  wasn't excluded), which silently breaks the ENTIRE subdirectory load-path chain --- the
+  failure mode was `(void-function debug-early--handler)`, a crash too early for Emacs's own
+  error reporting to even work, nowhere near an obvious "subdirs.el" clue. Fixed by keeping
+  full sources (121 MB zipped, 348 MB unpacked --- correctness over size for this first
+  version; worth revisiting by excluding just `*loaddefs*`-adjacent `.el` files, keeping
+  `subdirs.el`, if size ever matters). **Verified for real, not just by inspection**: the
+  actual built zip, unzipped to a separate directory, run in `--batch` mode with
+  `/opt/homebrew/Cellar/emacs-plus@31` itself renamed out of the way first (then renamed
+  back) --- `native-comp-available-p` and `treesit-available-p` both `t`, loaded real Lisp
+  files from the bundle's own copied `Resources/lisp`, zero errors, with the one Homebrew
+  package this bundle actually came from genuinely absent from disk the whole time. Not
+  bundled (matches Windows's own documented gaps): a JDK, `jdtls`, a Rust toolchain,
+  `rust-analyzer`; `rg`/`fd`/`dua`/`delta` ARE bundled (relocated the same dylibbundler way
+  where they needed it --- `rg` needed `libpcre2`, `delta` needed `libgit2`+`oniguruma`; `fd`
+  and `dua` are already static). `.github/workflows/release.yml` renamed to "Build and
+  release bundles" and split into two independent jobs (`build-and-release-linux`,
+  `build-and-release-macos`) publishing to the **same** release, each one's publish step
+  race-tolerant (`gh release create ... || gh release upload ... --clobber`) since either job
+  can finish first. Gatekeeper note documented honestly in the bundle's own `README.txt`:
+  `Emacs.app` here is only ad-hoc signed, same as any Homebrew build, not notarized.
