@@ -21,6 +21,16 @@
     (let ((buf (find-file-noselect (test-write-file (concat d name) text))))
       (unwind-protect (buffer-local-value 'major-mode buf) (kill-buffer buf)))))
 
+(defconst jr--fake-java-name (if (eq system-type 'windows-nt) "java.exe" "java")
+  "The filename a fake, dummy `java' stand-in needs so `executable-find' can
+actually find it --- a real, confirmed gotcha: on native Windows Emacs,
+`executable-find' never recognizes a bare, extensionless file as executable
+no matter its permission bits, only one matching `exec-suffixes' (\".exe\",
+\".bat\", ...); a plain POSIX system has no such requirement, where the
+extensionless form is the normal, correct one. Used by the `langs/bundled-
+jdtls-...' tests below, which fake a `java' on `exec-path' to stand in for a
+real JDK the user installed themselves.")
+
 (defconst jr--java "class Shapes {\n  interface Shape { double area(); }\n  static double total(double a, double b) {\n    return a + b;\n  }\n  public static void main(String[] args) {\n    int n = 3;\n  }\n}\n")
 (defconst jr--rust "struct Point { x: i32 }\n\nfn first() -> i32 { 1 }\n\nfn second(p: &Point) -> i32 {\n    p.x\n}\n")
 
@@ -253,12 +263,12 @@
     (make-directory (concat home "tools/jdtls/config_win") t)
     (make-directory (concat home "bin") t)
     (test-write-file (concat home "tools/jdtls/plugins/org.eclipse.equinox.launcher_1.7.0.jar") "")
-    (test-write-file (concat home "bin/java") "")
-    (set-file-modes (concat home "bin/java") #o755)
+    (test-write-file (concat home "bin/" jr--fake-java-name) "")
+    (set-file-modes (concat home "bin/" jr--fake-java-name) #o755)
     (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment))
           (exec-path (list (concat home "bin"))))
       (let ((cmd (my/bundled-jdtls-command)))
-        (should (string-suffix-p "bin/java" (car cmd)))
+        (should (string-suffix-p (concat "bin/" jr--fake-java-name) (car cmd)))
         (should (member "-Declipse.application=org.eclipse.jdt.ls.core.id1" cmd))
         (should (cl-some (lambda (a) (string-match-p "org.eclipse.equinox.launcher_1.7.0.jar\\'" a)) cmd))
         (should (string-suffix-p "config_win" (cadr (member "-configuration" cmd))))
@@ -279,8 +289,8 @@
     (test-write-file (concat home "tools/jdtls/plugins/org.eclipse.equinox.launcher_1.jar") "")
     (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment))
           (exec-path (list (concat home "bin"))))
-      (make-directory (concat home "bin") t) (test-write-file (concat home "bin/java") "")
-      (set-file-modes (concat home "bin/java") #o755)
+      (make-directory (concat home "bin") t) (test-write-file (concat home "bin/" jr--fake-java-name) "")
+      (set-file-modes (concat home "bin/" jr--fake-java-name) #o755)
       (let ((a (let ((default-directory (concat home "a/"))) (make-directory default-directory t) (cadr (member "-data" (my/bundled-jdtls-command)))))
             (b (let ((default-directory (concat home "b/"))) (make-directory default-directory t) (cadr (member "-data" (my/bundled-jdtls-command))))))
         (should-not (equal a b))))))

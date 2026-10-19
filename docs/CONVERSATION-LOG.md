@@ -3350,6 +3350,96 @@ written out in full for the user to paste into whichever session they end up
 using, in case a fresh session needs the context this file alone does not yet
 have committed.
 
+### Follow-up, 2026-10-18, a separate session in parallel: real Windows/java-branch build verification, two more Windows-only test bugs, and the "Args out of range: 31, 1, 1" crash finally gets a working fix
+
+Running in parallel with the session above (same day), starting from the
+project/session briefing it wrote for a fresh session to pick up: cloned
+`utilities' fresh into a real Windows checkout (found and fixed a real local-
+tooling gotcha along the way, `core.autocrlf=true' corrupting every shell
+script's shebang to CRLF on checkout), built the real Windows dist zip
+--- 249,009,844 bytes, matching an existing same-day Downloads build to within
+13 bytes (zip timestamp metadata only) --- and ran the FULL test suite for
+real against that real Windows `emacs.exe' (CI's own exact recipe:
+`EMACS'/`CUSTOM_EMACS_HOME' env vars, bundled tools prepended to PATH,
+`./build.sh test', via Git Bash not WSL): 1131 tests, 958 pass, 34 fail, 139
+skipped, nearly all of it the same known environmental causes already
+documented above (startup-timing budget, no GPG keyring, missing
+grammars/Python) --- except one real, new finding: 3 `encryption' tests
+failed with a mangled path (`gpg: keyblock resource '/c/charry/projects/
+emacs/c:/Users/.../pubring.kbx': No such file or directory'). Root cause,
+confirmed directly (tested `--homedir' in all three path styles against the
+actual resolved `gpg'): `tests/ert/encryption.el''s `et-with-gpg-home' sets
+`GNUPGHOME' to a native Windows-style path, correct for a native GnuPG build
+but NOT for an MSYS/Cygwin-flavored `gpg' (Git for Windows' own bundled one,
+resolved from this machine's PATH, since the project bundles no gpg at all)
+--- handed the native form, that gpg silently treats it as *relative* and
+prepends its own cwd instead of erroring cleanly. A DIFFERENT failure mode
+than the "no gpg found, hang" bug above fixed: "a gpg *is* found, but it's
+the wrong flavor." Fixed by detecting which flavor is on PATH from `gpg
+--version''s own "Home:" line (always echoes the exact style that binary
+itself expects) and converting the temp homedir to match; a no-op on real
+POSIX systems and for a native Windows gpg (`9fd75ae', pushed).
+
+`utilities' merged cleanly into `java' (`6d8a659', pushed). Built `java''s
+own Windows dist (380,203,444 bytes, bundles a real JDK+Maven; the JDK/Maven
+zips were already in the seeded cache, no redownload needed), copied to
+Downloads/public as `custom-emacs-windows-x64-java.zip'. Full suite against
+THIS build too: 1141 tests (10 more: a new `maven' file, 10/10), 971 pass, 31
+fail, 139 skipped, confirming the gpg fix carried over (`encryption' now
+6/8). One more real, new Windows-only finding: `languages-java-rust''s two
+`langs/bundled-jdtls-...' tests fake a `java' executable as a bare,
+extensionless, zero-byte file with the exec bit set --- works on Linux, but
+confirmed directly (`exec-path' isolated exactly as the test does it) native
+Windows Emacs's `executable-find' can NEVER resolve an extensionless file as
+executable, `exec-suffixes' listing "" notwithstanding; the real bundled
+`tools/jdk/bin/java.exe' is unaffected, purely the test's own fake stand-in.
+Fixed with a new `jr--fake-java-name' constant (`"java.exe"' on Windows,
+`"java"' elsewhere) (`45609f1').
+
+**The "Args out of range: 31, 1, 1" crash above, finally a working fix**: two
+more non-interactive repro attempts against the real `~/Downloads' (which
+really does contain the user's own `GitKrakenSetup.exe') --- real
+`execute-kbd-macro' keypresses so `post-command-hook' genuinely fires,
+interleaved with `sit-for' so the async `dua' scan's sentinel gets real
+chances to fire mid-navigation, a custom `debugger' hook capturing any real
+backtrace --- again came back clean, same as the WSL session's own two
+earlier attempts above: real async scan + default frame (line 58, no crash),
+forced small 11-line frame forcing a real scroll (line 121, no crash). Then
+the user sent a live screenshot of a SECOND, independent crash site hitting
+the IDENTICAL error: RET/click on an entry in gitfolders' own `*git repos*'
+buffer (a `special-mode' button list, a completely different major mode from
+Disk Usage's `tabulated-list-mode' --- ruling out anything mode-specific).
+The screenshot itself confirmed the user's own hypothesis directly: two
+number columns visibly present together, an outer sequential one (the
+custom `my/absolute-line-numbers-margin-mode') and an inner one counting
+down to 1 then jumping to the absolute number before counting back up (ex-
+actly `display-line-numbers-type' `relative' with the native `current-
+absolute' line highlighted) --- both active in the same buffer. Given two
+independent crash sites sharing only this one thing in common, turned the
+custom margin OFF by default (`my/global-absolute-line-numbers-margin-mode'
+no longer auto-enabled; the mode/toggle itself untouched and still available
+by hand) rather than chase the exact mechanism further --- **not a confirmed
+root-cause fix, a well-evidenced workaround**, disclosed as such to the user
+directly. Verified clean: `tests/ert/line-numbers.el' (19/19, none of which
+depend on the default-on behavior), then two more live repros against the
+FIXED build specifically targeting the new evidence --- a real scan of this
+machine's own git repositories (68 found) with `RET' pressed on 6 different
+real repository buttons (landed via `forward-button', not a guessed
+down-arrow count, after an earlier attempt with a fixed count missed every
+button entirely and proved nothing), 4 of which opened real `magit-status'
+buffers for real repos (`magit: plugins', `magit: firstgame', `magit:
+questionsapp', `magit: colleges') --- no crash on any of them. Cherry-picked
+onto `utilities' too (`f4ad893', from `java''s `a711f17') since the bug and
+fix are not java-specific; re-verified there (`line-numbers'/`gitfolders'/
+`disk-usage' all clean) before pushing. **If this needs to be properly root-
+caused later** (the margin being off by default only reduces exposure, it
+does not explain the mechanism): the WSL session's own `d036a34' fix above,
+a `count-lines' overcounting-by-one quirk in this exact same `my/absolute-
+line-numbers--line-at' function when `window-start' lands mid-line, is the
+closest known precedent for "this function miscounts under some real
+condition" and the first place to look again, even though that specific fix
+did not resolve this crash on its own.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -3562,6 +3652,11 @@ have committed.
   client/device-pairing decision, not exposed as a tool here); feedback was drafted
   (queued locally, not sent) via the feedback tool. If asked again, the honest answer is
   still "no visibility into why," not a guess.
+- The repo's main dev branch is `utilities` (see the 2026-10-18 entries above) ---
+  `java` periodically merges from it, not from `main`. `utilities` is at `f4ad893` and
+  `java` at `a711f17`, both pushed to `origin`, both verified by a real full test-suite
+  run against their own real Windows build. `tests/ert/languages-java-rust.el`'s Windows
+  fake-`java`-extension fix is committed (`45609f1`, `java` only so far).
 - **A new session, much later**: the line-numbers scrolling fix, the global font-size
   feature, and the ~290-test expansion across 30 files are committed and pushed to
   `origin/utilities` (`d036a34`, `0e93312`, `7306813`). The Windows `pass` fix is also
@@ -3590,13 +3685,15 @@ have committed.
   both `my/encrypt-file`/`my/decrypt-file` now refuse a folder with a clear error instead
   of ever reaching `gpg` with one (`4717f87`) --- the latter fixed a real hang the user hit
   live on their own machine, described in full in the entry above.
-- **Still genuinely open, not reproduced**: the "Args out of range: 31, 1, 1" bug in
-  `*Disk Usage*`, hit live on the user's Windows machine while navigating. Full repro
-  attempts, the user's own margin-toggle hypothesis (not yet confirmed either way), and
-  the exact non-interactive repro script already sent to two Remote Control sessions are
-  all in the entry above. If picking this back up, check
-  `C:\charry\projects\emacs-du-repro\result1.txt`/`result2.txt` on the user's machine
-  first before re-sending the script a third time.
+- **The "Args out of range: 31, 1, 1" bug has a working fix, not yet a confirmed root
+  cause**: hit live on the user's Windows machine in BOTH `*Disk Usage*` and gitfolders'
+  `*git repos*` (a screenshot of the latter confirmed the user's own margin-toggle
+  hypothesis directly --- both line-number columns visibly present together).
+  `my/global-absolute-line-numbers-margin-mode` is no longer on by default (`f4ad893`
+  on `utilities`, `a711f17` on `java`); verified clean against real repro attempts on
+  both crash sites afterward. If this still needs a real root cause later, start from
+  `d036a34`'s own `count-lines` overcounting fix in the same function --- full account
+  in the 2026-10-18 entry above.
 - **Remote Control was connected this session** (two sessions in turn,
   `ai-mellow-pinwheel` then `ai-reflective-toast`), proving the underlying connection
   genuinely works (both replied to cross-session messages), but **neither ever appeared

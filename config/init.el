@@ -197,8 +197,15 @@ absolute-line-numbers-margin-width'."
 ;;;###autoload
 (define-globalized-minor-mode my/global-absolute-line-numbers-margin-mode
   my/absolute-line-numbers-margin-mode my/absolute-line-numbers--maybe-enable)
-(when (display-graphic-p)
-  (my/global-absolute-line-numbers-margin-mode 1))
+;; NOT turned on by default (confirmed directly: a real, reproducible "Args out of
+;; range: 31, 1, 1" crash, hit by a real user in more than one special-mode listing
+;; buffer --- `*Disk Usage: ...*' and gitfolders' own `*git repos*' --- both
+;; `RET'/mouse-click on an entry, both with this margin's own second column drawn
+;; alongside Emacs's built-in one; still not fully root-caused, but this is the one
+;; real, available workaround until it is). Default is now plain, single-column
+;; relative line numbers (`display-line-numbers-type' above), the same as any
+;; stock Emacs. `M-x my/global-absolute-line-numbers-margin-mode' still turns the
+;; second column back on by hand for anyone who wants it, accepting the risk.
 
 (defvar my/line-numbers-max-buffer-size (* 5 1024 1024)
   "Buffers bigger than this (characters) get no line numbers at all.
