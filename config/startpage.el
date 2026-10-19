@@ -313,7 +313,28 @@
   "The start screen: recent files, folders and projects."
   (setq-local cursor-type nil)
   (display-line-numbers-mode -1)
-  (setq-local truncate-lines t))
+  (setq-local truncate-lines t)
+  ;; WHAT/WHY: a direct user request --- if `*start*' is one of several windows open
+  ;; (e.g. split next to `*shortcuts*') when a session is saved, that whole window
+  ;; layout should come back on restore, not just silently collapse to whatever single
+  ;; buffer happens to be a real file. WHY this needs explicit opt-in: confirmed
+  ;; directly in desktop.el's own `desktop-save-buffer-p' --- a buffer with no visited
+  ;; FILENAME is only saved at all if its own buffer-local `desktop-save-buffer' is
+  ;; non-nil (`nil' here otherwise, same as most non-file buffers); reproduced the real
+  ;; gap first: a real split (`*start*' left, `*shortcuts*' right) saved and restored to
+  ;; neither window nor buffer existing at all, confirmed before this fix existed.
+  (setq-local desktop-save-buffer t))
+
+;; WHAT: tells `desktop-read' how to recreate a `*start*' window on restore, instead of
+;; silently dropping it (the default handler, `desktop-restore-file-buffer', only knows
+;; how to reopen a real visited file --- `*start*' has none). HOW: the three arguments
+;; desktop.el always calls a `desktop-buffer-mode-handlers' entry with are irrelevant
+;; here (no file name, no saved misc data) --- `my/start-buffer' alone regenerates
+;; everything this buffer ever needs (today's recent files/folders/projects), so this
+;; ignores them and returns it directly, exactly the documented contract: "if a handler
+;; returns a buffer", desktop.el copies the saved point/mode settings into it itself.
+(defun my/start--desktop-restore (_file _name _misc) (my/start-buffer))
+(add-to-list 'desktop-buffer-mode-handlers '(my/start-mode . my/start--desktop-restore))
 
 ;; WHAT: the button `action' for RET/click on an entry.  WHY/HOW: reads back the path and
 ;; kind stored on the button (set in `my/start--insert-section' below); a `files' entry
