@@ -3760,3 +3760,15 @@ did not resolve this crash on its own.
   race-tolerant (`gh release create ... || gh release upload ... --clobber`) since either job
   can finish first. Gatekeeper note documented honestly in the bundle's own `README.txt`:
   `Emacs.app` here is only ad-hoc signed, same as any Homebrew build, not notarized.
+- **`corfu-auto` turned back on**, a direct, later user request reversing the earlier
+  decision (see above): wanted real suggestions from a connected language server
+  (`jdtls' via Eglot) to appear without pressing anything first, after actually setting up
+  and testing `jdtls' for real on a Java project on a real Mac (checksum-verified install,
+  symlinked onto `PATH`; no config changes needed for Eglot itself --- its own built-in
+  default already maps `java-ts-mode` to `jdtls`, confirmed by a real connection: process
+  spawned, correct `config_mac`, ~1.2 GB resident, matching this project's own documented
+  numbers). `corfu-auto-delay`/`corfu-auto-prefix` added alongside it, specifically so
+  this does not reintroduce the original complaint (a popup after nearly every single
+  keystroke) --- a short pause and at least one real character first. Tested first on a
+  separate, not-yet-committed copy before deciding to commit, per the user's own
+  established "test then decide" workflow this session.

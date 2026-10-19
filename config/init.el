@@ -793,15 +793,21 @@ key sequence can never make a file editable."
 ;; (32.0.50): it already has native tty-child-frame support, and Corfu's own source
 ;; detects this and warns `corfu-terminal' is not needed at all on Emacs 31+ --- so it
 ;; is deliberately not installed here (see tools/install-packages.el's own comment).
-;; `corfu-auto' is deliberately nil --- user request: this popped up a candidate list
-;; after nearly every keystroke, the same uninvited "autosuggestion" complaint as
-;; `completion-preview-mode' just above. `global-corfu-mode' stays ON so `C-M-i'
-;; (already a stock Emacs binding, documented in KEYBOARD.md, unchanged by this) still
-;; shows the popup on demand --- "disabled by default, enabled if needed," exactly as
-;; asked, via the one key that already existed for it rather than a new one.
+;; `corfu-auto' was `nil' for a while (an earlier user request: it popped up a candidate
+;; list after nearly every keystroke, the same uninvited "autosuggestion" complaint as
+;; `completion-preview-mode' just above) --- turned back on by a later, direct request,
+;; specifically to get real suggestions from a connected language server (`jdtls' via
+;; Eglot, tested for real on a Java project) without needing to press anything first.
+;; `corfu-auto-delay'/`corfu-auto-prefix' keep it from firing on literally every single
+;; keystroke the way the original complaint was about: a short pause, and at least one
+;; real character typed, before anything pops up. `C-M-i' (already a stock Emacs
+;; binding, documented in KEYBOARD.md, unchanged by this) still works too, for forcing a
+;; candidate list up immediately rather than waiting out the delay.
 (when (locate-library "corfu")
   (require 'corfu)
-  (setq corfu-auto nil
+  (setq corfu-auto t
+        corfu-auto-delay 0.2
+        corfu-auto-prefix 1
         corfu-cycle t)
   (global-corfu-mode 1))
 
