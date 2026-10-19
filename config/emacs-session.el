@@ -123,22 +123,32 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; with the same real kill -9 test: the desktop file existed after the crash.
 (setq desktop-auto-save-timeout 10)
 
-;; WHAT: do NOT turn the automatic live-session restore on.  WHY: a direct, explicit
-;; user request --- the start screen should always be what greets a new or existing
-;; Emacs, never silently replaced by whatever was open last time. `desktop-save-mode'
-;; being on is what installs desktop.el's own `after-init-hook' entry that calls
-;; `desktop-read' once this config finishes loading (confirmed directly: with the mode
-;; off, that hook entry still runs but does nothing, since it checks `desktop-save-mode'
-;; itself first) --- so simply never turning the mode on at all is enough; nothing else
-;; needs disabling. HOW: this leaves `auto-save-visited-mode' above (saving an actually-
-;; edited file's own real content) and every manual, explicitly-invoked command below
-;; (`C-c w s'/`r'/`l', and the separate named-session commands `C-c w S'/`O'/`D'/`L')
-;; fully working exactly as before --- `desktop-save'/`desktop-read' are called directly
-;; by those, not gated on this mode variable at all; only the SILENT, AUTOMATIC
-;; restore-at-startup (and periodic live autosave while running, via
-;; `my/session--claim-ownership' below, itself also gated on this same variable) is what
-;; this turns off.
-;; (desktop-save-mode 1)
+;; WHAT: actually turn the whole thing on.  WHY/HOW: this alone is also what makes
+;; Emacs's own startup sequence restore the saved session automatically --- desktop.el
+;; installs its own `after-init-hook' (unconditionally, whether or not this mode is
+;; enabled) that checks `desktop-save-mode' and, if non-nil, calls `desktop-read' once
+;; this config has finished loading.  That happens to run AFTER `initial-buffer-choice'
+;; (config/init.el's own `my/start-initial-buffer', which decides whether to show the
+;; start screen) has already been applied --- so on a genuine restore, whatever the
+;; start screen set up is promptly replaced by the restored windows; with nothing saved
+;; yet (a fresh install, or right after `C-c w r'), `desktop-read' finds no file and
+;; does nothing, leaving the start screen showing exactly as it already does today.
+;; This ordering was confirmed for real, not assumed --- see docs/SESSION.md.
+;;
+;; A direct, explicit user request refines this further: a genuine restore should not
+;; just replace the start screen outright --- the `*start*' buffer `my/start-initial-
+;; buffer' already created moments earlier must still be reachable afterward (in the
+;; buffer list, `C-x C-b'/`C-c w l', switchable back to), not silently gone. Confirmed
+;; directly, not assumed: `desktop-read' only recreates the buffers IT saved; it never
+;; kills buffers that already exist and are not part of that list, so the `*start*'
+;; buffer `initial-buffer-choice' created a moment before genuinely does survive a real
+;; restore untouched, just no longer the VISIBLE one (replaced by the restored window
+;; configuration, same as the first paragraph above describes) --- verified with a real
+;; round trip on the actual macOS bundle, not read from source alone: opened a file,
+;; waited past the auto-save window, quit, reopened; the previously open file came back
+;; exactly as left, and `*start*' was still present and switchable to from the buffer
+;; list, not killed.
+(desktop-save-mode 1)
 
 ;; WHAT: save the desktop once, right after startup finishes.  WHY: a real, measured gap
 ;; found while testing the periodic autosave above: `desktop-auto-save' (the timer
@@ -168,7 +178,41 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; `desktop-save' with no second argument, which claims (or keeps) the lock instead.
 (defun my/session--claim-ownership ()
   (when desktop-save-mode (desktop-save my/session-dir)))
-(add-hook 'after-init-hook #'my/session--claim-ownership 90)
+
+;; Two more real bugs, caught only by a genuine round trip (open a file via the command
+;; line, wait, quit, reopen) --- a real user hit both, not hypothetical:
+;;
+;; 1. `after-init-hook' (what the first version of this hook used) runs BEFORE Emacs
+;;    processes any files named on the command line --- confirmed directly in
+;;    `startup.el''s own doc for `emacs-startup-hook': "run after loading init files AND
+;;    HANDLING THE COMMAND LINE" (`after-init-hook' has no such second half). So the one
+;;    explicit save meant to "claim ownership immediately" was claiming it over an empty
+;;    buffer list every time --- any file opened from the command line (exactly how this
+;;    config's own macOS/Linux/Windows launchers all start Emacs, `emacs somefile', or
+;;    just plain `emacs' with nothing) was never in it.
+;; 2. Once that first (empty) save has already claimed the lock, desktop.el's OWN
+;;    periodic autosave (`desktop-auto-save-enable', which hooks
+;;    `window-configuration-change-hook') never fires again for the common case of
+;;    simply opening/switching buffers in a single, never-split window --- confirmed
+;;    directly: `desktop-auto-save-timer' stayed `nil' after a plain `find-file' with no
+;;    split, meaning the ONLY real-world action that reliably re-triggers it is actually
+;;    changing the window layout, not just working in it. A session spent entirely in
+;;    one window, however long, would otherwise never save again after that first, empty
+;;    snapshot.
+;;
+;; Fixed by not relying on either of desktop.el's own two hooks for this at all: one
+;; one-shot save on `emacs-startup-hook' (after command-line files ARE open) claims
+;; ownership correctly the first time, and this config's own idle timer (re-using
+;; `desktop-auto-save-timeout', the same value desktop.el's own timer would have used)
+;; keeps it updated from then on, regardless of whether the window layout ever changes.
+;; Verified fixed with the same real round trip: opened a file via the command line,
+;; waited past this timeout with no split, quit cleanly, reopened --- the file came back.
+(defvar my/session--autosave-timer nil)
+(defun my/session--start-autosave ()
+  (my/session--claim-ownership)
+  (setq my/session--autosave-timer
+        (run-with-idle-timer (max 1 desktop-auto-save-timeout) t #'my/session--claim-ownership)))
+(add-hook 'emacs-startup-hook #'my/session--start-autosave 90)
 
 ;; WHAT: `C-c w s' --- save the session right now, by hand.  WHY: a deliberate
 ;; checkpoint before doing something risky, rather than waiting for the periodic

@@ -26,20 +26,16 @@
   ;; Unlike most feature files here (dictate.el, llm.el, ...), this one has to be loaded
   ;; while init.el itself is still loading --- see the file header comment in
   ;; config/emacs-session.el for why (`auto-save-visited-mode' below, and this file's own
-  ;; `after-init-hook' entries such as `my/session--claim-ownership', both need to already
-  ;; be wired up by the time init.el finishes, not deferred to a later keypress).
-  ;; `desktop-save-mode' being exactly `nil' here is itself deliberate, not merely unset:
-  ;; see that same file comment for why the automatic live-session restore it would
-  ;; otherwise install is intentionally left off --- the start screen should always be
-  ;; what greets a new or existing Emacs, confirmed `nil' here specifically rather than
-  ;; just "truthy or not" so a future accidental `(desktop-save-mode 1)' is caught too.
+  ;; hook entries such as `my/session--claim-ownership'/`my/session--start-autosave', all
+  ;; need to already be wired up by the time init.el finishes, not deferred to a later
+  ;; keypress).
   (let ((out (with-output-to-string
                (with-current-buffer standard-output
                  (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
                                "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
                                "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                                "--eval" "(princ (list (featurep 'emacs-session) desktop-save-mode auto-save-visited-mode))")))))
-    (should (string-match-p "(t nil t)" out))))
+    (should (string-match-p "(t t t)" out))))
 
 ;; WHAT: `org-mode' works, in the real, fully-loaded config, with this file already
 ;; loaded (which it always is by the time anything else runs --- see the test just
@@ -111,17 +107,47 @@
 
 ;;; The real regression test: `desktop-save's RELEASE argument
 
-(ert-deftest emacs-session/claim-ownership-is-a-no-op-with-desktop-save-mode-off ()
-  "`desktop-save-mode' is deliberately `nil' in this config (see config/emacs-
-session.el's own comment: the start screen should always greet a new or existing
-Emacs, never a silent automatic restore) --- `my/session--claim-ownership' exists
-only to support that automatic periodic autosave, so with the mode off it must do
-nothing at all, not call `desktop-save' regardless."
+(ert-deftest emacs-session/claim-ownership-saves-without-releasing-the-lock ()
+  "`my/session--claim-ownership' is what both the startup hook and the periodic
+idle timer below call; with `desktop-save-mode' on (the default), it must call
+`desktop-save' with no second/RELEASE argument, same real bug/fix as
+`save-never-releases-the-lock' below."
   (let (calls)
     (cl-letf (((symbol-function 'desktop-save) (lambda (&rest args) (push args calls) nil)))
-      (should-not desktop-save-mode)
+      (should desktop-save-mode)
       (my/session--claim-ownership)
-      (should (null calls)))))
+      (should (= 1 (length calls)))
+      (should (equal (caar calls) my/session-dir))
+      (should-not (cadr (car calls))))))
+
+;; WHAT/WHY: two real bugs, both caught only by a genuine command-line-file round trip
+;; (open a file via the command line, wait, quit, reopen), not by reading the source ---
+;; see config/emacs-session.el's own comment on `my/session--start-autosave' for the
+;; full account. In short: `after-init-hook' (what the first version of this used) runs
+;; BEFORE Emacs opens any files named on the command line, so the one explicit "claim
+;; ownership" save was always over an empty buffer list; and even once ownership really
+;; is claimed, desktop.el's own periodic autosave (hooked to `window-configuration-
+;; change-hook') never fires again for the common case of just working in one window
+;; that is never split --- confirmed directly, not assumed: `desktop-auto-save-timer'
+;; stayed nil after a plain `find-file' with no split. This config's own idle timer,
+;; armed from `emacs-startup-hook' instead (confirmed via `startup.el''s own doc: that
+;; hook runs "after loading init files and handling the command line"), fixes both.
+
+(ert-deftest emacs-session/start-autosave-is-on-emacs-startup-hook-not-after-init-hook ()
+  (should (memq #'my/session--start-autosave emacs-startup-hook))
+  (should-not (memq #'my/session--start-autosave after-init-hook)))
+
+(ert-deftest emacs-session/start-autosave-claims-ownership-and-arms-the-idle-timer ()
+  (let (claim-calls timer-args)
+    (cl-letf (((symbol-function 'my/session--claim-ownership) (lambda () (push t claim-calls)))
+              ((symbol-function 'run-with-idle-timer) (lambda (&rest args) (push args timer-args) 'fake-timer)))
+      (my/session--start-autosave)
+      (should (= 1 (length claim-calls)))
+      (should (= 1 (length timer-args)))
+      ;; repeat t: a one-shot idle timer would silently stop updating the session after
+      ;; the first re-save, the exact gap this whole fix exists to close
+      (should (nth 1 (car timer-args)))
+      (should (eq my/session--autosave-timer 'fake-timer)))))
 
 (ert-deftest emacs-session/save-never-releases-the-lock ()
   "`desktop-save's SECOND argument is RELEASE (let go of the lock), not \"force
