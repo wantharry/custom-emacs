@@ -10,10 +10,10 @@ anywhere and open `Emacs.exe`. Nothing is installed and nothing is downloaded.
 | **macOS, Apple Silicon (arm64)** | `custom-emacs-macos-arm64.zip` (about 121 MB zipped, 348 MB unpacked) | **Built and tested**, see [macOS](#macos) |
 
 Each archive is in `dist/` after `./build.sh dist windows`/`./build.sh dist linux`/`./build.sh dist macos` and
-is **not** committed to git (each is over 100 MB and rebuilt from what is in git). Linux and macOS are also
+is **not** committed to git (each is over 100 MB and rebuilt from what is in git). All three platforms are
 built and published to the same GitHub Release automatically by `.github/workflows/release.yml` (push a tag,
-or run it manually from the Actions tab); Windows still needs to be built locally (it needs WSL) and attached
-to the release by hand.
+or run it manually from the Actions tab) -- Windows reuses `test.yml`'s own `test-windows` recipe (WSL on a
+`windows-latest` runner, which `tools/dist-windows.sh` itself needs) to build it in CI too, not just locally.
 
 ## Windows
 
