@@ -151,8 +151,17 @@ jobs:
     # for real, on real Windows, via WSL, to test it; this job just publishes that same
     # build instead of only testing it. No caching here (unlike test.yml): a release should
     # reflect exactly this commit, built fresh, not a reused zip from a different one.
+    #
+    # timeout-minutes: a real failure, not hypothetical -- the first v1.4 run of this job
+    # got all the way through "Build the Windows portable bundle" (downloading the official
+    # Windows Emacs, cross-compiling 9 tree-sitter grammars and the launcher with zig, all
+    # from a cold cache every time, since this job deliberately has none) and was killed by
+    # GitHub at exactly 60:06, still mid-build -- confirmed directly from the job's own
+    # started_at/completed_at timestamps, not assumed. 120 gives real margin above whatever
+    # that actually needed, the same "cap it, but not too tightly" reasoning test.yml's own
+    # timeout-minutes comments already use elsewhere in this project.
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
       # script Vampire/setup-wsl's wsl-bash shell type generates for every run: step below
