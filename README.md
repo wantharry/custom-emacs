@@ -27,8 +27,8 @@ the pruning tool. The Emacs source itself is cloned separately into
 | Test suite | **442 tests offline (about 7 s), 477 with `--gui` (about 50 s)**, all passing (one pre-existing real-`jdtls` test is timing-sensitive under full parallel load and can need a retest alone; see [DISTRIBUTION.md](docs/DISTRIBUTION.md)): headless, plus inside a real Emacs window and a real terminal (`./build.sh test --gui`); checked to catch deliberate breakage |
 | Pruning unused built-in Lisp | **Verified.** 308 MB → 258 MB install; 17 realistic workflows pass on the pruned build (see [PRUNING.md](docs/PRUNING.md)) |
 | Windows | **Verified as a portable bundle**: unzip and double-click `Emacs.exe` (official Emacs 31.1 + these settings, Evil, Magit, Treemacs, Consult, grammars, ripgrep, fd, Git, and the Java language server; bring your own JDK). A real Magit commit and real Java navigation checked, with screenshots. Building Emacs 32 itself for Windows is *untested*. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) |
-| macOS build | *Untested.* Placeholder in `build.sh` only |
-| CI (GitHub Actions) for all three OSes | *Not written yet* |
+| macOS | **Verified**, on a real MacBook Pro (Apple M4): `emacs-plus` (native-comp, tree-sitter, a real Cocoa GUI) via Homebrew, this repo's packages and grammars, and a fully self-contained portable bundle (`./build.sh dist macos`/`tools/dist-macos.sh`) that needs no Homebrew and no compiling to run --- verified by running the built zip with its own source Homebrew keg renamed away first. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). `build.sh`'s own from-source Darwin configure path is still an untested placeholder; the bundle uses `emacs-plus` instead, the same way the Windows bundle uses the official Windows build rather than compiling Emacs 32 itself |
+| CI (GitHub Actions) | Linux and macOS bundles both build and publish to the same GitHub Release (`.github/workflows/release.yml`, tag push or manual dispatch). Windows is still built and attached locally (needs WSL) |
 | Theme, mode line, final fonts | *Deliberately deferred* (see [Customizing](docs/CUSTOMIZING.md)) |
 
 ## Quick start (Linux)
