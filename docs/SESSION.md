@@ -3,6 +3,14 @@
 Status as of 2026-09-29. Everything below marked *measured* or *confirmed* was run here,
 for real: real GUI frames under WSLg, real `kill -9` crashes, real restores.
 
+> **Update.** `desktop-save-mode`'s automatic restore-at-startup is now deliberately
+> **off** --- a direct user request: the start screen should always be what greets a new
+> or existing Emacs, never silently replaced by whatever was open last time. Everything
+> else below (auto-saving the real file, the manual `C-c w s`/`r`/`l` commands, and the
+> separate named-session commands `C-c w S`/`O`/`D`/`L`) is unaffected and still works
+> exactly as described; only the *silent, automatic* part at the top of "What is set up"
+> is now off by default. See "Automatic restore: off by default" further down.
+
 ## What is set up
 
 Two layers, both built into Emacs --- no package:
@@ -10,10 +18,30 @@ Two layers, both built into Emacs --- no package:
 | Piece | What it does |
 |---|---|
 | `auto-save-visited-mode` | Any buffer you deliberately unlock (`C-c e e`) and edit is written back to its real file a few seconds after you stop typing --- no manual `C-x C-s` needed, and nothing to separately "recover" after a crash, since the real file already has it. |
-| `desktop-save-mode` | Saves which files/buffers are open and the window layout (splits), automatically, and restores them the next time Emacs starts. |
+| `desktop-save-mode` | Saves which files/buffers are open and the window layout (splits). With this mode on, restores them automatically the next time Emacs starts --- **this config keeps the mode off by default now** (see below), so saving/restoring only ever happens when you explicitly ask for it (`C-c w s`, or the named-session commands). |
 
-Both are on by default, no setup needed. `config/emacs-session.el` has the full WHAT/WHY/HOW
-commentary; this doc is the narrative version, with the real numbers.
+`auto-save-visited-mode` is on by default, no setup needed. `desktop-save-mode` itself is
+deliberately left off; `config/emacs-session.el` has the full WHAT/WHY/HOW commentary,
+this doc is the narrative version, with the real numbers.
+
+## Automatic restore: off by default
+
+Turning `desktop-save-mode` on is what makes Emacs restore a saved session, and keep
+re-saving it automatically, with no further action from you --- this config does not do
+that. The start screen (`C-c h`, [START-SCREEN.md](START-SCREEN.md)) is always what you
+see when you open Emacs without naming a file, whether or not a session was ever saved.
+Nothing here loses crash-safety for an *actually edited* file --- `auto-save-visited-mode`
+(above) still writes real edits back to their real file a few seconds after you stop
+typing, independent of this mode entirely --- what is off is only the window-layout-and-
+buffer-list restore.
+
+If you want the old always-restore behavior back, the fix is one line in
+`config/emacs-session.el`: uncomment `(desktop-save-mode 1)`.
+
+To save and restore a session **by hand** instead: `C-c w s` saves one right now; a named
+snapshot (`C-c w S`/`O`/`D`/`L`, below) is the better fit if you want more than one, or
+want to pick when to load it back rather than have it happen automatically at every
+startup.
 
 ## The three keys
 
@@ -34,13 +62,17 @@ commentary; this doc is the narrative version, with the real numbers.
   visiting and actually modified are touched --- a buffer you never unlocked (see
   [KEYBOARD.md](KEYBOARD.md)'s "every file opens read-only") has nothing to save, so
   nothing happens for it, silently.
-- Saving the session: `desktop-save-mode`, saved to `config/session/` (never committed to
-  git, never bundled --- see `.gitignore` and `tests/test_dist.py`). It saves
-  automatically both periodically while Emacs runs (whenever the window configuration has
-  changed and then stayed idle for `desktop-auto-save-timeout` seconds --- overridden here
-  to **10 seconds**, shorter than this config's usual 30-second idle-save convention;
-  see "Measured" below for why) and on a clean exit (`desktop-save` is `t`: never asks).
-- Restoring: automatic, at startup, via desktop.el's own `after-init-hook` entry --- this
+- Saving/restoring mechanism (how it works **when `desktop-save-mode` is on** --- see
+  "Automatic restore: off by default" above for why this config leaves it off; this is
+  still the exact mechanism `C-c w s` and the named-session commands below build on):
+  saved to `config/session/` (never committed to git, never bundled --- see `.gitignore`
+  and `tests/test_dist.py`). With the mode on, it saves automatically both periodically
+  while Emacs runs (whenever the window configuration has changed and then stayed idle
+  for `desktop-auto-save-timeout` seconds --- overridden here to **10 seconds**, shorter
+  than this config's usual 30-second idle-save convention; see "Measured" below for why)
+  and on a clean exit (`desktop-save` is `t`: never asks).
+- Restoring: with the mode on, automatic, at startup, via desktop.el's own
+  `after-init-hook` entry --- this
   runs *after* the start screen's own startup logic (`initial-buffer-choice`), so a real
   saved session replaces the start screen; with nothing saved yet (a fresh install, or
   right after `C-c w r`), nothing happens and the start screen shows exactly as it always
