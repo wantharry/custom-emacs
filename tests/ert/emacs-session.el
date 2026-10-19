@@ -145,6 +145,14 @@ disturbing-it' further down for what this is actually for."
   (skip-unless (featurep 'startpage))
   (should (memq #'my/start-buffer emacs-startup-hook)))
 
+(ert-deftest emacs-session/shortcuts-buffer-is-also-wired-to-emacs-startup-hook ()
+  "Same real gap, same fix, for `*shortcuts*' (shortcuts.el) --- a further, direct user
+request: it is normally only created by `my/shortcuts--maybe-show-at-startup', itself
+gated on the start screen actually being what is showing, so a real restore used to
+skip it exactly like it used to skip `*start*' itself."
+  (skip-unless (featurep 'shortcuts))
+  (should (memq #'my/shortcuts-buffer emacs-startup-hook)))
+
 (ert-deftest emacs-session/start-autosave-claims-ownership-and-arms-the-idle-timer ()
   (let (claim-calls timer-args)
     (cl-letf (((symbol-function 'my/session--claim-ownership) (lambda () (push t claim-calls)))
@@ -277,6 +285,33 @@ non-nil one."
             (should (get-buffer "*start*"))        ; the real bug, fixed
             (should (equal (buffer-name (current-buffer)) "c.txt")))  ; and undisturbed
         (dolist (name '("c.txt" "*start*"))
+          (when (get-buffer name) (kill-buffer name)))
+        (desktop-release-lock live-dir)))))
+
+;; Same real bug, same fix, for `*shortcuts*' --- a further, direct user request to keep
+;; it in the buffer list the same way as `*start*'. `my/shortcuts--maybe-show-at-startup'
+;; (shortcuts.el) only ever creates it when the start screen is what is actually showing
+;; (`(eq (window-buffer) (get-buffer "*start*"))'), so it used to be skipped by a real
+;; restore for the exact same reason `*start*' itself used to be.
+(ert-deftest emacs-session/shortcuts-buffer-survives-a-real-restore-without-disturbing-it ()
+  (skip-unless (featurep 'shortcuts))
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "d.txt")))
+      (with-temp-file f (insert "file d\n"))
+      (unwind-protect
+          (progn
+            (when (get-buffer "*shortcuts*") (kill-buffer "*shortcuts*"))
+            (find-file f)
+            (desktop-save live-dir)
+            (kill-buffer "d.txt")
+            (desktop-release-lock live-dir)
+            (let ((noninteractive nil)) (desktop-read live-dir))
+            (should (equal (buffer-name (current-buffer)) "d.txt"))
+            (should-not (get-buffer "*shortcuts*"))   ; the real bug, reproduced
+            (my/shortcuts-buffer)                     ; same call emacs-startup-hook now makes
+            (should (get-buffer "*shortcuts*"))        ; the real bug, fixed
+            (should (equal (buffer-name (current-buffer)) "d.txt")))  ; and undisturbed
+        (dolist (name '("d.txt" "*shortcuts*"))
           (when (get-buffer name) (kill-buffer name)))
         (desktop-release-lock live-dir)))))
 

@@ -236,6 +236,18 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; effect on whatever a real restore (or the start screen itself) actually shows.
 (with-eval-after-load 'startpage (add-hook 'emacs-startup-hook #'my/start-buffer 95))
 
+;; A direct, further user request: keep `*shortcuts*' always in the buffer list too, the
+;; same guarantee as `*start*' just above, for the same real reason --- it is normally
+;; only created by `my/shortcuts--maybe-show-at-startup' (shortcuts.el), itself gated on
+;; the start screen actually being what is showing (`(eq (window-buffer) (get-buffer
+;; "*start*"))'), so a real restore skips it exactly like it used to skip `*start*'
+;; itself. `my/shortcuts-buffer' (the create-and-draw half, called by that display logic)
+;; has the same `with-current-buffer' shape as `my/start-buffer' --- confirmed in its own
+;; definition in shortcuts.el --- so calling it unconditionally here is safe the same way:
+;; it cannot disturb whatever a real restore (or the start screen's own automatic split)
+;; actually shows, only ensure the buffer object itself always exists.
+(with-eval-after-load 'shortcuts (add-hook 'emacs-startup-hook #'my/shortcuts-buffer 95))
+
 ;; WHAT: `C-c w s' --- save the session right now, by hand.  WHY: a deliberate
 ;; checkpoint before doing something risky, rather than waiting for the periodic
 ;; autosave or a clean exit.  HOW: same call, and the same RELEASE-argument bug and fix,
