@@ -123,18 +123,22 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; with the same real kill -9 test: the desktop file existed after the crash.
 (setq desktop-auto-save-timeout 10)
 
-;; WHAT: actually turn the whole thing on.  WHY/HOW: this alone is also what makes
-;; Emacs's own startup sequence restore the saved session automatically --- desktop.el
-;; installs its own `after-init-hook' (unconditionally, whether or not this mode is
-;; enabled) that checks `desktop-save-mode' and, if non-nil, calls `desktop-read' once
-;; this config has finished loading.  That happens to run AFTER `initial-buffer-choice'
-;; (config/init.el's own `my/start-initial-buffer', which decides whether to show the
-;; start screen) has already been applied --- so on a genuine restore, whatever the
-;; start screen set up is promptly replaced by the restored windows; with nothing saved
-;; yet (a fresh install, or right after `C-c w r'), `desktop-read' finds no file and
-;; does nothing, leaving the start screen showing exactly as it already does today.
-;; This ordering was confirmed for real, not assumed --- see docs/SESSION.md.
-(desktop-save-mode 1)
+;; WHAT: do NOT turn the automatic live-session restore on.  WHY: a direct, explicit
+;; user request --- the start screen should always be what greets a new or existing
+;; Emacs, never silently replaced by whatever was open last time. `desktop-save-mode'
+;; being on is what installs desktop.el's own `after-init-hook' entry that calls
+;; `desktop-read' once this config finishes loading (confirmed directly: with the mode
+;; off, that hook entry still runs but does nothing, since it checks `desktop-save-mode'
+;; itself first) --- so simply never turning the mode on at all is enough; nothing else
+;; needs disabling. HOW: this leaves `auto-save-visited-mode' above (saving an actually-
+;; edited file's own real content) and every manual, explicitly-invoked command below
+;; (`C-c w s'/`r'/`l', and the separate named-session commands `C-c w S'/`O'/`D'/`L')
+;; fully working exactly as before --- `desktop-save'/`desktop-read' are called directly
+;; by those, not gated on this mode variable at all; only the SILENT, AUTOMATIC
+;; restore-at-startup (and periodic live autosave while running, via
+;; `my/session--claim-ownership' below, itself also gated on this same variable) is what
+;; this turns off.
+;; (desktop-save-mode 1)
 
 ;; WHAT: save the desktop once, right after startup finishes.  WHY: a real, measured gap
 ;; found while testing the periodic autosave above: `desktop-auto-save' (the timer
