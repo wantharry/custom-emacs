@@ -214,6 +214,28 @@ restore lazily, in the background, the next time Emacs is idle.")
         (run-with-idle-timer (max 1 desktop-auto-save-timeout) t #'my/session--claim-ownership)))
 (add-hook 'emacs-startup-hook #'my/session--start-autosave 90)
 
+;; A third real bug, found the same way (a genuine round trip, not reading the source):
+;; a direct user request was for the `*start*' buffer to always exist after a restore,
+;; reachable from the buffer list, even though a real session is what is actually shown
+;; --- confirmed, with a FIRST fix, to work in an isolated simulation that created
+;; `*start*' before simulating the restore... which turned out to not match the real
+;; order at all. The real order, confirmed directly in `startup.el' itself (not assumed
+;; from this file's own earlier, wrong comment above): `after-init-hook' --- where
+;; `desktop-read' actually restores a session --- runs BEFORE `command-line-1', and
+;; `initial-buffer-choice' (`my/start-initial-buffer' in startpage.el) is only evaluated
+;; well inside THAT function, checking "is `current-buffer' still `*scratch*'" to decide
+;; whether to create the start screen at all. By the time that check runs, a real
+;; restore has already made some OTHER buffer current --- so the check correctly (by
+;; its own, narrower logic) declines, and `my/start-buffer' is never called at all.
+;; Reproduced directly: restoring a saved session left `*start*' simply not existing
+;; (`(get-buffer "*start*")' => nil), confirmed with the real startup order, not the
+;; earlier, backwards simulation. Fixed here instead, since `my/start-buffer' itself
+;; never disturbs the display (`with-current-buffer', not `switch-to-buffer' --- see
+;; its own definition in startpage.el): called unconditionally alongside the autosave
+;; claim above, this always ensures the buffer exists and is freshly drawn, with no
+;; effect on whatever a real restore (or the start screen itself) actually shows.
+(with-eval-after-load 'startpage (add-hook 'emacs-startup-hook #'my/start-buffer 95))
+
 ;; WHAT: `C-c w s' --- save the session right now, by hand.  WHY: a deliberate
 ;; checkpoint before doing something risky, rather than waiting for the periodic
 ;; autosave or a clean exit.  HOW: same call, and the same RELEASE-argument bug and fix,
