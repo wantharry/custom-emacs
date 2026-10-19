@@ -18,14 +18,47 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${1:-8080}"
-EMACS="$ROOT/install/bin/emacs"
-EMACSCLIENT="$ROOT/install/bin/emacsclient"
 CACHE="$ROOT/dist/cache"
 GOTTY_VERSION=1.10.0
-GOTTY_ASSET="gotty_v${GOTTY_VERSION}_linux_amd64.tar.gz"
+
+# Picks the Gotty asset for whatever machine this actually is, and an Emacs/emacsclient to
+# run: EMACS=/EMACSCLIENT= override first; else this repo's own from-source Linux build
+# (install/bin/emacs, the original target this script was written for); else, on macOS, a
+# Homebrew emacs-plus install (brew --prefix emacs-plus@31, falling back to plain `emacs` on
+# PATH) -- there is no from-source Darwin build here (see docs/CROSS-PLATFORM.md), the same
+# reason tools/dist-macos.sh uses emacs-plus instead of ./build.sh for the macOS bundle.
+os="$(uname -s)"; arch="$(uname -m)"
+case "$os-$arch" in
+  Linux-x86_64)  GOTTY_ASSET="gotty_v${GOTTY_VERSION}_linux_amd64.tar.gz" ;;
+  Linux-aarch64) GOTTY_ASSET="gotty_v${GOTTY_VERSION}_linux_arm64.tar.gz" ;;
+  Darwin-arm64)  GOTTY_ASSET="gotty_v${GOTTY_VERSION}_darwin_arm64.tar.gz" ;;
+  Darwin-x86_64) GOTTY_ASSET="gotty_v${GOTTY_VERSION}_darwin_amd64.tar.gz" ;;
+  *) echo "No known gotty asset for $os-$arch; see https://github.com/sorenisanerd/gotty/releases/tag/v$GOTTY_VERSION" >&2; exit 1 ;;
+esac
 GOTTY_BIN="$CACHE/gotty"
 
-[ -x "$EMACS" ] || { echo "No built Emacs at $EMACS --- run ./build.sh first." >&2; exit 1; }
+if [ -n "${EMACS:-}" ]; then
+  : # explicit override, used as-is
+elif [ -x "$ROOT/install/bin/emacs" ]; then
+  EMACS="$ROOT/install/bin/emacs"
+  EMACSCLIENT="${EMACSCLIENT:-$ROOT/install/bin/emacsclient}"
+elif [ "$os" = Darwin ] && command -v brew >/dev/null && brew --prefix emacs-plus@31 >/dev/null 2>&1; then
+  EMACS="$(brew --prefix emacs-plus@31)/bin/emacs"
+  EMACSCLIENT="${EMACSCLIENT:-$(brew --prefix emacs-plus@31)/bin/emacsclient}"
+elif command -v emacs >/dev/null; then
+  EMACS="$(command -v emacs)"
+  EMACSCLIENT="${EMACSCLIENT:-$(command -v emacsclient)}"
+else
+  echo "No Emacs found --- set EMACS=/path/to/emacs (and EMACSCLIENT= if it is not alongside it)," >&2
+  echo "or run ./build.sh first (Linux) / brew install emacs-plus@31 (macOS)." >&2
+  exit 1
+fi
+EMACSCLIENT="${EMACSCLIENT:-$(dirname "$EMACS")/emacsclient}"
+[ -x "$EMACS" ] || { echo "No built Emacs at $EMACS" >&2; exit 1; }
+[ -x "$EMACSCLIENT" ] || { echo "No emacsclient at $EMACSCLIENT" >&2; exit 1; }
+
+# shasum -a 256 on macOS, sha256sum on Linux -- no single name both ship by default.
+sha256() { command -v sha256sum >/dev/null && sha256sum | cut -d' ' -f1 || shasum -a 256 | cut -d' ' -f1; }
 
 if [ ! -x "$GOTTY_BIN" ]; then
   echo "== fetching gotty v$GOTTY_VERSION (sorenisanerd/gotty, the same fork the real Cloudmacs Dockerfile uses)"
@@ -35,7 +68,7 @@ if [ ! -x "$GOTTY_BIN" ]; then
   curl -fsSL -o "$CACHE/gotty-SHA256SUMS" \
     "https://github.com/sorenisanerd/gotty/releases/download/v${GOTTY_VERSION}/SHA256SUMS"
   want="$(grep " $GOTTY_ASSET\$" "$CACHE/gotty-SHA256SUMS" | cut -d' ' -f1)"
-  got="$(sha256sum "$CACHE/$GOTTY_ASSET" | cut -d' ' -f1)"
+  got="$(sha256 < "$CACHE/$GOTTY_ASSET")"
   [ -n "$want" ] && [ "$got" = "$want" ] || { echo "CHECKSUM MISMATCH for $GOTTY_ASSET" >&2; exit 1; }
   echo "   $GOTTY_ASSET matches the checksum published by GitHub"
   tar -xzf "$CACHE/$GOTTY_ASSET" -C "$CACHE" ./gotty
