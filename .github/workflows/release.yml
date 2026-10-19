@@ -97,6 +97,7 @@ jobs:
       - name: "Install Emacs (emacs-plus@31: native compilation, tree-sitter, a real Cocoa GUI) and build tools"
         run: |
           brew tap d12frosted/emacs-plus
+          brew trust d12frosted/emacs-plus
           brew install emacs-plus@31 dylibbundler ripgrep fd dua-cli git-delta cmake libtool automake
 
       - name: Install this config's Elisp packages
