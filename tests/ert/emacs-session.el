@@ -25,16 +25,21 @@
 (ert-deftest emacs-session/is-loaded-eagerly-not-autoloaded ()
   ;; Unlike most feature files here (dictate.el, llm.el, ...), this one has to be loaded
   ;; while init.el itself is still loading --- see the file header comment in
-  ;; config/emacs-session.el for why (desktop.el's own `after-init-hook' entry is what
-  ;; actually restores a saved session, and that only works if desktop-save-mode is
-  ;; already on by the time it fires).
+  ;; config/emacs-session.el for why (`auto-save-visited-mode' below, and this file's own
+  ;; `after-init-hook' entries such as `my/session--claim-ownership', both need to already
+  ;; be wired up by the time init.el finishes, not deferred to a later keypress).
+  ;; `desktop-save-mode' being exactly `nil' here is itself deliberate, not merely unset:
+  ;; see that same file comment for why the automatic live-session restore it would
+  ;; otherwise install is intentionally left off --- the start screen should always be
+  ;; what greets a new or existing Emacs, confirmed `nil' here specifically rather than
+  ;; just "truthy or not" so a future accidental `(desktop-save-mode 1)' is caught too.
   (let ((out (with-output-to-string
                (with-current-buffer standard-output
                  (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
                                "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
                                "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
                                "--eval" "(princ (list (featurep 'emacs-session) desktop-save-mode auto-save-visited-mode))")))))
-    (should (string-match-p "(t t t)" out))))
+    (should (string-match-p "(t nil t)" out))))
 
 ;; WHAT: `org-mode' works, in the real, fully-loaded config, with this file already
 ;; loaded (which it always is by the time anything else runs --- see the test just
@@ -106,18 +111,30 @@
 
 ;;; The real regression test: `desktop-save's RELEASE argument
 
-(ert-deftest emacs-session/save-and-claim-ownership-never-release-the-lock ()
+(ert-deftest emacs-session/claim-ownership-is-a-no-op-with-desktop-save-mode-off ()
+  "`desktop-save-mode' is deliberately `nil' in this config (see config/emacs-
+session.el's own comment: the start screen should always greet a new or existing
+Emacs, never a silent automatic restore) --- `my/session--claim-ownership' exists
+only to support that automatic periodic autosave, so with the mode off it must do
+nothing at all, not call `desktop-save' regardless."
+  (let (calls)
+    (cl-letf (((symbol-function 'desktop-save) (lambda (&rest args) (push args calls) nil)))
+      (should-not desktop-save-mode)
+      (my/session--claim-ownership)
+      (should (null calls)))))
+
+(ert-deftest emacs-session/save-never-releases-the-lock ()
   "`desktop-save's SECOND argument is RELEASE (let go of the lock), not \"force
 save\" --- an easy, real mistake (made once while building this feature) that
-silently defeats the periodic autosave forever, since it never gets to claim
-ownership in the first place.  Both functions that call `desktop-save' here must
-call it with no second argument (or an explicitly nil one), never a non-nil one."
+would silently defeat `C-c w s' as a real checkpoint, since it would release
+ownership instead of claiming/keeping it.  `my/session-save' must call
+`desktop-save' with no second argument (or an explicitly nil one), never a
+non-nil one."
   (let (calls)
     (cl-letf (((symbol-function 'desktop-save)
                (lambda (&rest args) (push args calls) nil)))
       (my/session-save)
-      (my/session--claim-ownership)
-      (should (= 2 (length calls)))
+      (should (= 1 (length calls)))
       (dolist (args calls)
         (should (equal (car args) my/session-dir))
         (should-not (cadr args))))))         ; RELEASE must be nil/absent, never t
