@@ -401,7 +401,16 @@ both places.")
 (define-derived-mode my/shortcuts-mode outline-mode "Shortcuts"
   "This configuration's own keybindings, grouped by topic.  See `my/shortcuts'."
   (setq-local outline-regexp "\\* ")
-  (setq-local buffer-read-only t))
+  (setq-local buffer-read-only t)
+  ;; Same real gap, same fix, as `my/start-mode' in startpage.el (see its own, longer
+  ;; comment on this): a direct user request for a real window split (`*start*' left,
+  ;; `*shortcuts*' right) to come back as that same split on restore, not silently drop
+  ;; both -- confirmed directly, a buffer with no visited file is only saved at all if
+  ;; its own `desktop-save-buffer' is non-nil.
+  (setq-local desktop-save-buffer t))
+
+(defun my/shortcuts--desktop-restore (_file _name _misc) (my/shortcuts-buffer))
+(add-to-list 'desktop-buffer-mode-handlers '(my/shortcuts-mode . my/shortcuts--desktop-restore))
 
 ;; WHAT: write the whole *shortcuts* buffer's text: title, a short usage reminder, the flat
 ;; per-topic key list built straight from `my/shortcuts-list', then (see the comment a few
