@@ -414,6 +414,17 @@ Gatekeeper dialog; if it ever appears anyway, right-click `Emacs.app` > Open onc
 ### Limits and things to know
 
 - **Apple Silicon (arm64) only.** Not built for Intel Macs.
+- **The CI build's minimum macOS version tracks whichever Mac it runs on**, not whatever GitHub's
+  "latest" runner happens to be: a real, caught-the-hard-way failure, not a hypothetical. A build
+  from `runs-on: macos-latest` set the binary's `LC_BUILD_VERSION` `minos` to **26.0** (confirmed
+  with `otool -l`) and failed outright on a real MacBook Pro running macOS 15.7.3 ("You can't use
+  this version of the application... with this version of macOS") --- Homebrew's current
+  `emacs-plus` bottle is built against whatever the newest macOS is *right now*, which drifts
+  forward over time and can be newer than the Mac this bundle is actually meant to run on. Fixed
+  by pinning the CI job's runner to a specific macOS version (`.github/workflows/release.yml`)
+  matching the target Mac's own major version, not "latest". If you build this yourself for an
+  older Mac, check `otool -l Emacs.app/Contents/MacOS/Emacs | grep -A3 LC_BUILD_VERSION` against
+  your own `sw_vers` before trusting a build.
 - **Not yet tried on a genuinely different Mac** (only verified via the Homebrew-keg-hidden isolation test
   above, on the same machine it was built on) --- a real second machine is the natural next check.
 - **No Java language server or Rust toolchain bundled** (see "How it differs" above): install `jdtls`/a JDK,

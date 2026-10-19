@@ -90,7 +90,14 @@ jobs:
             --clobber
 
   build-and-release-macos:
-    runs-on: macos-latest
+    # Pinned, not "macos-latest": GitHub's "latest" label tracks whatever macOS is newest right
+    # now, and Homebrew's current emacs-plus bottle for it can set a minimum-OS requirement
+    # (LC_BUILD_VERSION's minos, confirmed directly with otool -l) newer than this project's own
+    # target Mac actually runs -- caught for real: a "macos-latest" build set minos 26.0 and
+    # failed outright ("can't use this version of the application... with this version of
+    # macOS") on a real MacBook Pro running macOS 15.7.3. Match this to that Mac's own major
+    # version (`sw_vers`), not the newest thing GitHub happens to offer today.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
