@@ -6,9 +6,9 @@ name: Build and release bundles
 # "run it right now" escape hatch (e.g. to test the pipeline itself), and publishes a release
 # tagged by run number instead of a version, so it can never collide with a real tag release.
 #
-# Two independent jobs, one per platform, both publishing to the SAME release (see the
+# Three independent jobs, one per platform, all publishing to the SAME release (see the
 # race-tolerant publish step each one runs: whichever job finishes first creates the release,
-# the other one uploads its own file into it instead of failing).
+# the others upload their own file into it instead of failing).
 #
 # Linux: builds docs/BUILD.md's own recipe end to end (system deps -> clone Emacs ->
 # ./build.sh all -> packages -> grammars -> dist linux) on a stock ubuntu-latest runner.
@@ -20,10 +20,11 @@ name: Build and release bundles
 # no compiling on the machine that unzips it -- verified directly by running the built bundle
 # with its own source Homebrew keg renamed out of the way first. See docs/DISTRIBUTION.md.
 #
-# The Windows bundle is NOT built here -- tools/dist-windows.sh needs WSL (it runs a real
-# Windows Emacs.exe through cmd.exe to compile packages), which neither runner can do; keep
-# building that one locally and attach it to the same release afterwards if you want all
-# three platforms on one release.
+# Windows: reuses test.yml's own test-windows job recipe (that job already builds this exact
+# bundle, via WSL on windows-latest, to test it -- Vampire/setup-wsl sets up WSL since
+# tools/dist-windows.sh itself needs it, compiling packages by running the real downloaded
+# Windows Emacs through cmd.exe/WSL interop). This job just publishes the same build instead
+# of only testing it.
 
 on:
   push:
@@ -142,4 +143,64 @@ jobs:
             --generate-notes \
           || gh release upload "$TAG" \
             dist/custom-emacs-macos-arm64.zip \
+            --clobber
+
+  build-and-release-windows:
+    # Reuses test.yml's own test-windows job recipe almost verbatim (see that job's own
+    # comments for the full reasoning on each step) -- it already builds this exact bundle
+    # for real, on real Windows, via WSL, to test it; this job just publishes that same
+    # build instead of only testing it. No caching here (unlike test.yml): a release should
+    # reflect exactly this commit, built fresh, not a reused zip from a different one.
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      # Windows runners default to core.autocrlf=true, which corrupts the shell-wrapper
+      # script Vampire/setup-wsl's wsl-bash shell type generates for every run: step below
+      # (a literal CRLF ends up inside it) -- must be disabled before checkout, since
+      # autocrlf converts line endings AT checkout time.
+      - name: Disable autocrlf (corrupts the WSL shell-wrapper scripts otherwise)
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - name: "Set up WSL (tools/dist-windows.sh needs it: it compiles packages by running the real downloaded Windows Emacs through cmd.exe/WSL interop)"
+        uses: Vampire/setup-wsl@v5
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: p7zip-full unzip wget python3-venv python3-pip emacs-nox
+
+      - name: Install this config's Elisp packages
+        shell: wsl-bash {0}
+        run: EMACS=/usr/bin/emacs ./build.sh packages
+
+      - name: Build the Windows portable bundle
+        shell: wsl-bash {0}
+        env:
+          CI: "true"
+        run: ./build.sh dist windows
+
+      - name: "Publish to the GitHub release (race-tolerant: another platform's job may win the create)"
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # unset WSLENV -- same reasoning as test.yml's own matching step: once
+          # Vampire/setup-wsl has registered a real WSL distro, a bare `git`/`gh` lookup
+          # could resolve through WSL's own PATH translation instead of this job's own
+          # native Windows tools, and WSLENV would try to translate this step's PATH as
+          # if it were still Windows' own semicolon-separated, backslash-style PATH.
+          unset WSLENV
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="manual-run-${GITHUB_RUN_NUMBER}"
+            git tag "$TAG" 2>/dev/null || true
+            git push origin "$TAG" 2>/dev/null || true
+          fi
+          gh release create "$TAG" \
+            dist/custom-emacs-windows-x64.zip \
+            --title "$TAG" \
+            --generate-notes \
+          || gh release upload "$TAG" \
+            dist/custom-emacs-windows-x64.zip \
             --clobber
