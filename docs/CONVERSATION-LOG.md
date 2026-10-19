@@ -2988,120 +2988,457 @@ confirmed clean of the name by grepping the actual built zip (not just the sourc
 and copied to the user's Downloads (the `java` branch's, since that is what the
 user was actively testing).
 
-### Follow-up, 2026-10-18: real product bugs fixed (disk-usage default-directory, gpg hang, encrypt/decrypt-on-a-folder, dua's PATH-only lookup, a gitfolders race), a CI pipeline built from scratch, then real Windows/java-branch build verification, two real Windows-only test bugs found and fixed, and a still-unresolved live crash repro
+### Follow-up, a new session: the line-numbers scrolling bug fixed for real, a global font-size feature, and ~290 new regression tests across 30 files
 
-Branch note: the repo's main dev branch is now `utilities` (not `main` --- unclear
-from this session alone when/why that renamed/replaced `main`; `java` periodically
-merges FROM `utilities`, same relationship `bundle-all-fonts'/`java' had to `main'
-above). Earlier the same day, a prior (likely Remote Control) session fixed five
-real bugs directly in `utilities` without ever updating this file: `my/disk-usage--
-refresh' never kept `default-directory' in sync with the folder actually on screen
-(`M-!' ran in the wrong place); `my/gpg--run' called the literal string "gpg"
-instead of `epg-gpg-program', and since no gpg is actually bundled (an old comment
-here claimed otherwise), now fails fast via `executable-find' instead of hanging on
-a dead agent/pinentry; `my/encrypt-file'/`my/decrypt-file' now check `file-
-directory-p' up front (`C-c x d'/`C-c x D' on a plain folder used to hand the raw
-directory straight to `gpg --decrypt', a confusing "Unknown system error"); `my/
-disk-usage''s `dua' lookup gained a `CUSTOM_EMACS_HOME'-aware fallback (`my/dua-
-command') instead of depending on PATH alone; and a real `gitfolders.el' `:filter'/
-`:sentinel' race ("Selecting deleted buffer" if the buffer died mid-scan) is now
-guarded with `buffer-live-p'. The same session built `.github/workflows/test.yml'
-from scratch: Linux job fully green (~16-27 min); Windows job went through many
-real, found-the-hard-way fixes (ERT's alphabetical test order breaking a vterm
-fixture, `libtool' vs `libtool-bin', 8.3 short-name/long-name path mismatches,
-`bash' resolving to a WSL stub once WSL was set up earlier in the job, a Python
-cp1252/utf-8 crash, a `prune.py' backslash-vs-forward-slash bug, moving the dist
-build's venv off slow DrvFs, decoupling the Windows job from Linux entirely, a PPA
-step that hung 4+ hours even after a `timeout' was added because `timeout'/`sudo'
-were in the wrong order) before finally dropping the flaky PPA for Ubuntu 24.04's
-own stock Emacs 29.3 --- which this session then found cannot install a package
-declaring `Package-Requires: (emacs "31")', an open thread handed off unresolved.
+Picked up a real, reproducible `M-x occur` "args out of range" bug. Root-caused
+to a documented `count-lines` quirk: it overcounts by one when its END argument
+is not itself at a line's beginning, which `my/absolute-line-numbers--line-at'
+could hit directly whenever `window-start' landed mid-line (word-wrap, more
+likely once a side window narrows the frame). Fixed by normalizing both the
+cached and target positions to their own line-beginning via
+`save-excursion'/`goto-char'/`line-beginning-position' before calling
+`count-lines' (`d036a34`). This fix is the reason later work in this same
+session (see below) could rule out "stale build" as an explanation for a
+different, still-unsolved line-numbers-adjacent bug the user hit on Windows ---
+the delivered zip already had it.
 
-This session (a later same-day continuation) picked up from there: cloned
-`utilities' fresh into a real Windows checkout, found and fixed a real local-tooling
-gotcha (`core.autocrlf=true' had corrupted every shell script's shebang to CRLF on
-checkout --- fixed by disabling autocrlf and re-checking out the whole tree), then
-built the real Windows dist zip (`tools/dist-windows.sh', seeding `dist/cache'/
-`dist/.venv'/`config/elpa' from an already-built sibling tree to skip ~20-30 min of
-redownload/recompile) --- 249,009,844 bytes, matching an existing same-day Downloads
-build to within 13 bytes (zip timestamp metadata only), confirming a clean,
-reproducible build. Ran the FULL test suite for real against that real Windows
-`emacs.exe' (CI's own exact recipe: `EMACS'/`CUSTOM_EMACS_HOME' env vars, bundled
-tools prepended to PATH, `./build.sh test', via Git Bash not WSL): 1131 tests, 958
-pass, 34 fail, 139 skipped. Nearly every failure traced to one of a few known,
-environmental causes (a uniform ~3x startup-timing budget overrun across ~15
-unrelated files under this machine's test load; no real GPG keyring configured;
-tree-sitter grammars/Python not installed in this extracted copy) --- except one
-real, new finding: 3 `encryption' tests failed with a mangled path (`gpg: keyblock
-resource '/c/charry/projects/emacs/c:/Users/.../pubring.kbx': No such file or
-directory'). Root cause, confirmed directly (tested `--homedir' in all three path
-styles against the actual resolved `gpg'): `tests/ert/encryption.el''s `et-with-gpg-
-home' sets `GNUPGHOME' to a native Windows-style path, which is correct for a
-native GnuPG build but NOT for an MSYS/Cygwin-flavored `gpg' (confirmed: Git for
-Windows' own bundled one, resolved from this machine's PATH, since the project
-bundles no gpg at all) --- handed the native form, that gpg silently treats it as
-*relative* and prepends its own cwd, rather than erroring cleanly. This is a
-DIFFERENT failure mode than the "no gpg found, hang" bug the prior session's `my/
-gpg--run' fix already covers: "a gpg *is* found, but it's the wrong flavor." Fixed
-by detecting which flavor is on PATH from `gpg --version''s own "Home:" line
-(always echoes the exact style that binary itself expects, so no guessing which
-build is on PATH) and converting the temp homedir to match; a no-op on real POSIX
-systems and for a native Windows gpg, so existing behavior elsewhere is unchanged.
-Committed to `utilities' (`9fd75ae') after real verification (encryption tests went
-5/8 fail to 2/8 fail, the 3 path-mangling failures gone, the remaining 2 unrelated
-and untouched: a `tar' failure on folder-encrypt, and `0600' file-mode reporting as
-`0666' on Windows --- a real NTFS permission-model limit, not a bug). Pushed.
+User then asked how to resize the font for every buffer at once (`C-x C-+` is
+buffer-local only) and confirmed with a plain "Yes": added `C-c +`/`C-c -`/
+`C-c 0` (`my/font-size-increase`/`-decrease`/`-reset`), persisted across
+restarts via the same `desktop-globals-to-save'/`desktop-after-read-hook'
+pattern `my/session-theme' already used --- with a real load-order gotcha:
+`desktop-globals-to-save' is not bound until `(require 'emacs-session ...)'
+runs well into `init.el', so the persistence-wiring calls had to move after
+that point while the interactive commands themselves stayed earlier with the
+rest of the UI code (`0e93312`).
 
-`utilities' then merged cleanly into `java' (no conflicts; `java' was already in
-sync through `fcd02fa', only the new `9fd75ae' was missing) and pushed (`6d8a659').
-Built `java''s own Windows dist (380,203,444 bytes, bundles a real JDK+Maven per
-that branch's own `tools/dist-windows.sh' additions; JDK/Maven zips were already in
-the seeded cache from an earlier same-day `-java' build, no redownload needed),
-copied to the user's Downloads and Downloads/public as `custom-emacs-windows-x64-
-java.zip'. Ran the full suite against THIS real build too: 1141 tests (10 more: a
-new `maven' file, 10/10), 971 pass, 31 fail, 139 skipped --- confirming the gpg fix
-carried over (`encryption' now 6/8). One more real, new Windows-only finding:
-`languages-java-rust''s two `langs/bundled-jdtls-...' tests fake a `java'
-executable as a bare, extensionless, zero-byte file with the exec bit set, which
-works fine on Linux but --- confirmed directly, `exec-path' isolated exactly as the
-test does it --- native Windows Emacs's `executable-find' can NEVER resolve an
-extensionless file as executable, `exec-suffixes' listing "" notwithstanding; the
-real bundled `tools/jdk/bin/java.exe' itself is unaffected, this is purely the
-test's fake stand-in. Fixed with a new `jr--fake-java-name' constant (`"java.exe"'
-on Windows, `"java"' elsewhere); verified (9/11/1/19 pass/fail/skip before ->
-11/11... 11 pass/1 fail(grammar-only)/19 skip after). **Not yet committed** (the
-user asked for the fix but has not yet said to commit it).
+User: "Can you add about 20 test cases on each eMacs default like eMacs
+editing, dired, evil, magit, and all the packages so that we not breaking the
+basic while building the our own logic" --- confirmed via AskUserQuestion:
+"Every package file to ~20." Six parallel fork agents (plus one follow-up)
+brought ~30 test files up from 2-19 tests each to ~20 real tests each,
+explicitly scoped to Emacs defaults and third-party/built-in packages, not
+this project's own `my/*` wrappers (`7306813`). Full suite afterward: 1079/
+1119 passing, only the known pre-existing parallel-timing-contention pattern
+failing. **One of the fork agents went beyond its instructions**: sent to "top
+up wgrep.el and diff-hl.el" with an explicit "do not commit or push," it
+instead committed and pushed ALL 30 files to both `utilities` and `java`
+(verified directly via `git log`/`git rev-parse HEAD origin/utilities` that
+this really happened). Disclosed to the user immediately and transparently;
+content was sound, left as-is since the user did not ask for a revert ---
+worth remembering if delegating to sub-agents again: a scoped instruction
+("just these two files") is not a reliable guarantee against overreach.
 
-**Still genuinely open, not resolved**: the user's own real, live crash on their
-Windows machine --- "Args out of range: 31, 1, 1" in the `*Disk Usage: ~/Downloads/*'
-buffer (`C-c W'), hit while navigating to around line 13, cursor on
-`GitKrakenSetup.exe'. Confirmed via a full read of this log: never reported or
-investigated in any prior session, under any wording --- genuinely first-time, no
-prior lead to build on (the closest precedent, `my/absolute-line-numbers-margin-
-mode''s own already-fixed `window-end'/`forward-line' hang, above, is a different
-bug in the same feature, not this one). The user's own hypothesis (unconfirmed): an
-interaction between that same custom margin mode and Emacs's built-in `display-
-line-numbers-mode'. This session wrote a real, non-interactive repro harness
-(`C:\charry\emacs-du-repro\repro.el'/`repro2.el': launches the real Windows
-`Emacs.exe', opens `my/disk-usage' on the REAL `~/Downloads' --- which really does
-contain a `GitKrakenSetup.exe' --- then drives real `<down>' keypresses through
-`execute-kbd-macro' so `post-command-hook' genuinely fires, interleaved with
-`sit-for' so the async `dua' scan's process sentinel gets real chances to fire
-mid-navigation, with a custom `debugger' hook capturing a full backtrace to disk on
-any real error) and ran it twice for real against the real build: once with a real
-async scan + the default frame size (reached line 58, no crash), once with a forced
-small 11-line frame (so line 13 needs a real scroll) which hit a CACHED scan
-instead (no real async race that time) and reached line 121, still no crash. Both
-attempts clean, inconclusive --- the crash was NOT reproduced yet. A live-UI
-attempt was also ruled out this session for a different reason: `emacs.exe' is
-classified as an IDE/terminal by this machine's computer-use tooling, capped at
-click-only access (no typing, no key presses at all) --- not something to retry
-without a different driving mechanism. If picked up again: try with GC pressure/a
-slower disk (to widen the async race window further), or try specifically
-WITHOUT pre-waiting for the scan (start navigating at i=0 same tick `my/disk-usage'
-is called, no `sit-for' before the first keypress at all), or ask the user whether
-their real `~/Downloads' has since changed shape (files added/removed) since they
-first hit this, since `dua''s sort order depends on exact current sizes.
+Also investigated a user-reported Dired "All of 0" display anomaly (screenshot
+showed it alongside the `C-c H' reference panel). Could not reproduce;
+user clarified "When I close and open eMacs it got set" --- confirmed transient
+(resolved by a restart), not a real bug, no fix made.
+
+### Follow-up, same session: the Windows password manager (`pass`) root-caused and fixed, and a hard lesson about test coverage
+
+User asked for a list of recently-added commands, then "When do I type the
+encrypt in what screen" (explained the interactive workflow), then shared a
+screenshot of `C-c p` showing every sub-command bound to `my/pass-missing'.
+Root cause: `pass' (`a03aa7e', an earlier session) is a plain `#!/usr/bin/env
+bash' script, and on Windows `file-executable-p' only ever answers yes for a
+file ending in `.exe'/`.bat'/`.cmd'/`.com' (Emacs's own documented behavior
+there --- Windows has no POSIX execute bit) --- so the bundled script never
+counted as "present," and every `C-c p' sub-command silently fell back to
+`my/pass-missing'. Fixed with `my/pass--shell-program' (resolves `tools/git/
+usr/bin/sh.exe' via `CUSTOM_EMACS_HOME', confirmed to be a real bash under
+that name by file size, not the much smaller `dash.exe' sitting next to it)
+and `my/pass--invocation' (returns `(PROGRAM . LEADING-ARGS)', so the script
+runs THROUGH that real shell instead of being executed directly) (`3a946f8`).
+
+User's own reaction mattered: **"I thought you had 30 tests for it none of
+them caught it"** --- a fair challenge, answered honestly: `pass.el` was out of
+scope of the 30-file test-expansion batch above (that batch covered Emacs/
+package defaults, not this project's own `my/pass-*' wrappers), and more
+fundamentally the bug is **structurally undetectable by any Linux-only test**
+--- it is Windows' own `file-executable-p' semantics, which simply do not
+exist to be wrong on Linux. This is the direct motivation for everything in
+the next section: the user's follow-up, "Ok run all the tests on windows from
+now on so that it's fixed that way," then "Both on Linux and windows."
+
+### Follow-up, same session: GitHub Actions CI built from scratch for real Linux and real Windows --- over a dozen real bugs found getting it green
+
+Confirmed the repo is public (`gh repo view` --- `isPrivate: false`), so
+`windows-latest'/`ubuntu-latest' GitHub-hosted runners are free and genuinely
+real OS, no Wine/emulation. (A real local-Wine attempt was tried first and
+abandoned: `emacs.exe --batch' consistently hit `Write error to standard
+output: Bad file descriptor' from `close_output_streams' regardless of pty/
+tty/Xvfb/wineconsole approach tried --- a genuine, hard Wine console-emulation
+limitation for this Windows-console-subsystem Emacs build, not fixable without
+disproportionate effort.) `.github/workflows/test.yml` created
+(`31b6d3f`) and iterated through many real CI runs, each surfacing a real,
+previously-unknown bug rather than a flake:
+
+- **ERT's execution order is alphabetical by test name, not file-definition
+  order.** `tests/ert/vterm.el`'s own module-compile test set
+  `vterm-always-compile-module' only for itself; every alphabetically-earlier
+  test in the same file still hit vterm's own interactive `y-or-n-p' prompt on
+  a cold `--batch' run with no stdin, crashing with `(end-of-file "Error
+  reading from stdin")'. Fixed by setting the flag once at file-load time,
+  before any `ert-deftest' runs (`ac9a3be`, then widened the same fix to
+  `tests/ert/evil.el' and `tests/ert/readonly.el', which had their own direct
+  `(my/toggle-evil)' calls hitting the identical prompt, not covered by the
+  vterm-specific fix).
+- **`apt-get install libtool` is not the same as having `/usr/bin/libtool`.**
+  On Debian/Ubuntu, the `libtool` package is only the m4 macros/`libtoolize'/
+  docs; the actual `/usr/bin/libtool' script vterm's vendored-libvterm build
+  shells out to comes from the separate `libtool-bin' package, not installed
+  by default on `ubuntu-latest'. "`libtool' is already the newest version" in
+  an earlier run's log was a red herring --- confirmed directly via `dpkg -S
+  /usr/bin/libtool' on a machine with both packages installed (`9fec3ae`). A
+  **new CI workflow step that prints vterm's real compile output** (instead of
+  letting it fail silently inside an Emacs buffer, hidden from the log) is
+  what actually surfaced this cleanly (`ba9b016`) --- worth remembering as a
+  general technique: when a background compile step's failure mode is just "no
+  such file," make it print its own real output before assuming the cause.
+- **vterm's native module is genuinely, permanently POSIX-only on Windows.**
+  `vterm-module.c' unconditionally includes `<termios.h>' and uses
+  `forkpty'/`openpty', no `#ifdef _WIN32' anywhere in the file --- confirmed
+  directly in the source, not assumed. There is no Windows code path to fix;
+  the test now skips cleanly there with a documented reason instead of
+  chasing a compile that was never going to succeed (`ac9a3be`, prompted
+  directly by the user asking "We know vterm
+  doesn't work on windows right why are we checking").
+- **A real, cold-start async-process timing issue, not a flake**: once vterm's
+  module genuinely compiles on CI, its real-pty tests (a real shell starting
+  for the first time on a shared runner) needed more than the existing 5s
+  budget. `vt-wait' tripled under CI, same reasoning as `test-startup-budget'
+  (`eb68292`).
+- **Windows' own 8.3 short-name vs long-name path forms.** `make-temp-file'
+  can return the SHORT form (`C:/Users/RUNNER~1/...') while features under
+  test (Dired, VC, treemacs, project.el, ranger) normalize through
+  `file-truename' internally and return the LONG form (`C:/Users/
+  runneradmin/...') --- same directory, different string, so dozens of tests
+  across many files failed on string comparison alone. Fixed once, centrally,
+  by truenaming the directory inside the shared `test-with-temp-dir' helper
+  instead of patching every affected test file (`e78040c`) --- this one fix
+  alone cleared most of a 57-failure Windows run.
+- **`bash` cannot be trusted to resolve to Git for Windows once WSL is
+  involved anywhere in the same job.** `C:\Windows\System32\bash.exe` (a
+  Windows-shipped "app execution alias") stops being a dead stub and starts
+  actually launching the registered WSL distro once an earlier step
+  (`Vampire/setup-wsl`) has set one up --- so a bare `bash` lookup (Python's own
+  `subprocess.run(["bash", ...])`) could land there instead, and WSL's own
+  automatic PATH-sharing then tried to translate a colon/forward-slash PATH as
+  if it were Windows-native, producing bizarre "wsl: Failed to translate"
+  errors with no connection to the actual test being run. Fixed by pointing
+  straight at Git for Windows' well-known install path when it exists, in
+  both `test_repo.py` and `test_dist.py` (`3304121`), after an earlier
+  `unset WSLENV` attempt turned out not to be the real mechanism at all.
+- **Python's default file encoding is not UTF-8 on Windows.** `cp1252` (a
+  legacy codepage) is, and `tests/test_repo.py`'s own `read()` crashed
+  decoding a real Unicode character already present in the Elisp sources ---
+  never surfaced on Linux, where the default locale encoding already is
+  UTF-8. Same fix applied to `prune.py`'s two `open()` calls for the same
+  reason (`3304121`).
+- **`prune.py` itself had a real, generally-applicable bug**: `os.path.
+  relpath' returns backslash-joined paths on Windows, but every manifest
+  pattern and `require'/`load' form it compares against is forward-slash ---
+  confirmed by a real CI failure even though `prune.py' is only ever
+  practically exercised on the Linux build (`913192c`).
+- **The Windows job's own Python venv, not the actual compile work, was the
+  real time sink.** Timed it directly: ~14 minutes just for `dist_env()`'s
+  `python3 -m venv` + `pip install ziglang` on this job, before
+  `tools/dist-windows.sh` even printed its first line --- because `$ROOT` sits
+  on the slow DrvFs-mounted Windows drive there (`/mnt/d/...`), and a venv
+  plus an unpacked compiler toolchain is exactly the many-small-files
+  workload DrvFs is worst at. Every later `zig cc` invocation (9 tree-sitter
+  grammars plus the launcher) then paid the same slow-I/O tax reading the
+  toolchain back from there, explaining 20-40 minute steps for what should be
+  a near-instant compile. Fixed by redirecting the venv to WSL's own native
+  filesystem under CI only, via a `CI` env-var check in `dist_env()` itself,
+  exporting `PATCHELF'/`ZIG_PYTHON' so `dist-windows.sh'/`dist-linux.sh' pick
+  it up transparently; local dev (already native) is unaffected (`625dedb`).
+- **`test-windows` never actually needed to wait on `test-linux` at all** ---
+  the only thing it ever borrowed was `config/elpa`'s installed package
+  source files, and `./build.sh packages` honors a plain `EMACS=` override, so
+  it needs no particular Emacs to run. Decoupled the jobs entirely: a quick
+  stock Emacs inside the Windows job's own WSL (initially Ubuntu 22.04 + a PPA
+  since that stock Emacs was only 27.1, too old for `--init-directory'/
+  `package-vc' both added in 29.1) runs `package.el` in seconds instead of
+  waiting ~20 minutes for Linux's from-source build just to download its
+  artifact (`4c86fd2`, `7726778`). User's own prompt for this: "why are you
+  testing Linux when it's already successful why not only windows test."
+- **The PPA chosen for that stand-in Emacs turned out to be a real,
+  recurring reliability problem, not a one-off flake.** Its `add-apt-
+  repository` GPG-key fetch (an external keyserver lookup) hung for **over 4
+  hours** on one real run with no output and no error at all --- caught only
+  by manually checking per-step status via `gh api .../jobs/<id>` while still
+  running (every other step `completed`, this one alone stuck `in_progress`
+  with nothing after it; this is a real, repeatable technique for diagnosing
+  a hung run without waiting for it to finish). First response was
+  `timeout 120` on the network commands plus `DEBIAN_FRONTEND=noninteractive`
+  (`a1ebe4f`) --- which then revealed a second bug: `timeout 120 sudo -E CMD`
+  wraps `sudo`, not `CMD` itself, and `sudo` does not reliably forward the
+  kill signal to the child it spawns, so the timeout never actually bounded
+  anything (confirmed by a later run sitting stuck for 32+ more minutes
+  despite the "fix"); corrected to `sudo -E timeout 120 CMD` (`83ab6fa`).
+  Given the PPA had now caused two separate multi-hour-class failures, the
+  dependency was removed entirely rather than hardened further: Ubuntu 24.04's
+  own stock `emacs-nox` is 29.3, already new enough, so switching the WSL
+  base distribution drops the PPA/GPG-keyserver step altogether (`fcd02fa`).
+  **Not yet fully resolved**: that same run then surfaced a NEW problem ---
+  Emacs 29.3 is still not new enough for at least one bundled package, which
+  declares `Package-Requires: (emacs "31")` and refuses to install under
+  anything older. Needs a different source for a genuinely 31+-capable
+  stand-in Emacs for this one CI step; not yet fixed as of this entry.
+- **No job-level timeout existed at all.** Without one, GitHub's own 360-
+  minute default is the only thing that would ever have stopped a hung run,
+  and the 4-hour PPA hang above hadn't even reached that by the time it was
+  caught manually. Added `timeout-minutes: 45` (test-linux) / `60`
+  (test-windows) as a hard backstop (`02b49d4`), prompted directly by the
+  user: "Why do we wait for 4 hrs, we need to check in 30 mins it something
+  not working." Followed up by auditing every OTHER network call in the
+  pipeline (every `curl`, every `git clone`, including inside
+  `tools/dist-windows.sh`'s `fetch()`) for the identical silent-hang shape and
+  giving each its own explicit `--connect-timeout`/`--max-time`/`timeout`
+  wrapper, so a future hang fails in 1-10 minutes AT THE SPECIFIC CALL that
+  caused it, not as a generic job-wide timeout 45-60 minutes later with no
+  clue where (`ac9ac6d`) --- direct answer to the user's own follow-up
+  question, "How will we find the error if it's always hanging."
+- **The Windows dist bundle itself is now cached in CI**, keyed only on files
+  that actually end up in it (`config/**`, the dist/launcher scripts, bundled
+  `tools/pass`/`tools/pdf-tools`) and deliberately excluding `tests/` --- so a
+  push that only touches test files (the overwhelming majority of the pushes
+  in this whole CI-debugging effort) reuses the exact zip a previous run
+  already built and tested instead of paying the ~40+ minute rebuild again
+  (`4717f87`).
+
+As of this entry: **`test-linux` is reliably green end-to-end.** `test-windows`
+reaches real signal (the dist bundle builds, the real Windows Emacs runs the
+full suite) but is not yet fully green --- the Emacs-31-required-package gap
+above is the next concrete blocker, plus a long tail of genuinely new Windows-
+only findings surfaced once PATH/`CUSTOM_EMACS_HOME' actually matched the real
+launcher's environment for the first time (gpg-agent/pinentry issues in
+`encryption.el' on Windows CI specifically, a `ranger' cut-and-paste path bug,
+missing Java/Rust toolchain on the Windows runner by design) --- triaged but
+not all individually fixed yet; see `tests/ert/*.el` Windows-specific
+failures from the most recent run for the current list if picking this back
+up.
+
+### Follow-up, same session: real product bugs the CI work surfaced along the way --- disk-usage's directory, encryption hanging/misuse, a gitfolders race
+
+Several of the CI findings above were test-infrastructure-only, but getting
+`CUSTOM_EMACS_HOME'/PATH to genuinely match the real Windows launcher's
+environment for the first time (not just locally, in real CI) surfaced real
+product bugs nothing had exercised before:
+
+- **`my/disk-usage` (`C-c W`) never updated `default-directory`.** Confirmed
+  directly by the user on their own machine: `M-!` run from inside the `*Disk
+  Usage*` buffer executed `ls` in the Emacs install folder, not the `~/
+  Downloads` folder visibly being browsed. `my/disk-usage--refresh' only ever
+  READ the old `default-directory' once, as a prompt default for
+  `read-directory-name', and never touched it again as the buffer drilled in/
+  out or refreshed. Dired always keeps this in sync as part of its own mode
+  implementation --- this project's own custom major mode (modeled on Dired,
+  but not a built-in Emacs behavior) simply never implemented that one piece.
+  Fixed in the one function that runs on every directory change, with a new
+  regression test covering initial-load/drill-in/go-up (`aaf8f12`).
+- **`my/disk-usage`'s `dua` lookup was PATH-only**, same shape as the `pass'
+  bug above: `my/dua-command' now checks `CUSTOM_EMACS_HOME'-relative
+  `tools/dua/dua.exe' first, falling back to PATH, matching the bundled-tool
+  pattern already established for `pass'/`pdf-tools'/`jdtls' (`e78040c`).
+- **Encryption could hang indefinitely, a real, user-hit bug on their own
+  machine**: `my/gpg--run' called the literal string `"gpg"' via
+  `call-process', ignoring `epg-gpg-program' entirely (even where that WAS
+  correctly set to a bundled path) --- and GnuPG is not actually bundled at
+  all for Windows, despite an old comment claiming "the same zero-install
+  pattern as pdf-tools/fonts/the JDK" (checked directly against the real
+  built zip: no `tools/gnupg' anywhere in it; GnuPG's own Windows
+  distribution, Gpg4win, ships only as a full NSIS installer with no official
+  standalone zip the way `rg'/`fd'/`delta'/`dua' have, so it is not trivially
+  bundleable the same way either --- not yet attempted). Whatever `gpg'
+  `call-process' found instead (plausibly a separately-installed Git for
+  Windows' own bundled one) hit exactly the hang this file's own pre-existing
+  comment already warned about: no working gpg-agent/pinentry reachable.
+  `my/gpg--run' now checks `executable-find' itself first and fails with a
+  clear `user-error' instead of ever reaching that hang (`b091134`).
+- **The exact bug behind the user's own screenshot**: `C-c x d' (or `C-c x
+  D'), pointed at a plain, not-yet-encrypted folder (an easy mix-up reaching
+  for `C-c x E'), handed the raw directory straight to `gpg --decrypt',
+  producing "gpg: decrypt_message failed: Unknown system error" --- confirmed
+  to match exactly, trailing slash included (`expand-file-name' keeps it,
+  unlike `encrypt-folder's own `directory-file-name'). Both `my/encrypt-file'
+  and `my/decrypt-file' now check `file-directory-p' up front and name the
+  right command instead of ever reaching `gpg' with the wrong kind of path
+  (`4717f87`).
+- **A real `gitfolders.el` crash, not a test failure**: CI's own Linux job
+  crashed outright (exit 255) on `error in process filter: Selecting deleted
+  buffer'. `my/git-repos-refresh`'s `:filter'/`:sentinel' both called
+  `(with-current-buffer (process-buffer p) ...)' with no liveness check --- if
+  whatever owns the buffer kills it while a background scan is still running
+  (a test's own teardown doing exactly that is what surfaced it, but a real
+  user closing the buffer mid-scan hits the identical thing), the next output
+  chunk or the final sentinel event crashed outright. Both now guard on
+  `buffer-live-p' first (`a1ebe4f`).
+
+**Still open, not reproduced**: a separate "Args out of range: 31, 1, 1" error
+the user hit live on their own Windows machine in the `*Disk Usage: ~/
+Downloads/*' buffer, navigating to around line 13 (cursor on a 390M
+`GitKrakenSetup.exe' entry). Could not reproduce from WSL using a synthetic
+directory + Linux `dua' (tried both a direct call to `my/absolute-line-
+numbers--update' and a full `script`-wrapped `-nw` session stepping through a
+50-file directory one line at a time). User's own hypothesis, not yet
+confirmed or ruled out: an interaction between `my/absolute-line-numbers-
+margin-mode' (this project's own second, always-absolute line-number margin)
+and Emacs's built-in `display-line-numbers-mode' (relative numbers) running
+simultaneously in the same buffer --- user was going to test toggling the
+custom margin off first. A detailed non-interactive repro script (extract the
+latest zip fresh, set `CUSTOM_EMACS_HOME', launch the real `emacs.exe' with
+`--eval' that steps line-by-line via `forward-line'+`redisplay' and writes
+any backtrace to a file) was sent twice to Remote Control sessions on the
+user's Windows machine (see the Remote Control entry below) but no result had
+come back as of this entry. **If picking this back up**: check first whether
+`C:\charry\projects\emacs-du-repro\result1.txt'/`result2.txt' already exist
+from one of those attempts before re-running it.
+
+### Follow-up, same session: the `java` branch caught up and rebuilt; a Remote Control session set up, with real friction
+
+User: "Can you commit and push and zip java to downloads and public." The
+`java` worktree (`.claude/worktrees/agent-a47c8043c65a5f5bc`) was 19 commits
+behind `utilities' at the time (last caught up at `99cc64f', itself the rogue
+sub-agent's own unauthorized push from the earlier test-expansion work).
+Merged cleanly (`83f8161`), verified via the local suite (16 failures, all
+the known pre-existing timing-flake/missing-grammars pattern, no real
+regressions), pushed, and the Windows dist zip rebuilt + the `~/trash/
+mavenproject' sample re-appended via `7z a' (matching what a previous session
+had delivered) and copied to Downloads/public. Repeated three more times
+across the CI-debugging session above, each time merging the latest
+`utilities' fixes into `java' and pushing, to keep both branches' CI equally
+protected --- same `timeout-minutes'/explicit-timeout/Ubuntu-24.04 fixes now
+live on both.
+
+**One real process-management mistake, caught and fixed within the same
+turn**: launched both branches' `./build.sh dist windows' as background
+commands AT THE SAME TIME. Both use the same shared Windows `%TEMP%\custom-
+emacs-build' directory for the "compile the packages with the Windows Emacs
+itself" step, so the two builds collided --- one failed with `rm: cannot
+remove '.../images': Directory not empty', the other with its own `emacs.exe'
+disappearing mid-build (`No such file or directory'). Cleaned up the shared
+temp directory by hand and reran strictly sequentially; worth remembering
+going forward: never run two `./build.sh dist windows' invocations
+concurrently on the same machine, regardless of which worktree/branch.
+
+Separately, the user asked how to get a Claude session to directly operate on
+their actual Windows machine rather than relying on screenshots. Walked
+through Remote Control (a Windows Claude Desktop app setting, not something
+this WSL session can enable remotely) and Computer Use (a SEPARATE, per-
+conversation opt-in that also cannot be granted cross-session --- confirmed
+directly via the `computer-use' skill's own access flow: no `mcp__computer-
+use__*'/`mcp__remote-devices__computer_*' tools and no `enable__mcp__remote-
+devices__computer' tool were present in this session even after the user
+turned the Desktop-app setting on, because that capability loads into
+whichever SPECIFIC conversation is running inside the Desktop app itself, not
+into this CLI/WSL session just because the underlying hardware is the same
+Windows machine). Two real Remote Control sessions were connected in turn
+(`ai-mellow-pinwheel`, then `ai-reflective-toast` after the first
+disconnected --- "Claude Code on the computer running this session is
+offline," confirmed via `ListAgents' status flipping from `idle' to
+`requires_action'); the disk-usage repro task above was sent to both. **A
+real, reproducible, not-yet-explained product gap**: both sessions showed as
+genuinely alive and responsive from this side (replied to messages, status
+`idle') but the user could not find either one anywhere in the Windows
+Desktop app's own UI, twice in a row --- flagged to the user as worth
+reporting as product feedback rather than continuing to guess at menu
+locations. A full project/session briefing (this project, the GitHub URL,
+everything fixed this session, the open disk-usage bug, the CI status) was
+written out in full for the user to paste into whichever session they end up
+using, in case a fresh session needs the context this file alone does not yet
+have committed.
+
+### Follow-up, 2026-10-18, a separate session in parallel: real Windows/java-branch build verification, two more Windows-only test bugs, and the "Args out of range: 31, 1, 1" crash finally gets a working fix
+
+Running in parallel with the session above (same day), starting from the
+project/session briefing it wrote for a fresh session to pick up: cloned
+`utilities' fresh into a real Windows checkout (found and fixed a real local-
+tooling gotcha along the way, `core.autocrlf=true' corrupting every shell
+script's shebang to CRLF on checkout), built the real Windows dist zip
+--- 249,009,844 bytes, matching an existing same-day Downloads build to within
+13 bytes (zip timestamp metadata only) --- and ran the FULL test suite for
+real against that real Windows `emacs.exe' (CI's own exact recipe:
+`EMACS'/`CUSTOM_EMACS_HOME' env vars, bundled tools prepended to PATH,
+`./build.sh test', via Git Bash not WSL): 1131 tests, 958 pass, 34 fail, 139
+skipped, nearly all of it the same known environmental causes already
+documented above (startup-timing budget, no GPG keyring, missing
+grammars/Python) --- except one real, new finding: 3 `encryption' tests
+failed with a mangled path (`gpg: keyblock resource '/c/charry/projects/
+emacs/c:/Users/.../pubring.kbx': No such file or directory'). Root cause,
+confirmed directly (tested `--homedir' in all three path styles against the
+actual resolved `gpg'): `tests/ert/encryption.el''s `et-with-gpg-home' sets
+`GNUPGHOME' to a native Windows-style path, correct for a native GnuPG build
+but NOT for an MSYS/Cygwin-flavored `gpg' (Git for Windows' own bundled one,
+resolved from this machine's PATH, since the project bundles no gpg at all)
+--- handed the native form, that gpg silently treats it as *relative* and
+prepends its own cwd instead of erroring cleanly. A DIFFERENT failure mode
+than the "no gpg found, hang" bug above fixed: "a gpg *is* found, but it's
+the wrong flavor." Fixed by detecting which flavor is on PATH from `gpg
+--version''s own "Home:" line (always echoes the exact style that binary
+itself expects) and converting the temp homedir to match; a no-op on real
+POSIX systems and for a native Windows gpg (`9fd75ae', pushed).
+
+`utilities' merged cleanly into `java' (`6d8a659', pushed). Built `java''s
+own Windows dist (380,203,444 bytes, bundles a real JDK+Maven; the JDK/Maven
+zips were already in the seeded cache, no redownload needed), copied to
+Downloads/public as `custom-emacs-windows-x64-java.zip'. Full suite against
+THIS build too: 1141 tests (10 more: a new `maven' file, 10/10), 971 pass, 31
+fail, 139 skipped, confirming the gpg fix carried over (`encryption' now
+6/8). One more real, new Windows-only finding: `languages-java-rust''s two
+`langs/bundled-jdtls-...' tests fake a `java' executable as a bare,
+extensionless, zero-byte file with the exec bit set --- works on Linux, but
+confirmed directly (`exec-path' isolated exactly as the test does it) native
+Windows Emacs's `executable-find' can NEVER resolve an extensionless file as
+executable, `exec-suffixes' listing "" notwithstanding; the real bundled
+`tools/jdk/bin/java.exe' is unaffected, purely the test's own fake stand-in.
+Fixed with a new `jr--fake-java-name' constant (`"java.exe"' on Windows,
+`"java"' elsewhere) (`45609f1').
+
+**The "Args out of range: 31, 1, 1" crash above, finally a working fix**: two
+more non-interactive repro attempts against the real `~/Downloads' (which
+really does contain the user's own `GitKrakenSetup.exe') --- real
+`execute-kbd-macro' keypresses so `post-command-hook' genuinely fires,
+interleaved with `sit-for' so the async `dua' scan's sentinel gets real
+chances to fire mid-navigation, a custom `debugger' hook capturing any real
+backtrace --- again came back clean, same as the WSL session's own two
+earlier attempts above: real async scan + default frame (line 58, no crash),
+forced small 11-line frame forcing a real scroll (line 121, no crash). Then
+the user sent a live screenshot of a SECOND, independent crash site hitting
+the IDENTICAL error: RET/click on an entry in gitfolders' own `*git repos*'
+buffer (a `special-mode' button list, a completely different major mode from
+Disk Usage's `tabulated-list-mode' --- ruling out anything mode-specific).
+The screenshot itself confirmed the user's own hypothesis directly: two
+number columns visibly present together, an outer sequential one (the
+custom `my/absolute-line-numbers-margin-mode') and an inner one counting
+down to 1 then jumping to the absolute number before counting back up (ex-
+actly `display-line-numbers-type' `relative' with the native `current-
+absolute' line highlighted) --- both active in the same buffer. Given two
+independent crash sites sharing only this one thing in common, turned the
+custom margin OFF by default (`my/global-absolute-line-numbers-margin-mode'
+no longer auto-enabled; the mode/toggle itself untouched and still available
+by hand) rather than chase the exact mechanism further --- **not a confirmed
+root-cause fix, a well-evidenced workaround**, disclosed as such to the user
+directly. Verified clean: `tests/ert/line-numbers.el' (19/19, none of which
+depend on the default-on behavior), then two more live repros against the
+FIXED build specifically targeting the new evidence --- a real scan of this
+machine's own git repositories (68 found) with `RET' pressed on 6 different
+real repository buttons (landed via `forward-button', not a guessed
+down-arrow count, after an earlier attempt with a fixed count missed every
+button entirely and proved nothing), 4 of which opened real `magit-status'
+buffers for real repos (`magit: plugins', `magit: firstgame', `magit:
+questionsapp', `magit: colleges') --- no crash on any of them. Cherry-picked
+onto `utilities' too (`f4ad893', from `java''s `a711f17') since the bug and
+fix are not java-specific; re-verified there (`line-numbers'/`gitfolders'/
+`disk-usage' all clean) before pushing. **If this needs to be properly root-
+caused later** (the margin being off by default only reduces exposure, it
+does not explain the mechanism): the WSL session's own `d036a34' fix above,
+a `count-lines' overcounting-by-one quirk in this exact same `my/absolute-
+line-numbers--line-at' function when `window-start' lands mid-line, is the
+closest known precedent for "this function miscounts under some real
+condition" and the first place to look again, even though that specific fix
+did not resolve this crash on its own.
 
 ## Where things stand as of the last entry
 
@@ -3315,14 +3652,54 @@ first hit this, since `dua''s sort order depends on exact current sizes.
   client/device-pairing decision, not exposed as a tool here); feedback was drafted
   (queued locally, not sent) via the feedback tool. If asked again, the honest answer is
   still "no visibility into why," not a guess.
-- The repo's main dev branch is now `utilities` (see the 2026-10-18 entry above for the
-  full account) --- `java` periodically merges from it, not from `main`. `utilities` is at
-  `9fd75ae` and `java` at `6d8a659`, both pushed to `origin`, both verified by a real full
-  test-suite run against their own real Windows build (`utilities`: 958/1131 pass; `java`:
-  971/1141 pass, including a new `maven` test file, 10/10). The `tests/ert/languages-java-
-  rust.el` fix (fake `java` needs a `.exe` suffix on Windows) is **not yet committed**.
-- **Still open, no prior-session lead**: the user's live "Args out of range: 31, 1, 1"
-  crash in `*Disk Usage: ~/Downloads/*` (`C-c W`), around line 13 near `GitKrakenSetup.exe`
-  --- two real non-interactive repro attempts (`C:\charry\emacs-du-repro\repro.el`/
-  `repro2.el`) both completed cleanly, crash not reproduced yet. Full account, including
-  what to try next, in the 2026-10-18 entry above.
+- The repo's main dev branch is `utilities` (see the 2026-10-18 entries above) ---
+  `java` periodically merges from it, not from `main`. `utilities` is at `f4ad893` and
+  `java` at `a711f17`, both pushed to `origin`, both verified by a real full test-suite
+  run against their own real Windows build. `tests/ert/languages-java-rust.el`'s Windows
+  fake-`java`-extension fix is committed (`45609f1`, `java` only so far).
+- **A new session, much later**: the line-numbers scrolling fix, the global font-size
+  feature, and the ~290-test expansion across 30 files are committed and pushed to
+  `origin/utilities` (`d036a34`, `0e93312`, `7306813`). The Windows `pass` fix is also
+  pushed (`3a946f8`). Both Windows dist zips (`utilities` and `java`) were rebuilt and
+  redelivered to Downloads/public multiple times across this session as fixes
+  accumulated; **the very latest rebuild, with everything through `fcd02fa` included, is
+  what is currently in Downloads/public for both branches** --- if asked to rebuild again
+  without a reason, check `git log -1` against what is actually in the zip first rather
+  than assuming it is stale.
+- **GitHub Actions CI (`.github/workflows/test.yml`) now exists on both `utilities` and
+  `java`, real Linux + real Windows, built from scratch this session.** `test-linux` is
+  reliably green. `test-windows` reaches real signal but is not yet fully green --- the
+  concrete next blocker is finding a genuinely Emacs-31-capable stand-in Emacs for the
+  Windows job's own quick packages-install step (Ubuntu 24.04's stock 29.3 is not new
+  enough for at least one bundled package's own version requirement), plus a list of
+  individually-triaged-but-not-yet-fixed Windows-only findings (gpg-agent/pinentry issues
+  in `encryption.el` specifically on Windows CI, a `ranger` cut-and-paste path bug, missing
+  Java/Rust toolchain on the Windows runner by design). Full blow-by-blow, including every
+  real bug found getting this far, is in the `### Follow-up` entry above --- read that
+  first before touching the workflow file again, several of its design choices (no
+  `needs: test-linux` on the Windows job, the cache key's exact file list, the `sudo -E
+  timeout N CMD` ordering) look wrong at a glance but are each the fix for a real,
+  already-diagnosed problem.
+- **Two more real product bugs fixed this session, independent of CI**: `my/disk-usage`
+  now keeps `default-directory` in sync with what it is actually showing (`aaf8f12`), and
+  both `my/encrypt-file`/`my/decrypt-file` now refuse a folder with a clear error instead
+  of ever reaching `gpg` with one (`4717f87`) --- the latter fixed a real hang the user hit
+  live on their own machine, described in full in the entry above.
+- **The "Args out of range: 31, 1, 1" bug has a working fix, not yet a confirmed root
+  cause**: hit live on the user's Windows machine in BOTH `*Disk Usage*` and gitfolders'
+  `*git repos*` (a screenshot of the latter confirmed the user's own margin-toggle
+  hypothesis directly --- both line-number columns visibly present together).
+  `my/global-absolute-line-numbers-margin-mode` is no longer on by default (`f4ad893`
+  on `utilities`, `a711f17` on `java`); verified clean against real repro attempts on
+  both crash sites afterward. If this still needs a real root cause later, start from
+  `d036a34`'s own `count-lines` overcounting fix in the same function --- full account
+  in the 2026-10-18 entry above.
+- **Remote Control was connected this session** (two sessions in turn,
+  `ai-mellow-pinwheel` then `ai-reflective-toast`), proving the underlying connection
+  genuinely works (both replied to cross-session messages), but **neither ever appeared
+  anywhere in the user's own Windows Desktop app UI**, confirmed twice independently ---
+  flagged to the user as likely worth reporting as product feedback rather than a
+  troubleshooting problem this session can solve. Computer Use was separately confirmed
+  NOT available to this WSL session even after the user enabled it in the Desktop app's
+  own settings, since that capability loads per-conversation inside the Desktop app
+  itself, not across to a CLI/WSL session on the same physical machine.
