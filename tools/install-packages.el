@@ -102,13 +102,37 @@ way `rg'/`fd'/`delta' already are.")
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete
 ;; install does no network access at all, not even to check for updates.
+;; WHAT/WHY: a real failure on the Windows CI job, not hypothetical --- its own
+;; `test-windows'/`build-and-release-windows' job runs THIS script with a quick,
+;; already-installed `emacs-nox' from WSL's own Ubuntu (29.3) only to fetch/stage/byte-
+;; compile package sources, since the REAL target is the official Windows Emacs
+;; (31.1) downloaded later and recompiled against directly (see `tools/dist-
+;; windows.sh''s own later `byte-recompile-directory' step) --- the stand-in never
+;; actually RUNS these packages. A package like `immaterial-theme' (declares `(emacs
+;; (31))', bumped at some point after this project last checked) then fails to install
+;; here with "This package requires Emacs version 31", even though every REAL target
+;; (Linux 32.0.50, macOS 31.1 via emacs-plus, Windows 31.1) genuinely satisfies it.
+;; HOW: the actual check (`package--incompatible-p', via `package-compute-
+;; transaction') does NOT re-read plain `emacs-version' itself (tried first, confirmed
+;; to do nothing) --- it compares against `package--emacs-version-list', a `defvar'
+;; computed ONCE, when `package.el' is first loaded (right at this file's own
+;; `(require 'package)' above), so by the time this runs that cached list is already
+;; fixed at the real (too old) version. `let'-binding `package--emacs-version-list'
+;; itself, instead, is safe to raise here: nothing at this stage RUNS the installed
+;; code against real Emacs-31-only runtime behavior, it only downloads and byte-
+;; compiles source, which does not need the declared version to be real, only the
+;; reader/byte-compiler's own (stable-across-versions) Elisp syntax support.
 (let ((missing (seq-remove #'package-installed-p my/packages)))
   (if (null missing)
       (message "All packages already installed: %S" my/packages)
     (package-refresh-contents)
-    (dolist (p missing)
-      (package-install p)
-      (message "Installed %s" p))))
+    (let ((package--emacs-version-list
+           (if (version-list-<= '(31) package--emacs-version-list)
+               package--emacs-version-list
+             '(31 1 0))))
+      (dolist (p missing)
+        (package-install p)
+        (message "Installed %s" p)))))
 
 ;; WHAT: packages not published on any of the archives above (`gnu'/`nongnu'/`melpa'),
 ;; installed straight from their own git repository instead. WHY: each of these (color
