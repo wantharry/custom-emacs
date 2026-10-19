@@ -13,7 +13,7 @@
 #   screenshots OUTDIR FILE...   save PNGs of files as a real Emacs window draws them
 #   doctor     check what makes Emacs slow or stuck (esp. on WSL): PATH, disk, fonts, processes
 #   test       run the whole test suite (see docs/TESTING.md)
-#   dist       windows|linux   build a portable bundle (a zip you can unpack anywhere and run) into ./dist
+#   dist       windows|linux|macos   build a portable bundle (a zip you can unpack anywhere and run) into ./dist
 #   all        configure + make + install + prune
 # EMACS=/path/to/emacs makes packages, grammars, screenshots, doctor and test use that Emacs
 # instead of building one (needs Emacs 30 or newer).
@@ -76,7 +76,8 @@ dist() {
   case "${1:-}" in
     windows) dist_env; "$ROOT/tools/dist-windows.sh" ;;
     linux)   dist_env; "$ROOT/tools/dist-linux.sh" ;;
-    *) echo "usage: $0 dist windows|linux" >&2; exit 2 ;;
+    macos)   "$ROOT/tools/dist-macos.sh" ;;
+    *) echo "usage: $0 dist windows|linux|macos" >&2; exit 2 ;;
   esac
 }
 run_doctor() { "$ROOT/tools/doctor.sh" "$@"; }
