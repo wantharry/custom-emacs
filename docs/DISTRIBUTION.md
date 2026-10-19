@@ -7,9 +7,13 @@ anywhere and open `Emacs.exe`. Nothing is installed and nothing is downloaded.
 |---|---|---|
 | **Windows 10/11, 64-bit** | `custom-emacs-windows-x64.zip` (about 247 MB zipped, 644 MB unpacked; **this `java` branch: about 320 MB zipped, 752 MB unpacked**, with a real portable JDK so Java fully works with zero install) | **Built and tested**, described below |
 | **Linux x86-64** | `custom-emacs-linux-x86_64.tar.gz`/`.zip` (about 146/153 MB, 410 MB unpacked) | **Built and tested**, see [Linux](#linux) |
+| **macOS, Apple Silicon (arm64)** | `custom-emacs-macos-arm64.zip` (about 121 MB zipped, 348 MB unpacked) | **Built and tested**, see [macOS](#macos) |
 
-Each archive is in `dist/` after `./build.sh dist windows`/`./build.sh dist linux` and is **not** committed to
-git (each is over 100 MB and rebuilt from what is in git).
+Each archive is in `dist/` after `./build.sh dist windows`/`./build.sh dist linux`/`./build.sh dist macos` and
+is **not** committed to git (each is over 100 MB and rebuilt from what is in git). Linux and macOS are also
+built and published to the same GitHub Release automatically by `.github/workflows/release.yml` (push a tag,
+or run it manually from the Actions tab); Windows still needs to be built locally (it needs WSL) and attached
+to the release by hand.
 
 ## Windows
 
@@ -319,32 +323,139 @@ To update the bundle after you change anything in `config/`: run it again, then 
 `python3 -m unittest tests.test_dist`, which checks both bundles (whichever have been built) and fails if
 either one's settings differ from the repository.
 
-## macOS --- **not supported yet**
+## macOS
 
-There is no `./build.sh dist macos` and no `tools/dist-macos.sh` --- honestly, not a missing
-command, a real gap. Full plan and reasoning: [CROSS-PLATFORM.md](CROSS-PLATFORM.md).
+### Using it
 
-### Why this one is different from Windows
+1. Unzip `custom-emacs-macos-arm64.zip` anywhere you can write.
+2. Double-click **`Open Custom Emacs.command`**.
 
-Windows got a real, working bundle without ever cross-compiling Emacs itself: this project uses
-the **official, pre-built Emacs 31.1 for Windows** (downloaded and checksum-verified) and only
-cross-compiles the small glue code (the launcher, the tree-sitter grammars) with `zig`, which
-*can* target Windows from Linux.
+That opens a Terminal window briefly (it is a plain shell script, not a signed, notarized `.app` --- see
+"Gatekeeper" below for why that is the honest choice here), then the real Emacs GUI window, on the start
+screen, exactly like the Linux and Windows builds. `./"Open Custom Emacs.command" somefile` from a terminal
+opens a file.
 
-macOS has no equivalent shortcut. GNU does not publish an official pre-built macOS binary the
-way it does for Windows, and Emacs's own build (Cocoa libraries, code signing, the `.app` bundle
-structure) genuinely needs Apple's own SDK and toolchain --- confirmed in Emacs's own source
-(`emacs-src/nextstep/INSTALL`), not assumed. `zig cc` cannot target macOS the way it targets
-Windows here. The only realistic ways to build this for macOS: on a real Mac, or a macOS CI
-runner (e.g. GitHub Actions' `macos-latest`) --- neither available in this environment.
+### What is inside
 
-### What building it would actually look like, if you have a real Mac
+```
+custom-emacs-macos-arm64/
+├── Open Custom Emacs.command   the launcher you double-click (a small shell script)
+├── Emacs.app/                  emacs-plus's own Emacs 31, fully relocated: every Homebrew dylib it needs
+│   └── Contents/                 copied into Contents/libs and relinked (dylibbundler), and its lisp/etc/
+│                                  libexec trees copied into Contents/ too (this build does not carry them
+│                                  inside the bundle the way the official emacs-app cask does)
+├── Emacs Client.app/           emacsclient's own GUI wrapper, relocated the same way
+├── config/                     your settings and the packages Evil, Magit, Treemacs, Consult, vterm,
+│   │                             themes, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/
+│   │                             JSX, TypeScript/TSX and JSON -- copied as-is, the exact same Emacs that
+│   │                             compiled them
+│   ├── elpa/
+│   └── tree-sitter/
+├── tools/                      rg, fd, dua, delta -- fast search, disk usage, nicer Magit diffs, each
+│                                  relocated the same dylibbundler way where they needed it; git for Magit
+│                                  is NOT bundled, macOS ships its own (Xcode Command Line Tools)
+├── docs/                       every guide, plain text, read from inside Emacs with `C-c d`
+├── README.md, README.txt, DISTRIBUTION.md
+```
 
-Not yet written or tried --- `tools/dist-macos.sh` does not exist --- but the shape, from
-[CROSS-PLATFORM.md](CROSS-PLATFORM.md)'s own plan: `brew install` the same dependencies
-`build.sh` already lists for Linux (GnuTLS, tree-sitter, HarfBuzz, ...), configure with
-`--with-ns` (Cocoa) instead of `--with-pgtk`, build with Emacs's own `make`/`make install`, then
-a dist script would need writing from scratch (no Linux `ldd`/`patchelf` equivalent --- macOS
-uses `otool -L`/`install_name_tool` for the same "find every library, make it relocatable" job).
-Want this built for real? It needs access to a real Mac (or a macOS CI runner) to actually try
-and verify each step on, not something this Linux machine can do alone.
+What the launcher does: computes its own folder, then sets `EMACSLOADPATH`, `EMACSDATA`, `EMACSDOC` and
+`EMACSPATH` to the bundled `Resources/lisp`, `Resources/etc` and `libexec/arch` paths (Emacs reads these as a
+full override of its compiled-in, build-time absolute paths --- no source patch needed, confirmed directly),
+puts the bundled `tools/` first on `PATH`, and runs `Emacs.app/Contents/MacOS/Emacs --init-directory=config`.
+
+**Every guide is inside Emacs itself**, same as the other platforms: `C-c d`.
+
+**Your changes are saved in `config/`**, same as the other bundles: keep it somewhere writable.
+
+### Why this needed real engineering (unlike the Windows bundle's "just unzip the official build")
+
+`emacs-plus` (the Homebrew tap this bundle is built from, chosen after Homebrew's own core `emacs` formula
+turned out to be a headless build with no GUI, no native compilation and no HarfBuzz) is compiled
+`--disable-ns-self-contained`. That means two things the official `emacs-app` cask does NOT have:
+
+1. `data-directory`/`exec-directory`/the Lisp `lisp/` tree are **not** inside `Emacs.app/Contents/Resources`
+   --- they are compiled-in absolute paths into the Homebrew Cellar (confirmed directly: `emacs --batch
+   --eval data-directory` prints a path under `/opt/homebrew/Cellar/...`, not under `Contents/Resources`).
+2. The `Emacs` binary itself is dynamically linked against roughly 25 direct Homebrew libraries (`libgccjit`,
+   `gnutls`, `tree-sitter`, `cairo`, `librsvg`, ...; more once recursed) by absolute `/opt/homebrew/...` path
+   --- `emacs-plus`'s own install caveat ("if Emacs fails to start with 'Library not loaded' errors ...
+   reinstall emacs-plus") is a direct admission of this.
+
+A bare `cp -R` of `Emacs.app` would therefore only run on a machine with Homebrew and the exact same package
+versions already installed at the exact same prefix --- not a portable bundle at all. `tools/dist-macos.sh`
+fixes both: copies `lisp/`, `etc/` and the architecture-specific `libexec` directory into `Contents/` (the
+launcher points Emacs at these via the env vars above), and runs `dylibbundler` (`brew install
+dylibbundler`) against the main binary, which recurses the *entire* dependency closure automatically (57
+libraries, in practice) and relinks everything with `install_name_tool` to `@executable_path`-relative
+paths, then re-signs (ad-hoc) --- confirmed directly, zero `/opt/homebrew` references left afterward, in
+either the main binary or any of the 57 copied libraries, and `codesign -v` clean.
+
+### Gatekeeper
+
+`Emacs.app` here is only **ad-hoc signed** (`codesign --sign -`, the same thing `dylibbundler`/`brew` do to
+any Homebrew-built `.app` after relinking it), not notarized by Apple. Launching it via the `.command` script
+rather than double-clicking `Emacs.app` directly generally avoids the usual "unidentified developer"
+Gatekeeper dialog; if it ever appears anyway, right-click `Emacs.app` > Open once, or run `xattr -cr
+"Emacs.app"` in a terminal.
+
+### How it differs from the Linux and Windows bundles
+
+| | Linux bundle | Windows bundle | macOS bundle |
+|---|---|---|---|
+| Emacs | the exact 32.0.50 build this repo compiles | 31.1, the official GNU build for Windows | 31.1, `emacs-plus` (Homebrew), fully relocated |
+| Native compilation | yes | no (official Windows build has none) | **yes** |
+| GUI toolkit | GTK (pgtk) | native Win32 | native Cocoa (NS) |
+| `git` (for Magit) | your system's | bundled (MinGit) | your system's (Xcode Command Line Tools) |
+| Java language server (`jdtls`) | not bundled yet | bundled (bring your own JDK) | not bundled (install yourself) |
+| Rust (`rust-analyzer`) | not bundled | not bundled | not bundled |
+
+### What was verified
+
+| Check | Result |
+|---|---|
+| Every Homebrew dylib relocated: zero `/opt/homebrew` references left (`otool -L` on the main binary and every one of the 57 copied libraries) | Yes |
+| `codesign -v` on the relocated, re-signed `Emacs.app` | Clean |
+| The actual built zip, unzipped to a separate directory, run in `--batch` mode **with `/opt/homebrew/Cellar/emacs-plus@31` itself renamed out of the way first** (the one Homebrew package this bundle was built from, genuinely absent from disk) | `native-comp-available-p` and `treesit-available-p` both `t`, real Lisp loaded from the bundle's own copied `Resources/lisp`, zero errors |
+| `rg`/`fd`/`dua`/`delta`, copied the same way, relocated where they needed it (`rg` needed `libpcre2`; `delta` needed `libgit2`+`oniguruma`; `fd`/`dua` are already static) | Present, relocated |
+| Built and published automatically via `.github/workflows/release.yml` on a `macos-latest` (Apple Silicon) GitHub-hosted runner | Yes, same workflow as Linux, race-tolerant publish step sharing one release |
+
+### Limits and things to know
+
+- **Apple Silicon (arm64) only.** Not built for Intel Macs.
+- **Not yet tried on a genuinely different Mac** (only verified via the Homebrew-keg-hidden isolation test
+  above, on the same machine it was built on) --- a real second machine is the natural next check.
+- **No Java language server or Rust toolchain bundled** (see "How it differs" above): install `jdtls`/a JDK,
+  or `rustup`/`rust-analyzer`, yourself.
+- **Not notarized** (see "Gatekeeper" above).
+- The bundle is larger than it needs to be (121 MB zipped, 348 MB unpacked, full `.el` sources kept
+  alongside `.elc`) --- an earlier attempt stripped `.el` sources to save space and broke startup entirely
+  (`(void-function debug-early--handler)`): the glob used to delete them also matched every `subdirs.el`,
+  which silently breaks the whole subdirectory load-path chain. Worth revisiting by excluding just the
+  non-`subdirs.el`, non-`loaddefs.el` sources instead, if size ever matters.
+
+### Building it yourself
+
+```sh
+brew tap d12frosted/emacs-plus
+brew install emacs-plus@31 dylibbundler
+EMACS="$(brew --prefix emacs-plus@31)/bin/emacs" ./build.sh packages    # once: this config's packages
+EMACS="$(brew --prefix emacs-plus@31)/bin/emacs" ./build.sh grammars    # once: tree-sitter grammars
+./build.sh dist macos                                                   # a minute or so
+```
+
+`./build.sh dist macos` (`tools/dist-macos.sh`) does, in order: copies `emacs-plus`'s own `Emacs.app` and
+`Emacs Client.app`; copies `lisp/`, `etc/` and the architecture-specific `libexec` directory from the
+Homebrew Cellar into `Contents/`; runs `dylibbundler` against the main binary (and `Emacs Client`'s) to
+relocate every Homebrew dylib and re-sign; copies in the config files, `elpa/`, the tree-sitter grammars,
+`docs/*.md` and `README.md` (so `C-c d` works); copies and relocates `rg`/`fd`/`dua`/`delta`; writes the
+launcher script; and zips with `ditto` (not plain `zip`, which does not reliably preserve a `.app`'s code
+signature and resource forks).
+
+**Update, found while reconciling with the `java` branch's own history**: an earlier session on
+this same branch concluded macOS had "no equivalent shortcut" to Windows's official pre-built
+binary, and documented this as a real, unaddressed gap. That conclusion was incomplete --- it
+considered only compiling Emacs itself from Apple's SDK (`build.sh`'s own Darwin path, genuinely
+still an untested placeholder), not using an already-built, redistributable Emacs the way Windows
+does. `emacs-plus` (Homebrew) is exactly that: a real, working shortcut, verified end to end
+above, including the one genuinely hard part (making a non-self-contained Homebrew build
+relocatable) that the earlier session assumed would need writing a dist script "from scratch."

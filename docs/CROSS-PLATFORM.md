@@ -3,7 +3,10 @@
 > **Update.** Windows now has a portable bundle that is built and tested: see [DISTRIBUTION.md](DISTRIBUTION.md).
 > It uses the official Emacs 31.1 for Windows rather than a Windows build of the Emacs 32 tree, so the
 > "build it natively with MSYS2" plan below is still untested and only needed if you want Emacs 32 itself
-> on Windows. macOS is untested.
+> on Windows. **macOS now also has a portable bundle, built and tested on a real MacBook Pro (Apple M4):**
+> see [DISTRIBUTION.md's macOS section](DISTRIBUTION.md#macos). Same shape of answer as Windows: it uses
+> `emacs-plus` (Homebrew) rather than compiling Emacs 32 itself for macOS, so the `--with-ns` from-source
+> plan below is still untested and only needed if you want Emacs 32 itself on macOS.
 
 > **Status: plan only, nothing here has been run.** Only the Linux build is
 > verified. Treat every step below as a hypothesis until it is tried. Where I
