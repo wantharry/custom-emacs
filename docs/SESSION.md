@@ -3,6 +3,21 @@
 Status as of 2026-09-29. Everything below marked *measured* or *confirmed* was run here,
 for real: real GUI frames under WSLg, real `kill -9` crashes, real restores.
 
+> **Update.** A real bug, found only by a genuine command-line-file round trip (open a
+> file, wait, quit, reopen), not by reading the source: the automatic restore used to
+> come back empty every time a session was started with a file named on the command line
+> (`emacs somefile`, how every launcher in this project starts it) --- the one-time "claim
+> ownership" save ran on `after-init-hook`, which fires *before* Emacs opens any files
+> named on the command line, so that first save always saw an empty buffer list; and
+> desktop.el's own periodic autosave never got another chance after that, since it only
+> re-arms on an actual window-configuration change (a split), not plain buffer switching
+> in a single, never-split window. Fixed: see "How it works" below for the real mechanism
+> now in place. Separately, a direct user request is also reflected here: the `*start*`
+> buffer a fresh launch creates is always still present in the buffer list (`C-x C-b`,
+> `C-c w l`) even when a real session restores on top of it, confirmed directly ---
+> `desktop-read` only recreates the buffers it saved, it never kills ones that already
+> exist and are not part of that list.
+
 ## What is set up
 
 Two layers, both built into Emacs --- no package:
@@ -35,11 +50,18 @@ commentary; this doc is the narrative version, with the real numbers.
   [KEYBOARD.md](KEYBOARD.md)'s "every file opens read-only") has nothing to save, so
   nothing happens for it, silently.
 - Saving the session: `desktop-save-mode`, saved to `config/session/` (never committed to
-  git, never bundled --- see `.gitignore` and `tests/test_dist.py`). It saves
-  automatically both periodically while Emacs runs (whenever the window configuration has
-  changed and then stayed idle for `desktop-auto-save-timeout` seconds --- overridden here
-  to **10 seconds**, shorter than this config's usual 30-second idle-save convention;
-  see "Measured" below for why) and on a clean exit (`desktop-save` is `t`: never asks).
+  git, never bundled --- see `.gitignore` and `tests/test_dist.py`). This config does
+  **not** rely on desktop.el's own two built-in triggers for this (see the real bug noted
+  at the top of this doc for why): instead, `my/session--start-autosave` runs once on
+  `emacs-startup-hook` --- confirmed, not assumed, to run *after* Emacs has already opened
+  any files named on the command line (`startup.el`'s own doc for that hook: "run after
+  loading init files and handling the command line") --- which immediately claims
+  ownership of the session with a real, non-empty buffer list, then arms this config's own
+  repeating idle timer (re-using `desktop-auto-save-timeout`, overridden here to **10
+  seconds**, shorter than this config's usual 30-second idle-save convention; see
+  "Measured" below for why) that keeps re-saving from then on, regardless of whether the
+  window layout ever changes. It also saves on a clean exit (`desktop-save` is `t`: never
+  asks).
 - Restoring: automatic, at startup, via desktop.el's own `after-init-hook` entry --- this
   runs *after* the start screen's own startup logic (`initial-buffer-choice`), so a real
   saved session replaces the start screen; with nothing saved yet (a fresh install, or

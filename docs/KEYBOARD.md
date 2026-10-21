@@ -606,9 +606,11 @@ candidates appear under the prompt, you keep typing to narrow them, `TAB` comple
 and `C-n` / `C-p` (or the arrows) choose. Matching is flexible and ignores case, so
 `fbuf` can find `find-buffer-file`.
 
-**this config:** in programming buffers, completion does NOT pop up automatically while
-you type (`corfu-auto` is off, and `completion-preview-mode` is off entirely) --- press
-`C-M-i` whenever you actually want a candidate list, same key either way.
+**this config:** in programming buffers, completion pops up automatically while you type
+(`corfu-auto` is on, a short 0.2s pause after the first character of a word; `completion-
+preview-mode` is off entirely, a separate, ghost-text style popup this config does not
+use) --- `C-M-i` still works too, for forcing a candidate list up immediately rather than
+waiting out the delay.
 
 ## Evil: vi keys (optional)
 

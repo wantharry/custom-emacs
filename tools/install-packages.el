@@ -115,13 +115,43 @@ installed.")
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete
 ;; install does no network access at all, not even to check for updates.
+;; WHAT/WHY: a real failure on the Windows CI job, not hypothetical --- its own
+;; `test-windows'/`build-and-release-windows' job runs THIS script with a quick,
+;; already-installed `emacs-nox' from WSL's own Ubuntu (29.3) only to fetch/stage/byte-
+;; compile package sources, since the REAL target is the official Windows Emacs
+;; (31.1) downloaded later and recompiled against directly (see `tools/dist-
+;; windows.sh''s own later `byte-recompile-directory' step) --- the stand-in never
+;; actually RUNS these packages. A package like `immaterial-theme' (declares `(emacs
+;; (31))', bumped at some point after this project last checked) then fails to install
+;; here with "This package requires Emacs version 31", even though every REAL target
+;; (Linux 32.0.50, macOS 31.1 via emacs-plus, Windows 31.1) genuinely satisfies it.
+;; HOW: a first attempt `let'-bound `package--emacs-version-list' --- confirmed, by
+;; actually reproducing the failure and retrying with this fix on a real Windows CI run,
+;; to NOT be the variable that matters: `package-compute-transaction' resolves the
+;; pseudo-package `emacs' via `package-installed-p' -> `package-built-in-p' ->
+;; `(assq 'emacs package--builtin-versions)', a COMPLETELY SEPARATE `defvar' (in
+;; `subr.el', not `package.el') whose `emacs' entry is computed from `emacs-version' even
+;; earlier than `package--emacs-version-list' is --- confirmed directly, reproducing the
+;; exact real check: `(package-installed-p 'emacs '(31))' returns `nil' against a
+;; simulated old bootstrap Emacs, `t' once `package--builtin-versions' itself (not
+;; `package--emacs-version-list') is `let'-bound to report a high enough `emacs' entry,
+;; and correctly back to the real, too-old value the instant the `let' exits (no
+;; leakage). `let'-binding it here is safe to raise: nothing at this stage RUNS the
+;; installed code against real Emacs-31-only runtime behavior, it only downloads and
+;; byte-compiles source, which does not need the declared version to be real, only the
+;; reader/byte-compiler's own (stable-across-versions) Elisp syntax support.
 (let ((missing (seq-remove #'package-installed-p my/packages)))
   (if (null missing)
       (message "All packages already installed: %S" my/packages)
     (package-refresh-contents)
-    (dolist (p missing)
-      (package-install p)
-      (message "Installed %s" p))))
+    (let ((package--builtin-versions
+           (if (version-list-<= '(31) (cdr (assq 'emacs package--builtin-versions)))
+               package--builtin-versions
+             (cons (cons 'emacs '(31 1 0))
+                   (assq-delete-all 'emacs (copy-alist package--builtin-versions))))))
+      (dolist (p missing)
+        (package-install p)
+        (message "Installed %s" p)))))
 
 ;; WHAT: packages not published on any of the archives above (`gnu'/`nongnu'/`melpa'),
 ;; installed straight from their own git repository instead. WHY: each of these (color

@@ -260,4 +260,13 @@ recorders; binds `calls', a list of each call in order, newest first."
         (setq best (min best (- (float-time) t0)))))
     (should (< best (test-startup-budget)))))
 
+;; Same real gap, same fix, as startpage.el's own matching pair of tests: without this,
+;; a real window split showing `*shortcuts*' used to save and restore to nothing at all.
+(ert-deftest shortcuts/desktop-save-buffer-is-on-so-a-real-restore-can-find-it ()
+  (with-current-buffer (my/shortcuts-buffer)
+    (should desktop-save-buffer)))
+
+(ert-deftest shortcuts/registers-a-desktop-buffer-mode-handler ()
+  (should (eq (alist-get 'my/shortcuts-mode desktop-buffer-mode-handlers) #'my/shortcuts--desktop-restore)))
+
 ;;; shortcuts.el ends here

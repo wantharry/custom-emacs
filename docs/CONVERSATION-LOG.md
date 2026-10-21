@@ -3760,3 +3760,198 @@ did not resolve this crash on its own.
   race-tolerant (`gh release create ... || gh release upload ... --clobber`) since either job
   can finish first. Gatekeeper note documented honestly in the bundle's own `README.txt`:
   `Emacs.app` here is only ad-hoc signed, same as any Homebrew build, not notarized.
+- **`corfu-auto` turned back on**, a direct, later user request reversing the earlier
+  decision (see above): wanted real suggestions from a connected language server
+  (`jdtls' via Eglot) to appear without pressing anything first, after actually setting up
+  and testing `jdtls' for real on a Java project on a real Mac (checksum-verified install,
+  symlinked onto `PATH`; no config changes needed for Eglot itself --- its own built-in
+  default already maps `java-ts-mode` to `jdtls`, confirmed by a real connection: process
+  spawned, correct `config_mac`, ~1.2 GB resident, matching this project's own documented
+  numbers). `corfu-auto-delay`/`corfu-auto-prefix` added alongside it, specifically so
+  this does not reintroduce the original complaint (a popup after nearly every single
+  keystroke) --- a short pause and at least one real character first. Tested first on a
+  separate, not-yet-committed copy before deciding to commit, per the user's own
+  established "test then decide" workflow this session.
+- **All three platforms (Linux, macOS, Windows) now release together from
+  `release.yml`, verified as `v1.4`, a genuinely clean three-platform GitHub release** ---
+  `custom-emacs-macos-arm64.zip`, `custom-emacs-linux-x86_64.tar.gz`,
+  `custom-emacs-windows-x64.zip` all present on the same tag. Got there via v1.2 -> v1.3
+  (macOS runner pin, quarantine/dump-file/SIGKILL fixes, all found from the user's own
+  real download) -> v1.4 (Windows job's `timeout-minutes` raised 60 -> 120 after a real
+  60:06 kill, confirmed from the job's own timestamps, `cdb5a40`). Full account, including
+  the exact real bugs and both a wrong and a correct fix for the Windows package
+  version-gate failure, is in the "all three platforms releasing together" entry above ---
+  read that first before touching `release.yml` or `install-packages.el`'s version-gate
+  `let` again.
+- **Session restore now genuinely survives a real quit-and-reopen, with
+  `*start*`/`*shortcuts*` (including a window split between them) always present
+  afterward** --- three real bugs fixed (`after-init-hook` vs `emacs-startup-hook` timing,
+  `desktop.el`'s own periodic autosave never re-arming for an unsplit window,
+  `*start*`/`*shortcuts*` never being created after a real restore), plus
+  `desktop-save-buffer`/`desktop-buffer-mode-handlers` opt-in so the window split itself
+  (not just the two buffers) comes back. `desktop-save-mode` is ON. **A merged
+  single-buffer start/shortcuts UI was built, tested on the user's own Desktop copy, and
+  explicitly rejected** ("i like that two windows ... is better looking dont merge into
+  one") --- fully reverted, never committed; do not revisit without a new ask. Full account
+  in the entry above.
+- `examples/mavenproject` is now committed into the repo (`812aa63`), no longer a scratch
+  folder outside it; `tools/cloudmacs.sh` works on macOS too now (`bfb20aa`), not just the
+  from-source Linux build.
+
+### Follow-up, same session: all three platforms releasing together for real (v1.2 -> v1.4), a wrong fix caught and replaced, session restore actually surviving a real restart, a merge-into-one UI tried and explicitly rejected
+
+Picking up right after the macOS bundle/`corfu-auto` work above, same session, same `java`
+branch throughout (standing rule: never `main`).
+
+**CI: the Windows bundle joins the same release (`b980eff`)**. `build-and-release-windows`
+added to `release.yml` as a third parallel job, reusing `test.yml`'s own `test-windows`
+recipe almost verbatim (WSL via `Vampire/setup-wsl` on `windows-latest`, since
+`tools/dist-windows.sh` itself needs WSL to compile packages through the real downloaded
+Windows Emacs via `cmd.exe`/WSL interop) --- that job already builds this exact bundle to
+test it; this one just publishes it too, with the same race-tolerant publish step
+(`gh release create ... || gh release upload ... --clobber`) as the other two platforms.
+Deliberately no caching here, unlike `test.yml`: a release should reflect exactly the
+tagged commit, built fresh, not a reused zip from a different one. `docs/DISTRIBUTION.md`
+and `README.md`'s status table updated to match.
+
+**A real Windows CI failure, fixed wrong once, then fixed for real**: the Windows job's
+quick package-install step runs against WSL's own stand-in `emacs-nox` (Ubuntu 29.3) only
+to fetch/stage/byte-compile package sources --- the REAL target, the official downloaded
+Windows Emacs (31.1), is never touched by this step at all. `immaterial-theme` declares
+`(emacs (31))`, so `package-compute-transaction` correctly refused it against the
+stand-in's real 29.3, even though every actual target (Linux 32.0.50, macOS 31.1,
+Windows 31.1) genuinely satisfies it --- a real CI failure ("This package requires Emacs
+version 31"), not hypothetical.
+  - **First attempt, wrong (`9df0bd7`)**: let-bound `package--emacs-version-list` (the
+    variable `package--incompatible-p` reads). Looked right, even reproduced the isolated
+    predicate flipping from incompatible to compatible --- but the next real CI run failed
+    with the exact same error, that fix's own override visible right there in the
+    backtrace. The actual install path never calls that predicate at all.
+  - **Real root cause, traced properly (`f2a1b2b`)**: `package-compute-transaction` resolves
+    the pseudo-package `emacs` via `package-installed-p` -> `package-built-in-p` ->
+    `(assq 'emacs package--builtin-versions)` --- a completely separate defvar (in
+    `subr.el`, not `package.el`) populated from `emacs-version` even earlier than
+    `package--emacs-version-list` is. Verified properly this time: reproduced the exact
+    failure by calling `package-compute-transaction` directly against a simulated old
+    bootstrap Emacs (29.3) --- same error, word for word; the same call inside this fix's
+    own `let`, binding `package--builtin-versions` itself, computes the transaction with no
+    error; confirmed the variable is restored to the real (29.3) value the instant the
+    `let` exits, no leakage into the rest of the script. **Lesson for next time a
+    package.el version-gate misbehaves: the real check path is `package--builtin-versions`,
+    not `package--emacs-version-list` --- the latter is a real variable with a real,
+    different consumer, which is exactly what made the first wrong fix so plausible.**
+
+**Session restore: three real bugs, found only by actually closing and reopening Emacs,
+not by reading `desktop.el`'s source**:
+  1. `aca2c62`: the one-time "claim ownership" save ran on `after-init-hook`, which fires
+     BEFORE Emacs opens any file named on the command line (confirmed directly in
+     `startup.el`'s own doc string for `emacs-startup-hook`: "run after loading init files
+     and handling the command line" --- `after-init-hook` has no such second half). Every
+     launcher in this project starts Emacs with a file on the command line, so that first
+     save always saw an empty buffer list. Fixed by moving the claim to
+     `emacs-startup-hook`.
+  2. Same commit: even once ownership is genuinely claimed, `desktop.el`'s own periodic
+     autosave (hooked to `window-configuration-change-hook`) never fires again for the
+     common case of working in one window that is never split --- confirmed directly,
+     `desktop-auto-save-timer` stayed nil after a plain `find-file` with no split. Fixed
+     with this config's own repeating idle timer (`my/session--start-autosave`, reusing
+     `desktop-auto-save-timeout`), independent of window-layout changes.
+  3. `7ae03c1`: `*start*` never existed after a REAL restore (caught by the user checking
+     the actual buffer list via `C-x C-b` -> ibuffer, not from reading source) --- it
+     showed only the restored file, `*scratch*`, `*Messages*`, `*docs*`, no `*start*` at
+     all, contradicting this same file's own earlier (wrong) comment that desktop's
+     restore runs AFTER `initial-buffer-choice`. Confirmed directly in `startup.el` itself:
+     `after-init-hook` (where `desktop-read` actually restores) runs BEFORE
+     `command-line-1`, and `initial-buffer-choice` is only evaluated well inside THAT
+     function, deciding whether to create the start screen by checking "is
+     `current-buffer` still `*scratch*`" --- false after any real restore, so the check
+     declines and `my/start-buffer` is never called. An earlier attempt at this same
+     requirement was verified against a simulation that got the event order backwards
+     (created `*start*` BEFORE simulating the restore) and so never caught this. Fixed by
+     calling `my/start-buffer` unconditionally from `emacs-startup-hook` --- safe because it
+     uses `with-current-buffer`, never `switch-to-buffer`, so it cannot disturb whatever a
+     real restore (or the start screen itself) actually displays. `26d461f` did the exact
+     same fix for `*shortcuts*`, same root cause, same safety argument.
+  - **Along the way, a direct user instruction reversed an earlier decision**: `437af17`
+    first turned automatic restore OFF entirely ("the start screen should always greet a
+    new or existing Emacs, never be silently replaced") by simply not enabling
+    `desktop-save-mode` (every manual save/restore command still works, gated on nothing).
+    The user then asked for the opposite, explicitly: restore should happen automatically,
+    but `*start*`/`*shortcuts*` must still always be present in the buffer list even when a
+    real restore happens on top of them, and window-split layouts (e.g. `*start*` left,
+    `*shortcuts*` right) must survive too. `desktop-save-mode 1` went back on, and the
+    three bugs above are what made that actually true in practice, not just in theory.
+  - `bc023cc`: the window-split survival gap specifically --- `desktop.el`'s own
+    `desktop-save-buffer-p` only saves a no-file buffer at all if its own buffer-local
+    `desktop-save-buffer` is non-nil (nil by default for both of these modes). Reproduced
+    directly first: saved exactly this split, killed both buffers, called `desktop-read`
+    --- "0 buffers restored," neither window nor buffer came back. Fixed the documented
+    `desktop-buffer-mode-handlers` way: `desktop-save-buffer` set to `t` in both
+    `my/start-mode`/`my/shortcuts-mode`, plus a handler each that just calls
+    `my/start-buffer`/`my/shortcuts-buffer` again (both fully regenerate their own content
+    from today's real state anyway, same as the keybindings that open them normally).
+    Verified with the exact real scenario: split left/right, saved, killed both buffers,
+    restored --- "2 buffers restored," window order left to right exactly
+    `(*start* *shortcuts*)` again.
+
+**A UI idea tried, tested on the user's own Desktop copy, and explicitly rejected**: asked
+whether `*start*` and `*shortcuts*` should merge into one buffer instead of two
+side-by-side windows (`AskUserQuestion`); user picked "merge into one," so a real
+implementation was built --- smart `TAB` (`my/start-tab-dwim`), `outline-minor-mode`
+folding, shortcuts content appended into the start buffer --- synced to the Desktop copy
+for a real look, per the user's own "let me test before we decide" request. Verdict, in
+the user's own words: **"sorry but i dont like that, i like that two windows one on the
+start and two buffers is better looking dont merge into one."** Fully reverted via
+`git checkout --` on all three touched files before anything was committed; the
+two-window layout above (now restore-safe) is the only version that ever shipped.
+**Do not revisit a merged single-buffer start/shortcuts UI without a new, different
+request from the user --- this was tried and rejected once already, not merely untried.**
+
+**`examples/mavenproject` committed into the repo (`812aa63`)**: previously lived only at
+`~/trash/mavenproject`, outside the repo, re-zipped into the delivered Windows bundle by
+hand each time it was needed. Committing it makes the Maven integration (`C-c j`) demoable
+straight from a checkout, no separate scratch folder to keep around on the build machine.
+Built locally (`mvn compile && mvn package`) and a copy placed on the user's own Desktop
+for hands-on testing, same as every other live-tested change this session.
+
+**`tools/cloudmacs.sh` fixed to actually work on macOS (`bfb20aa`)**: was hardcoded to
+`install/bin/emacs` (this project's own from-source Linux build, which does not exist on
+this `java`-branch Mac at all --- it uses `emacs-plus` via Homebrew, see
+`tools/dist-macos.sh`) and to Gotty's `linux_amd64` asset specifically, regardless of the
+actual host OS/architecture. Now picks the right Gotty asset from `uname -s`/`-m`
+(confirmed real assets exist for `darwin_arm64`/`amd64`, not just the Linux ones already
+in use), and finds an Emacs in order: `EMACS=`/`EMACSCLIENT=` override, this repo's own
+from-source build if present, Homebrew's `emacs-plus@31` on macOS, or plain `emacs` on
+`PATH` as a last resort. Also fixed `sha256sum` being Linux-only (macOS ships
+`shasum -a 256` instead) with a small wrapper that tries either. Verified for real on the
+user's own MacBook Pro: fetched and checksum-verified the `darwin_arm64` Gotty binary,
+started a real Emacs daemon with this config, served a real web terminal (HTTP 200, real
+xterm.js page), then cleaned up.
+
+**v1.2 -> v1.4, each one chasing a newly-discovered real bug, not a version bump for its
+own sake**: v1.2 was the first build with all three platforms wired into `release.yml`
+together; the user downloaded it and still could not open the macOS build (this is the
+`minos 26.0`/`macos-latest`-vs-`macos-15` pin and the quarantine/dump-file/SIGKILL fixes
+documented in the macOS-bundle entry above --- found from the user's own real download,
+not CI green alone). v1.3 followed once those were fixed and verified against the user's
+actual Desktop copy. **v1.4's own real failure, found only because the job ran to
+completion once and was watched end to end (`cdb5a40`)**: `build-and-release-windows`'s
+first v1.4 run got all the way through "Build the Windows portable bundle" (downloading
+the official Windows Emacs, cross-compiling 9 tree-sitter grammars plus the launcher with
+zig, all from a cold cache every time since this job deliberately has none) and was killed
+by GitHub at exactly 60:06, still mid-build --- confirmed directly from the job's own
+`started_at`/`completed_at` timestamps, not assumed. `timeout-minutes` raised from the
+default 60 to 120; the retriggered run (retagging `v1.4` to the same commit to force a
+fresh CI run) completed in 1h32m, comfortably inside the new cap. **Verified as a genuine
+three-platform release, not just "CI is green"**: all three assets present on the same
+`v1.4` GitHub release --- `custom-emacs-macos-arm64.zip`, `custom-emacs-linux-x86_64.tar.gz`,
+`custom-emacs-windows-x64.zip`. The user's own Desktop copy (`~/Desktop/custom-emacs-macos-arm64`)
+was swapped to this exact build, with `corfu-auto` confirmed on, before Windows had even
+finished its own run.
+
+**A real, unrelated troubleshooting question answered, no code changed**: the user hit
+`gls: cannot open directory '/Users/harryadmin/Downloads/': Operation not permitted` ---
+turned out to be Dired inside the built `Emacs.app` itself (not the terminal), a macOS TCC
+("Files and Folders") permission the ad-hoc-signed app needs granted explicitly, and which
+may need re-granting again after each rebuild since the app's signature changes. Explained
+to the user as a System Settings fix, not a bug in this repo.

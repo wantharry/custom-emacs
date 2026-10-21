@@ -25,9 +25,10 @@
 (ert-deftest emacs-session/is-loaded-eagerly-not-autoloaded ()
   ;; Unlike most feature files here (dictate.el, llm.el, ...), this one has to be loaded
   ;; while init.el itself is still loading --- see the file header comment in
-  ;; config/emacs-session.el for why (desktop.el's own `after-init-hook' entry is what
-  ;; actually restores a saved session, and that only works if desktop-save-mode is
-  ;; already on by the time it fires).
+  ;; config/emacs-session.el for why (`auto-save-visited-mode' below, and this file's own
+  ;; hook entries such as `my/session--claim-ownership'/`my/session--start-autosave', all
+  ;; need to already be wired up by the time init.el finishes, not deferred to a later
+  ;; keypress).
   (let ((out (with-output-to-string
                (with-current-buffer standard-output
                  (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
@@ -106,18 +107,76 @@
 
 ;;; The real regression test: `desktop-save's RELEASE argument
 
-(ert-deftest emacs-session/save-and-claim-ownership-never-release-the-lock ()
+(ert-deftest emacs-session/claim-ownership-saves-without-releasing-the-lock ()
+  "`my/session--claim-ownership' is what both the startup hook and the periodic
+idle timer below call; with `desktop-save-mode' on (the default), it must call
+`desktop-save' with no second/RELEASE argument, same real bug/fix as
+`save-never-releases-the-lock' below."
+  (let (calls)
+    (cl-letf (((symbol-function 'desktop-save) (lambda (&rest args) (push args calls) nil)))
+      (should desktop-save-mode)
+      (my/session--claim-ownership)
+      (should (= 1 (length calls)))
+      (should (equal (caar calls) my/session-dir))
+      (should-not (cadr (car calls))))))
+
+;; WHAT/WHY: two real bugs, both caught only by a genuine command-line-file round trip
+;; (open a file via the command line, wait, quit, reopen), not by reading the source ---
+;; see config/emacs-session.el's own comment on `my/session--start-autosave' for the
+;; full account. In short: `after-init-hook' (what the first version of this used) runs
+;; BEFORE Emacs opens any files named on the command line, so the one explicit "claim
+;; ownership" save was always over an empty buffer list; and even once ownership really
+;; is claimed, desktop.el's own periodic autosave (hooked to `window-configuration-
+;; change-hook') never fires again for the common case of just working in one window
+;; that is never split --- confirmed directly, not assumed: `desktop-auto-save-timer'
+;; stayed nil after a plain `find-file' with no split. This config's own idle timer,
+;; armed from `emacs-startup-hook' instead (confirmed via `startup.el''s own doc: that
+;; hook runs "after loading init files and handling the command line"), fixes both.
+
+(ert-deftest emacs-session/start-autosave-is-on-emacs-startup-hook-not-after-init-hook ()
+  (should (memq #'my/session--start-autosave emacs-startup-hook))
+  (should-not (memq #'my/session--start-autosave after-init-hook)))
+
+(ert-deftest emacs-session/start-buffer-is-also-wired-to-emacs-startup-hook ()
+  "Real, separate wiring from `my/session--start-autosave' just above --- both are
+needed on `emacs-startup-hook' (not `after-init-hook', which fires too early to matter
+for either): see `emacs-session/start-buffer-survives-a-real-restore-without-
+disturbing-it' further down for what this is actually for."
+  (skip-unless (featurep 'startpage))
+  (should (memq #'my/start-buffer emacs-startup-hook)))
+
+(ert-deftest emacs-session/shortcuts-buffer-is-also-wired-to-emacs-startup-hook ()
+  "Same real gap, same fix, for `*shortcuts*' (shortcuts.el) --- a further, direct user
+request: it is normally only created by `my/shortcuts--maybe-show-at-startup', itself
+gated on the start screen actually being what is showing, so a real restore used to
+skip it exactly like it used to skip `*start*' itself."
+  (skip-unless (featurep 'shortcuts))
+  (should (memq #'my/shortcuts-buffer emacs-startup-hook)))
+
+(ert-deftest emacs-session/start-autosave-claims-ownership-and-arms-the-idle-timer ()
+  (let (claim-calls timer-args)
+    (cl-letf (((symbol-function 'my/session--claim-ownership) (lambda () (push t claim-calls)))
+              ((symbol-function 'run-with-idle-timer) (lambda (&rest args) (push args timer-args) 'fake-timer)))
+      (my/session--start-autosave)
+      (should (= 1 (length claim-calls)))
+      (should (= 1 (length timer-args)))
+      ;; repeat t: a one-shot idle timer would silently stop updating the session after
+      ;; the first re-save, the exact gap this whole fix exists to close
+      (should (nth 1 (car timer-args)))
+      (should (eq my/session--autosave-timer 'fake-timer)))))
+
+(ert-deftest emacs-session/save-never-releases-the-lock ()
   "`desktop-save's SECOND argument is RELEASE (let go of the lock), not \"force
 save\" --- an easy, real mistake (made once while building this feature) that
-silently defeats the periodic autosave forever, since it never gets to claim
-ownership in the first place.  Both functions that call `desktop-save' here must
-call it with no second argument (or an explicitly nil one), never a non-nil one."
+would silently defeat `C-c w s' as a real checkpoint, since it would release
+ownership instead of claiming/keeping it.  `my/session-save' must call
+`desktop-save' with no second argument (or an explicitly nil one), never a
+non-nil one."
   (let (calls)
     (cl-letf (((symbol-function 'desktop-save)
                (lambda (&rest args) (push args calls) nil)))
       (my/session-save)
-      (my/session--claim-ownership)
-      (should (= 2 (length calls)))
+      (should (= 1 (length calls)))
       (dolist (args calls)
         (should (equal (car args) my/session-dir))
         (should-not (cadr args))))))         ; RELEASE must be nil/absent, never t
@@ -189,6 +248,72 @@ call it with no second argument (or an explicitly nil one), never a non-nil one.
         (dolist (name '("a.txt" "b.txt"))
           (when (get-buffer name) (kill-buffer name)))
         (desktop-release-lock dir)))))
+
+;; A real, found-the-hard-way bug, caught only by a real user checking the actual buffer
+;; list after a real restore (C-x C-b), not by reading the source: Emacs's own startup
+;; order (confirmed directly in startup.el, not assumed) runs after-init-hook --- where
+;; desktop-read actually restores a session --- BEFORE command-line-1, and
+;; `initial-buffer-choice' (`my/start-initial-buffer') is only evaluated well inside
+;; THAT function, deciding whether to create the start screen by checking "is
+;; `current-buffer' still `*scratch*'". By the time that check runs after a real
+;; restore, some OTHER buffer is already current, so the check correctly (by its own,
+;; narrower logic) declines, and `*start*' is never created at all -- confirmed
+;; reproduced here with the exact real order (restore, THEN run the startup hooks),
+;; not the backwards order (create `*start*' first) an earlier version of this same
+;; test file got wrong. `my/session--start-autosave' now also ensures `*start*' exists
+;; unconditionally; this pins down that it does so WITHOUT disturbing whichever buffer
+;; a real restore actually left current (`my/start-buffer' uses `with-current-buffer',
+;; never `switch-to-buffer' or `pop-to-buffer' --- see startpage.el's own definition).
+(ert-deftest emacs-session/start-buffer-survives-a-real-restore-without-disturbing-it ()
+  (skip-unless (featurep 'startpage))
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "c.txt")))
+      (with-temp-file f (insert "file c\n"))
+      (unwind-protect
+          (progn
+            (when (get-buffer "*start*") (kill-buffer "*start*"))
+            (find-file f)
+            (desktop-save live-dir)
+            (kill-buffer "c.txt")
+            (desktop-release-lock live-dir)
+            ;; matches the real order: the restore happens, THEN the startup hooks run
+            (let ((noninteractive nil)) (desktop-read live-dir))
+            (should (equal (buffer-name (current-buffer)) "c.txt"))
+            (should-not (get-buffer "*start*"))   ; the real bug, reproduced
+            (my/session--start-autosave)
+            (my/start-buffer)                     ; same call emacs-startup-hook now makes
+            (should (get-buffer "*start*"))        ; the real bug, fixed
+            (should (equal (buffer-name (current-buffer)) "c.txt")))  ; and undisturbed
+        (dolist (name '("c.txt" "*start*"))
+          (when (get-buffer name) (kill-buffer name)))
+        (desktop-release-lock live-dir)))))
+
+;; Same real bug, same fix, for `*shortcuts*' --- a further, direct user request to keep
+;; it in the buffer list the same way as `*start*'. `my/shortcuts--maybe-show-at-startup'
+;; (shortcuts.el) only ever creates it when the start screen is what is actually showing
+;; (`(eq (window-buffer) (get-buffer "*start*"))'), so it used to be skipped by a real
+;; restore for the exact same reason `*start*' itself used to be.
+(ert-deftest emacs-session/shortcuts-buffer-survives-a-real-restore-without-disturbing-it ()
+  (skip-unless (featurep 'shortcuts))
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "d.txt")))
+      (with-temp-file f (insert "file d\n"))
+      (unwind-protect
+          (progn
+            (when (get-buffer "*shortcuts*") (kill-buffer "*shortcuts*"))
+            (find-file f)
+            (desktop-save live-dir)
+            (kill-buffer "d.txt")
+            (desktop-release-lock live-dir)
+            (let ((noninteractive nil)) (desktop-read live-dir))
+            (should (equal (buffer-name (current-buffer)) "d.txt"))
+            (should-not (get-buffer "*shortcuts*"))   ; the real bug, reproduced
+            (my/shortcuts-buffer)                     ; same call emacs-startup-hook now makes
+            (should (get-buffer "*shortcuts*"))        ; the real bug, fixed
+            (should (equal (buffer-name (current-buffer)) "d.txt")))  ; and undisturbed
+        (dolist (name '("d.txt" "*shortcuts*"))
+          (when (get-buffer name) (kill-buffer name)))
+        (desktop-release-lock live-dir)))))
 
 ;;; Listing what's in the session (C-c w l): "can it list states like buffers?"
 

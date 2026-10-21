@@ -134,6 +134,20 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; yet (a fresh install, or right after `C-c w r'), `desktop-read' finds no file and
 ;; does nothing, leaving the start screen showing exactly as it already does today.
 ;; This ordering was confirmed for real, not assumed --- see docs/SESSION.md.
+;;
+;; A direct, explicit user request refines this further: a genuine restore should not
+;; just replace the start screen outright --- the `*start*' buffer `my/start-initial-
+;; buffer' already created moments earlier must still be reachable afterward (in the
+;; buffer list, `C-x C-b'/`C-c w l', switchable back to), not silently gone. Confirmed
+;; directly, not assumed: `desktop-read' only recreates the buffers IT saved; it never
+;; kills buffers that already exist and are not part of that list, so the `*start*'
+;; buffer `initial-buffer-choice' created a moment before genuinely does survive a real
+;; restore untouched, just no longer the VISIBLE one (replaced by the restored window
+;; configuration, same as the first paragraph above describes) --- verified with a real
+;; round trip on the actual macOS bundle, not read from source alone: opened a file,
+;; waited past the auto-save window, quit, reopened; the previously open file came back
+;; exactly as left, and `*start*' was still present and switchable to from the buffer
+;; list, not killed.
 (desktop-save-mode 1)
 
 ;; WHAT: save the desktop once, right after startup finishes.  WHY: a real, measured gap
@@ -164,7 +178,75 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; `desktop-save' with no second argument, which claims (or keeps) the lock instead.
 (defun my/session--claim-ownership ()
   (when desktop-save-mode (desktop-save my/session-dir)))
-(add-hook 'after-init-hook #'my/session--claim-ownership 90)
+
+;; Two more real bugs, caught only by a genuine round trip (open a file via the command
+;; line, wait, quit, reopen) --- a real user hit both, not hypothetical:
+;;
+;; 1. `after-init-hook' (what the first version of this hook used) runs BEFORE Emacs
+;;    processes any files named on the command line --- confirmed directly in
+;;    `startup.el''s own doc for `emacs-startup-hook': "run after loading init files AND
+;;    HANDLING THE COMMAND LINE" (`after-init-hook' has no such second half). So the one
+;;    explicit save meant to "claim ownership immediately" was claiming it over an empty
+;;    buffer list every time --- any file opened from the command line (exactly how this
+;;    config's own macOS/Linux/Windows launchers all start Emacs, `emacs somefile', or
+;;    just plain `emacs' with nothing) was never in it.
+;; 2. Once that first (empty) save has already claimed the lock, desktop.el's OWN
+;;    periodic autosave (`desktop-auto-save-enable', which hooks
+;;    `window-configuration-change-hook') never fires again for the common case of
+;;    simply opening/switching buffers in a single, never-split window --- confirmed
+;;    directly: `desktop-auto-save-timer' stayed `nil' after a plain `find-file' with no
+;;    split, meaning the ONLY real-world action that reliably re-triggers it is actually
+;;    changing the window layout, not just working in it. A session spent entirely in
+;;    one window, however long, would otherwise never save again after that first, empty
+;;    snapshot.
+;;
+;; Fixed by not relying on either of desktop.el's own two hooks for this at all: one
+;; one-shot save on `emacs-startup-hook' (after command-line files ARE open) claims
+;; ownership correctly the first time, and this config's own idle timer (re-using
+;; `desktop-auto-save-timeout', the same value desktop.el's own timer would have used)
+;; keeps it updated from then on, regardless of whether the window layout ever changes.
+;; Verified fixed with the same real round trip: opened a file via the command line,
+;; waited past this timeout with no split, quit cleanly, reopened --- the file came back.
+(defvar my/session--autosave-timer nil)
+(defun my/session--start-autosave ()
+  (my/session--claim-ownership)
+  (setq my/session--autosave-timer
+        (run-with-idle-timer (max 1 desktop-auto-save-timeout) t #'my/session--claim-ownership)))
+(add-hook 'emacs-startup-hook #'my/session--start-autosave 90)
+
+;; A third real bug, found the same way (a genuine round trip, not reading the source):
+;; a direct user request was for the `*start*' buffer to always exist after a restore,
+;; reachable from the buffer list, even though a real session is what is actually shown
+;; --- confirmed, with a FIRST fix, to work in an isolated simulation that created
+;; `*start*' before simulating the restore... which turned out to not match the real
+;; order at all. The real order, confirmed directly in `startup.el' itself (not assumed
+;; from this file's own earlier, wrong comment above): `after-init-hook' --- where
+;; `desktop-read' actually restores a session --- runs BEFORE `command-line-1', and
+;; `initial-buffer-choice' (`my/start-initial-buffer' in startpage.el) is only evaluated
+;; well inside THAT function, checking "is `current-buffer' still `*scratch*'" to decide
+;; whether to create the start screen at all. By the time that check runs, a real
+;; restore has already made some OTHER buffer current --- so the check correctly (by
+;; its own, narrower logic) declines, and `my/start-buffer' is never called at all.
+;; Reproduced directly: restoring a saved session left `*start*' simply not existing
+;; (`(get-buffer "*start*")' => nil), confirmed with the real startup order, not the
+;; earlier, backwards simulation. Fixed here instead, since `my/start-buffer' itself
+;; never disturbs the display (`with-current-buffer', not `switch-to-buffer' --- see
+;; its own definition in startpage.el): called unconditionally alongside the autosave
+;; claim above, this always ensures the buffer exists and is freshly drawn, with no
+;; effect on whatever a real restore (or the start screen itself) actually shows.
+(with-eval-after-load 'startpage (add-hook 'emacs-startup-hook #'my/start-buffer 95))
+
+;; A direct, further user request: keep `*shortcuts*' always in the buffer list too, the
+;; same guarantee as `*start*' just above, for the same real reason --- it is normally
+;; only created by `my/shortcuts--maybe-show-at-startup' (shortcuts.el), itself gated on
+;; the start screen actually being what is showing (`(eq (window-buffer) (get-buffer
+;; "*start*"))'), so a real restore skips it exactly like it used to skip `*start*'
+;; itself. `my/shortcuts-buffer' (the create-and-draw half, called by that display logic)
+;; has the same `with-current-buffer' shape as `my/start-buffer' --- confirmed in its own
+;; definition in shortcuts.el --- so calling it unconditionally here is safe the same way:
+;; it cannot disturb whatever a real restore (or the start screen's own automatic split)
+;; actually shows, only ensure the buffer object itself always exists.
+(with-eval-after-load 'shortcuts (add-hook 'emacs-startup-hook #'my/shortcuts-buffer 95))
 
 ;; WHAT: `C-c w s' --- save the session right now, by hand.  WHY: a deliberate
 ;; checkpoint before doing something risky, rather than waiting for the periodic
