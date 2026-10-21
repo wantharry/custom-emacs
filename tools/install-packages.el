@@ -24,7 +24,8 @@
                         docker dockerfile-mode kubernetes
                         multiple-cursors verb devdocs
                         dired-du
-                        move-text)
+                        move-text
+                        doom-modeline nerd-icons)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -97,7 +98,19 @@ disk-usage scanner, parallel by default, with its own prebuilt Windows/Linux
 binaries --- confirmed directly against its GitHub releases) --- not an ELPA package
 at all, so it is not listed in `my/packages' here; see that file's own header comment
 for why, and `tools/dist-windows.sh' for how the Windows binary is bundled the same
-way `rg'/`fd'/`delta' already are.")
+way `rg'/`fd'/`delta' already are.
+`doom-modeline' replaces the plain stock mode-line --- user request, after being
+offered a short menu of well-known packages not yet in this config (\"what are other
+famous packages to add\"), the single most popular mode-line package in the
+ecosystem. `nerd-icons' (not the older `all-the-icons') is its icon backend ---
+confirmed directly: `all-the-icons' needs FOUR separate icon-only font files of its
+own, none of which this project bundles, while `nerd-icons' needs only one plain Nerd
+Font, and this config already bundles one (`JetBrainsMono Nerd Font Mono',
+tools/fonts/ --- this config's own DEFAULT font, see init.el's font-selection
+comment), so nothing new needs installing on a machine already running this config's
+own default setup. See init.el's own comment on `my/doom-modeline-maybe-enable' for
+how the icons are gated off cleanly on a machine where that font is not actually
+installed.")
 
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete
