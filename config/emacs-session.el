@@ -47,6 +47,16 @@
 ;; listing buffers.
 (require 'button)
 
+;; WHAT: the directory Emacs was actually started from, captured as early as possible.
+;; WHY: this config's Dired/Treemacs defaults further down (a direct user request: "a
+;; few more buffers default like dired, ranger, treemacs, may be default to current
+;; directory") need wherever Emacs was *launched* from, not wherever the user happens to
+;; be editing by the time `emacs-startup-hook' runs --- captured here, at the very top of
+;; this file, since this file loads eagerly, before anything else in `init.el' could
+;; plausibly change `default-directory' out from under it.
+(defvar my/session--launch-directory default-directory
+  "The directory Emacs was started from.  See the comment just above.")
+
 ;; WHAT: turn on real-file auto-save globally.  WHY: this is the direct answer to "any
 ;; buffer opened should be automatically saved" --- unlike classic `auto-save-mode'
 ;; (already on by default; writes to a separate `#file#' shadow copy you would need to
@@ -355,6 +365,33 @@ saved and restored like any other buffer."
 ;; it cannot disturb whatever a real restore (or the start screen's own automatic split)
 ;; actually shows, only ensure the buffer object itself always exists.
 (with-eval-after-load 'shortcuts (add-hook 'emacs-startup-hook #'my/shortcuts-buffer 95))
+
+;; A further, direct user request: a few more buffers should just be "there" by default
+;; too, the same guarantee as `*start*'/`*shortcuts*' just above --- a Dired buffer for
+;; wherever Emacs was actually launched from (`my/session--launch-directory', defined at
+;; the top of this file), reachable from the buffer list (`C-x b'/`C-c w l') without
+;; asking for it first. Confirmed, not assumed: the user explicitly wants this ready, NOT
+;; shown on screen --- the start screen's own layout must look exactly the same as before.
+;;
+;; Treemacs was considered and deliberately left out (a direct, later user request: "lets
+;; not add treemacs").
+;;
+;; `ranger' is also deliberately NOT included here: unlike Dired, it has no "just create
+;; the buffer, don't show it" mode at all --- confirmed directly in its own `ranger-to-
+;; dired' (see init.el's own comment on `my/ranger-to-dired'): invoking `ranger'
+;; unconditionally calls `delete-other-windows' and takes over the frame with its 3-pane
+;; layout the moment it runs. Pre-creating it here would visibly disrupt whatever the
+;; start screen or a restored session is already showing --- the exact opposite of what
+;; was asked for. `C-c R' already opens it instantly wherever you are; there is nothing to
+;; pre-warm.
+(defun my/session--ensure-default-dired ()
+  "A Dired buffer for `my/session--launch-directory', always present in the buffer
+list. `dired-noselect' (not `dired'/`dired-other-window') never selects or displays
+anything, so this cannot disturb whatever is already on screen; Dired itself
+deduplicates by directory (its own, built-in behavior), so calling this again on an
+already-open directory is harmless, not a second copy."
+  (dired-noselect my/session--launch-directory))
+(add-hook 'emacs-startup-hook #'my/session--ensure-default-dired 95)
 
 ;; WHAT: `C-c w s' --- save the session right now, by hand.  WHY: a deliberate
 ;; checkpoint before doing something risky, rather than waiting for the periodic

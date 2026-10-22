@@ -135,6 +135,24 @@ effort, via the same mechanism that already makes the `*start*`/`*shortcuts*` sp
 survive a restore (see above) --- works for anything in the short mode list above; a
 no-file buffer in some other mode isn't covered yet.
 
+## A few more buffers "just there" by default
+
+A direct follow-up request: a Dired buffer for wherever Emacs was actually launched from
+(`my/session--launch-directory`, captured as early as possible, at the top of
+`config/emacs-session.el`), always present in the buffer list (`C-x b`/`C-c w l`) without
+being asked for first --- same guarantee, same mechanism, as `*start*`/`*shortcuts*`
+above. Confirmed deliberately *not* shown on screen: `dired-noselect` (not `dired`)
+never selects or displays anything, so it cannot disturb whatever the start screen or a
+restored session is already showing.
+
+Treemacs was considered and deliberately dropped (a direct, later user request: "lets not
+add treemacs"). `ranger` was never attempted: unlike Dired, it has no "just create the
+buffer, don't show it" mode at all --- confirmed directly in its own source (see
+`my/ranger-to-dired`'s own comment in `init.el`): invoking it unconditionally calls
+`delete-other-windows` and takes over the frame with its 3-pane layout the moment it
+runs. `C-c R` already opens it instantly wherever you are; there was nothing to pre-warm
+without visibly disrupting the display, the opposite of what was asked for.
+
 ## Named sessions: how many can be saved?
 
 As many as you like --- there is no limit coded here, only disk space. `C-c w s`/`C-c w r`
@@ -260,7 +278,7 @@ doesn't make obvious:
 
 ## Tests
 
-`tests/ert/emacs-session.el` (38 tests): keys bound; loaded eagerly (not autoloaded, and why);
+`tests/ert/emacs-session.el` (41 tests): keys bound; loaded eagerly (not autoloaded, and why);
 does not slow startup; every deliberate configuration choice (where the desktop lives,
 `desktop-save`/`desktop-load-locked-desktop`/`desktop-auto-save-timeout`/`desktop-
 restore-eager`); a real regression test pinning down the `RELEASE`-argument bug for good;
@@ -272,7 +290,9 @@ buffer feature above --- opt-in and every real exclusion case (file, read-only, 
 mode, already-claimed), the registered mode-handler list, a full real round trip (save,
 kill, restore, in a simulated separate process) confirming text and major mode both come
 back, and the regression test pinning down the file-backed-buffer-in-a-shared-mode bug
-for good.
+for good. Also: the default Dired buffer --- wired to `emacs-startup-hook`, uses
+`my/session--launch-directory` without disturbing whatever is on screen, and does not
+duplicate an already-open directory.
 
 Named sessions: name sanitizing (empty, a slash, `.`/`..`); saving as a name never
 disturbs the live session's own `desktop-dirname`/`desktop-path` and really writes into

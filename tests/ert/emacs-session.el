@@ -153,6 +153,40 @@ skip it exactly like it used to skip `*start*' itself."
   (skip-unless (featurep 'shortcuts))
   (should (memq #'my/shortcuts-buffer emacs-startup-hook)))
 
+;;; A few more buffers "just there" by default (a direct user request): a Dired buffer
+;;; for wherever Emacs was actually launched from, in the buffer list without being
+;;; shown. Treemacs was considered and deliberately dropped ("lets not add treemacs");
+;;; ranger was never attempted at all (see config/emacs-session.el's own comment on why
+;;; it genuinely cannot be created without disrupting the window layout).
+
+(ert-deftest emacs-session/default-dired-is-wired-to-emacs-startup-hook ()
+  (should (memq #'my/session--ensure-default-dired emacs-startup-hook)))
+
+(ert-deftest emacs-session/default-dired-uses-the-launch-directory-without-disturbing-the-display ()
+  (test-with-temp-dir dir
+    (let* ((my/session--launch-directory dir)
+           (before (current-buffer))
+           buf)
+      (unwind-protect
+          (progn
+            (setq buf (my/session--ensure-default-dired))
+            ;; never selected/displayed: whatever was current stays current
+            (should (eq (current-buffer) before))
+            (should buf)
+            (with-current-buffer buf (should (derived-mode-p 'dired-mode))))
+        (when (buffer-live-p buf) (kill-buffer buf))))))
+
+(ert-deftest emacs-session/default-dired-does-not-duplicate-an-already-open-directory ()
+  (test-with-temp-dir dir
+    (let ((my/session--launch-directory dir) first second)
+      (unwind-protect
+          (progn
+            (setq first (my/session--ensure-default-dired))
+            (setq second (my/session--ensure-default-dired))
+            ;; Dired's own, built-in dedup: the exact same buffer, not a second copy
+            (should (eq first second)))
+        (when (buffer-live-p first) (kill-buffer first))))))
+
 (ert-deftest emacs-session/start-autosave-claims-ownership-and-arms-the-idle-timer ()
   (let (claim-calls timer-args)
     (cl-letf (((symbol-function 'my/session--claim-ownership) (lambda () (push t claim-calls)))
