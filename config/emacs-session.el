@@ -176,8 +176,116 @@ restore lazily, in the background, the next time Emacs is idle.")
 ;; stayed nil forever and the periodic autosave never once wrote a real file even after
 ;; 10+ idle seconds; confirmed fixed by the same real test once corrected to call
 ;; `desktop-save' with no second argument, which claims (or keeps) the lock instead.
+;;
+;; A direct, further user request: a buffer with no file at all (never once saved) should
+;; survive a crash too --- not just its name and window slot (already possible via
+;; `desktop-save-buffer', the same opt-in flag `my/start-mode'/`my/shortcuts-mode' already
+;; use below) but its actual TEXT, with no recovery prompt, just there next time, the same
+;; way Notepad++ keeps unsaved tabs. Confirmed as a real gap, not assumed: neither
+;; `auto-save-visited-mode' above (requires a real file already) nor plain `desktop-save-
+;; buffer' set to `t' (remembers a no-file buffer's name/window slot, never its text ---
+;; there is nothing for a mode handler to put back) protects this today; a quick, real
+;; test (`C-x b scratch-pad', type something, never save, restart) came back to an empty
+;; buffer, exactly the gap described.
+;;
+;; No package needed for this, same as the rest of this file --- `desktop-save-buffer' may
+;; be a FUNCTION, not just `t' (confirmed directly in `desktop.el''s own source: `(when
+;; (functionp desktop-save-buffer) (funcall desktop-save-buffer desktop-dirname))'), and
+;; whatever it returns is stored as that buffer's own "misc" data, right inside the same
+;; `.emacs.desktop' file already written every `desktop-auto-save-timeout' seconds by
+;; `my/session--claim-ownership' below --- no separate file, directory, or timer of its
+;; own. `desktop-buffer-mode-handlers' is given that misc data back on restore, the
+;; exact same extension point `my/start-mode'/`my/shortcuts-mode' already use, just
+;; returning real content this time instead of nothing to regenerate. Point is restored
+;; automatically by `desktop-create-buffer' itself afterward (confirmed in its own source:
+;; every buffer's point is saved/restored independently of any mode handler), so this
+;; needs to recreate only the text and the major mode, nothing else.
+(defun my/session--unsaved-misc-data (_dirname)
+  "Saved as this buffer's own desktop misc-data: enough to recreate it from scratch."
+  (list :my/session-unsaved t
+        :mode major-mode
+        :content (buffer-substring-no-properties (point-min) (point-max))))
+
+(defun my/session--restore-unsaved-buffer (file name misc)
+  "`desktop-buffer-mode-handlers' entry that recreates NAME from this feature's own
+MISC data (see `my/session--unsaved-misc-data'), instead of the empty buffer `desktop-
+read' would otherwise create for a no-file buffer with no handler at all.
+
+A real, caught-by-testing bug this fixes: `desktop-buffer-mode-handlers' dispatches on
+major mode ALONE, with no idea whether the buffer being restored actually has a file ---
+so a real file-backed buffer that merely happens to open in one of the common modes
+registered below (a plain `.txt' file in `text-mode', say) was ALSO being routed through
+this handler, which found no `:my/session-unsaved' marker in its (real desktop.el) misc
+data, returned nil, and left desktop.el reporting \"failed to restore\" instead of ever
+falling back to the normal file-restore path --- broke four real, pre-existing restore
+tests the moment this feature's mode list included `text-mode'/`fundamental-mode'.
+FILE is desktop.el's own first argument to every mode handler for exactly this reason:
+non-nil means a real file is involved, so this delegates straight back to the function
+`desktop-create-buffer' would have used with no handler registered at all."
+  (if file
+      (desktop-restore-file-buffer file name misc)
+    (when (plist-get misc :my/session-unsaved)
+      (with-current-buffer (get-buffer-create name)
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert (or (plist-get misc :content) ""))
+          (let ((mode (plist-get misc :mode)))
+            (when (fboundp mode) (ignore-errors (funcall mode))))
+          (set-buffer-modified-p nil)
+          (setq-local desktop-save-buffer #'my/session--unsaved-misc-data))
+        (current-buffer)))))
+
+;; WHAT: which major modes this covers.  WHY: `desktop-buffer-mode-handlers' dispatches on
+;; a buffer's EXACT major mode, no inheritance (confirmed directly in `desktop-create-
+;; buffer''s own source: a plain `assq', not `derived-mode-p') --- these are the modes a
+;; plain "just typed something, never saved it" buffer actually shows up in in practice
+;; (`*scratch*' itself is `lisp-interaction-mode'), not an attempt to cover literally every
+;; mode that exists; a no-file buffer in some other, unlisted mode (a `java-ts-mode'
+;; buffer with no file, say) is already an edge case nobody asked about, and would need
+;; its own entry here if it ever comes up.
+(dolist (mode '(fundamental-mode text-mode lisp-interaction-mode org-mode))
+  (when (fboundp mode)
+    (add-to-list 'desktop-buffer-mode-handlers (cons mode #'my/session--restore-unsaved-buffer))))
+
+;; WHAT: opt a qualifying buffer in to the mechanism just above.  WHY excluded, each
+;; confirmed directly rather than guessed: a buffer with a real file (`auto-save-visited-
+;; mode' above already protects it; no reason to duplicate that here) or already
+;; opted-in (`desktop-save-buffer' already non-nil --- never overwritten, so this never
+;; steals a buffer another feature already claimed, e.g. `my/start-mode'); a minibuffer;
+;; an internal, space-prefixed buffer; anything `special-mode'-derived --- confirmed this
+;; one check alone is enough to exclude `*Messages*' (`messages-buffer-mode'), `*Warnings*'
+;; and `*Help*' with no separate by-name denylist needed, since all three really are
+;; `special-mode'-derived (checked directly, not assumed); and any READ-ONLY buffer --- a
+;; real, caught-by-testing gap this config's own `*docs*' (`my/docs-mode', derived from
+;; `outline-mode', not `special-mode') exposed: a generated, read-only, regenerate-on-
+;; demand listing buffer with no file still matched every other check, got tracked, and
+;; then failed to restore (no entry for `my/docs-mode' in the small mode list below, so
+;; `desktop-create-buffer' fell through to its default file-buffer handler and gave up).
+;; `buffer-read-only' is the real, principled signal this file was actually missing: if
+;; you cannot type into it, it is not something you typed, so it is not this feature's to
+;; preserve --- every one of this config's own generated buffers (`*docs*', `*session*',
+;; `*sessions*', git-repos, disk-usage, ...) already sets this, confirmed directly, with no
+;; need to list them out by name or mode one at a time. HOW: re-run every periodic tick
+;; (cheap: `buffer-list' plus a handful of buffer-local checks), so a buffer created since
+;; the last tick is picked up within one `desktop-auto-save-timeout' window, same latency
+;; as the rest of this file's own periodic save.
+(defun my/session--track-unsaved-buffers ()
+  "Opt every qualifying file-less buffer in, so its actual text (not just its name) is
+saved and restored like any other buffer."
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (and (not buffer-file-name)
+                 (not desktop-save-buffer)
+                 (not buffer-read-only)
+                 (not (minibufferp buf))
+                 (not (string-prefix-p " " (buffer-name buf)))
+                 (not (derived-mode-p 'special-mode)))
+        (setq-local desktop-save-buffer #'my/session--unsaved-misc-data)))))
+
 (defun my/session--claim-ownership ()
-  (when desktop-save-mode (desktop-save my/session-dir)))
+  (when desktop-save-mode
+    (my/session--track-unsaved-buffers)
+    (desktop-save my/session-dir)))
 
 ;; Two more real bugs, caught only by a genuine round trip (open a file via the command
 ;; line, wait, quit, reopen) --- a real user hit both, not hypothetical:

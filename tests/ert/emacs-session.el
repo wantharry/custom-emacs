@@ -249,6 +249,114 @@ non-nil one."
           (when (get-buffer name) (kill-buffer name)))
         (desktop-release-lock dir)))))
 
+;;; A buffer with no file at all: "I typed something, never saved it, the laptop died" ---
+;;; a direct user request, Notepad++-style, no recovery prompt, just there next time.  See
+;;; config/emacs-session.el's own comment on `my/session--unsaved-misc-data' for the real
+;;; API this rides on (`desktop-save-buffer' as a FUNCTION, not just `t').
+
+(ert-deftest emacs-session/track-unsaved-opts-in-a-plain-no-file-buffer ()
+  (with-current-buffer (get-buffer-create "plain-unsaved-test")
+    (unwind-protect
+        (progn
+          (fundamental-mode)
+          (insert "hello")
+          (my/session--track-unsaved-buffers)
+          (should (eq desktop-save-buffer #'my/session--unsaved-misc-data))
+          ;; and desktop.el's own real filter now agrees it belongs in the session
+          (should (desktop-save-buffer-p nil (buffer-name) major-mode)))
+      (kill-buffer "plain-unsaved-test"))))
+
+(ert-deftest emacs-session/track-unsaved-excludes-the-real-gaps-it-was-built-for ()
+  "Each exclusion here is a real case, not a guess --- see config/emacs-session.el's own
+comment on `my/session--track-unsaved-buffers' for why each one is excluded."
+  (test-with-temp-dir dir
+    (let ((f (concat dir "has-a-file.txt")))
+      (with-temp-file f (insert "x"))
+      (unwind-protect
+          (progn
+            ;; already has a real file: auto-save-visited-mode's job, not this one's
+            (find-file f)
+            (my/session--track-unsaved-buffers)
+            (should-not (eq desktop-save-buffer #'my/session--unsaved-misc-data))
+            ;; read-only, no file: the real *docs* bug (outline-mode, not special-mode,
+            ;; so only `buffer-read-only' catches it) -- see the real comment in
+            ;; config/emacs-session.el's own `my/session--track-unsaved-buffers'
+            (with-current-buffer (get-buffer-create "readonly-unsaved-test")
+              (fundamental-mode)
+              (setq buffer-read-only t)
+              (my/session--track-unsaved-buffers)
+              (should-not (eq desktop-save-buffer #'my/session--unsaved-misc-data)))
+            ;; special-mode-derived, no file: *Messages*/*Help*/*Warnings*-shaped
+            (with-current-buffer (get-buffer-create "special-unsaved-test")
+              (special-mode)
+              (my/session--track-unsaved-buffers)
+              (should-not (eq desktop-save-buffer #'my/session--unsaved-misc-data)))
+            ;; already claimed by another feature (my/start-mode's own pattern): never
+            ;; overwritten, so this never steals a buffer another feature already owns
+            (with-current-buffer (get-buffer-create "already-claimed-test")
+              (fundamental-mode)
+              (setq-local desktop-save-buffer t)
+              (my/session--track-unsaved-buffers)
+              (should (eq desktop-save-buffer t))))
+        (dolist (name '("has-a-file.txt" "readonly-unsaved-test" "special-unsaved-test"
+                         "already-claimed-test"))
+          (when (get-buffer name) (kill-buffer name)))))))
+
+(ert-deftest emacs-session/unsaved-buffer-mode-handlers-cover-the-common-cases ()
+  (dolist (mode '(fundamental-mode text-mode lisp-interaction-mode org-mode))
+    (when (fboundp mode)
+      (should (eq (cdr (assq mode desktop-buffer-mode-handlers))
+                  #'my/session--restore-unsaved-buffer)))))
+
+;; The real, full round trip: a plain, never-saved buffer (not `*scratch*' itself, to
+;; also confirm this is not special-cased to just that one buffer) survives a save, a
+;; kill, and a restore in a genuinely different simulated process, with its exact text
+;; and major mode both intact, no recovery prompt anywhere in this path at all.
+(ert-deftest emacs-session/unsaved-buffer-full-round-trip-survives-restore ()
+  (session--with-isolated-dirs
+    (unwind-protect
+        (progn
+          (when (get-buffer "my-notes") (kill-buffer "my-notes"))
+          (with-current-buffer (get-buffer-create "my-notes")
+            (org-mode)
+            (insert "* todo\nremember this"))
+          (my/session--claim-ownership)          ; what the periodic idle timer calls
+          (kill-buffer "my-notes")
+          (should-not (get-buffer "my-notes"))
+          (desktop-release-lock live-dir)
+          (let ((noninteractive nil)) (desktop-read live-dir))
+          (should (get-buffer "my-notes"))
+          (with-current-buffer "my-notes"
+            (should (eq major-mode 'org-mode))
+            (should (equal (buffer-string) "* todo\nremember this"))))
+      (when (get-buffer "my-notes") (kill-buffer "my-notes"))
+      (desktop-release-lock live-dir))))
+
+;; The real regression this whole feature almost shipped with: registering a mode handler
+;; by major mode alone also intercepts a REAL file-backed buffer that happens to share one
+;; of these common modes (a plain `.txt' file opens in `text-mode', the same mode a no-file
+;; scratch buffer can be in) --- caught only by running the FULL existing test suite after
+;; adding this feature, not by testing it in isolation: four pre-existing restore tests
+;; started failing the moment `text-mode'/`fundamental-mode' were added to the handler
+;; list, each with "failed to restore" instead of the file coming back.
+(ert-deftest emacs-session/real-file-buffer-in-a-common-mode-still-restores-correctly ()
+  (session--with-isolated-dirs
+    (let ((f (concat live-dir "plain.txt")))
+      (with-temp-file f (insert "real file content\n"))
+      (unwind-protect
+          (progn
+            (find-file f)
+            (should (eq major-mode 'text-mode))    ; shares a mode with the handler above
+            (desktop-save live-dir)
+            (kill-buffer "plain.txt")
+            (desktop-release-lock live-dir)
+            (let ((noninteractive nil)) (desktop-read live-dir))
+            (should (get-buffer "plain.txt"))
+            (with-current-buffer "plain.txt"
+              (should (equal (buffer-string) "real file content\n"))))
+        (when (get-buffer "plain.txt") (kill-buffer "plain.txt"))
+        (desktop-release-lock live-dir)))))
+
 ;; A real, found-the-hard-way bug, caught only by a real user checking the actual buffer
 ;; list after a real restore (C-x C-b), not by reading the source: Emacs's own startup
 ;; order (confirmed directly in startup.el, not assumed) runs after-init-hook --- where

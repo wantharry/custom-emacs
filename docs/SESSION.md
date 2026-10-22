@@ -78,6 +78,63 @@ commentary; this doc is the narrative version, with the real numbers.
   This is deliberate: a session restore should never silently hand you back a file already
   primed to be edited by a stray keystroke.
 
+## A buffer with no file at all: still protected, no recovery prompt
+
+A direct user request: "I typed something, closed it, and open Emacs it shows up a start
+screen why is that" --- followed by "I need to save all the buffers automatically that
+[are] without file ... I don't want a prompt to recover ... if I open it should be on the
+screen if it was on the screen before closing or should be in the buffer, like Notepad++".
+
+Before this, neither layer above protected a buffer with no file at all: `auto-save-
+visited-mode` only acts on buffers that already have a real filename, and plain `desktop-
+save-buffer' (the opt-in flag `my/start-mode`/`my/shortcuts-mode` already use) only
+remembers a no-file buffer's *name* and window slot, never its text --- there is nothing
+for a mode handler to put back. Confirmed as a real gap: type something into a brand-new
+buffer, never save it, restart --- it comes back empty, if it comes back at all.
+
+No separate file, directory, or timer needed for this --- `desktop-save-buffer` may be a
+**function**, not just `t` (confirmed directly in `desktop.el`'s own source:
+`(when (functionp desktop-save-buffer) (funcall desktop-save-buffer desktop-dirname))`),
+and whatever it returns is stored as that buffer's own "misc" data, right inside the same
+`.emacs.desktop` file already written every 10 seconds of idle time
+(`my/session--claim-ownership`). `desktop-buffer-mode-handlers` gets that data back on
+restore --- the same extension point `my/start-mode`/`my/shortcuts-mode` already use, just
+returning real content this time instead of regenerating a fixed display. Point is
+restored automatically by `desktop-create-buffer` itself afterward, independent of any
+handler, so the handler only needs to recreate the text and the major mode.
+
+A qualifying buffer is opted in automatically, every periodic tick (same ~10-second
+cadence as the rest of the session): no real file (`auto-save-visited-mode` already has
+that case), not already claimed by another feature, not a minibuffer, not internal
+(space-prefixed), not **read-only**, and not `special-mode`-derived. The read-only check
+matters more than it looks: this config's own `*docs*` buffer (`my/docs-mode`, derived
+from `outline-mode`, not `special-mode`) is a real, generated, read-only listing with no
+file --- it matched every other check and got swept in during testing, then failed to
+restore (no mode handler registered for `my/docs-mode`). `buffer-read-only` is the
+actually-principled signal this was missing: if you cannot type into it, it is not
+something you typed, so it is not this feature's to preserve.
+
+Only a short, fixed list of common "just typed something, never saved it" major modes is
+registered (`fundamental-mode`, `text-mode`, `lisp-interaction-mode` --- covers `*scratch*`
+--- and `org-mode`), not every mode that exists: `desktop-buffer-mode-handlers` dispatches
+on a buffer's *exact* major mode, no inheritance, so a no-file buffer in some other,
+unlisted mode is an edge case nobody asked about yet.
+
+**A real regression this almost shipped with**: registering a handler by major mode alone
+also intercepts a REAL file-backed buffer that happens to share one of these same modes
+--- a plain `.txt` file opens in `text-mode` too. Caught only by running the *full*
+existing test suite after adding this feature, not by testing it in isolation: four
+pre-existing restore tests started failing ("failed to restore") the moment `text-
+mode`/`fundamental-mode` were added to the handler list. Fixed by checking the handler's
+own `FILE` argument first --- non-nil means a real file is involved, so it delegates
+straight back to `desktop-restore-file-buffer`, the same function `desktop-create-buffer`
+would have used with no handler registered at all.
+
+Window placement, the "should be on screen if it was before" half of the request: best-
+effort, via the same mechanism that already makes the `*start*`/`*shortcuts*` split
+survive a restore (see above) --- works for anything in the short mode list above; a
+no-file buffer in some other mode isn't covered yet.
+
 ## Named sessions: how many can be saved?
 
 As many as you like --- there is no limit coded here, only disk space. `C-c w s`/`C-c w r`
@@ -195,17 +252,27 @@ doesn't make obvious:
 - A very large session (many buffers) restores the first `my/session-restore-eager` (10)
   buffers synchronously at startup and the rest lazily in the background, to keep startup
   fast --- not exhaustively measured with a huge session.
+- A no-file buffer's text/mode is only preserved for a short, fixed list of common modes
+  (`fundamental-mode`, `text-mode`, `lisp-interaction-mode`, `org-mode`) --- see "A buffer
+  with no file at all" above for why (`desktop-buffer-mode-handlers` has no mode-
+  inheritance); a no-file buffer in some other mode still gets its name/window slot
+  tracked, but not its text, until that mode is added to the list.
 
 ## Tests
 
-`tests/ert/emacs-session.el` (25 tests): keys bound; loaded eagerly (not autoloaded, and why);
+`tests/ert/emacs-session.el` (38 tests): keys bound; loaded eagerly (not autoloaded, and why);
 does not slow startup; every deliberate configuration choice (where the desktop lives,
 `desktop-save`/`desktop-load-locked-desktop`/`desktop-auto-save-timeout`/`desktop-
 restore-eager`); a real regression test pinning down the `RELEASE`-argument bug for good;
 `C-c w r`'s clear-then-remove-then-keep-dirname-usable sequence; a real, headless save →
 kill buffers → restore round trip confirming both the buffer list and the read-only lock
 come back correctly; and `C-c w l`'s listing (uses desktop.el's own real filter, shows
-every tracked file, marks modified ones, real close/refresh keys).
+every tracked file, marks modified ones, real close/refresh keys). Also: the no-file-
+buffer feature above --- opt-in and every real exclusion case (file, read-only, special-
+mode, already-claimed), the registered mode-handler list, a full real round trip (save,
+kill, restore, in a simulated separate process) confirming text and major mode both come
+back, and the regression test pinning down the file-backed-buffer-in-a-shared-mode bug
+for good.
 
 Named sessions: name sanitizing (empty, a slash, `.`/`..`); saving as a name never
 disturbs the live session's own `desktop-dirname`/`desktop-path` and really writes into
