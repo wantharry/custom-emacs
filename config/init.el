@@ -743,18 +743,28 @@ key sequence can never make a file editable."
 ;; test can call it directly regardless of `display-graphic-p' (real GUI font
 ;; detection is not meaningfully testable in a `--batch' run with no display at all,
 ;; the same reasoning `my/absolute-line-numbers--maybe-enable' is split out for).
-(require 'doom-modeline)
-(defvar my/doom-modeline-icon-font "JetBrainsMono Nerd Font Mono"
-  "The Nerd Font `doom-modeline''s icons render from --- see the WHAT/WHY/HOW
+;; WHAT/WHY: guarded on `locate-library', same as every other optional package in this
+;; file (`corfu', `yasnippet', ...), not a plain top-level `require' --- a real, found-
+;; by-testing gap: this package is installed by `./build.sh packages' into `config/elpa'
+;; (never committed to git), so a checkout that has not re-run that script since this
+;; package was added (a fresh `git pull'/`git merge' onto an already-built machine,
+;; exactly what happened once while building this) failed to load `init.el' AT ALL ---
+;; `(require 'doom-modeline)' with no guard errors `file-missing' before anything else in
+;; the rest of this file even runs, confirmed directly by reproducing it (removed the
+;; package, loaded headless, got exactly that backtrace) before adding this guard.
+(when (locate-library "doom-modeline")
+  (require 'doom-modeline)
+  (defvar my/doom-modeline-icon-font "JetBrainsMono Nerd Font Mono"
+    "The Nerd Font `doom-modeline''s icons render from --- see the WHAT/WHY/HOW
 comment just above `my/doom-modeline-maybe-enable'.")
-(defun my/doom-modeline-maybe-enable ()
-  "Enable `doom-modeline-mode', with icons only if `my/doom-modeline-icon-font'
+  (defun my/doom-modeline-maybe-enable ()
+    "Enable `doom-modeline-mode', with icons only if `my/doom-modeline-icon-font'
 is actually installed on this machine."
-  (setq nerd-icons-font-family my/doom-modeline-icon-font)
-  (setq doom-modeline-icon (and (find-font (font-spec :name my/doom-modeline-icon-font)) t))
-  (doom-modeline-mode 1))
-(when (display-graphic-p)
-  (my/doom-modeline-maybe-enable))
+    (setq nerd-icons-font-family my/doom-modeline-icon-font)
+    (setq doom-modeline-icon (and (find-font (font-spec :name my/doom-modeline-icon-font)) t))
+    (doom-modeline-mode 1))
+  (when (display-graphic-p)
+    (my/doom-modeline-maybe-enable)))
 
 ;;; Completion ------------------------------------------------------------------
 

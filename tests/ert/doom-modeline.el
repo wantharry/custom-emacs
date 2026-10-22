@@ -15,6 +15,7 @@ font family strings) as present, nothing else."
      ,@body))
 
 (ert-deftest doom-modeline/feature-is-loadable ()
+  (skip-unless (locate-library "doom-modeline"))
   (should (featurep 'doom-modeline)))
 
 (ert-deftest doom-modeline/enabling-turns-the-mode-on ()
@@ -24,6 +25,7 @@ font family strings) as present, nothing else."
   ;; a real `void-variable' error toggling it off before ever toggling it on, in a
   ;; fresh `--batch' process where it genuinely never has been. A fresh process
   ;; already starts with the mode off, so there is nothing to force here anyway.
+  (skip-unless (locate-library "doom-modeline"))
   (unwind-protect
       (progn
         (dm-test-with-mocked-find-font '("JetBrainsMono Nerd Font Mono")
@@ -35,9 +37,11 @@ font family strings) as present, nothing else."
   ;; See tools/fonts/ and init.el's own font-selection comment --- this must stay the
   ;; exact real installed name `fc-scan' reports for tools/fonts/
   ;; JetBrainsMonoNerdFontMono.ttf, not a guessed/prettied-up version of the filename.
+  (skip-unless (locate-library "doom-modeline"))
   (should (equal my/doom-modeline-icon-font "JetBrainsMono Nerd Font Mono")))
 
 (ert-deftest doom-modeline/icons-enabled-when-the-bundled-font-is-installed ()
+  (skip-unless (locate-library "doom-modeline"))
   (unwind-protect
       (dm-test-with-mocked-find-font (list my/doom-modeline-icon-font)
         (my/doom-modeline-maybe-enable)
@@ -50,6 +54,7 @@ font family strings) as present, nothing else."
 its configured icon font is actually present, and would otherwise silently try to
 render glyphs from a non-existent font (a row of empty tofu boxes) instead of
 falling back cleanly."
+  (skip-unless (locate-library "doom-modeline"))
   (unwind-protect
       (dm-test-with-mocked-find-font '()   ; nothing is "installed"
         (my/doom-modeline-maybe-enable)
@@ -57,6 +62,7 @@ falling back cleanly."
     (doom-modeline-mode -1)))
 
 (ert-deftest doom-modeline/does-not-slow-startup ()
+  (skip-unless (locate-library "doom-modeline"))
   (let ((best most-positive-fixnum))
     (dotimes (_ 3)
       (let ((t0 (float-time)))
