@@ -153,6 +153,21 @@ buffer, don't show it" mode at all --- confirmed directly in its own source (see
 runs. `C-c R` already opens it instantly wherever you are; there was nothing to pre-warm
 without visibly disrupting the display, the opposite of what was asked for.
 
+## `C-c N`: a brand-new, empty buffer, as many as you like
+
+A direct follow-up request: "as we press new windows in notepad++ ... how can I create
+similar to that". Plain `C-x b` (see [KEYBOARD.md](KEYBOARD.md)) already does this, but
+needs a name typed first every time --- not the "as many as possible, as fast as
+possible" one-key feel being asked for. `C-c N` calls `generate-new-buffer`, so repeated
+presses give a genuinely different buffer every time (`untitled`, `untitled<2>`, ...,
+never colliding with an existing one) --- not `C-c n`, already bound to
+`newsticker-treeview` (checked first, not assumed free).
+
+No extra wiring needed to make these crash-safe: a buffer from `C-c N` is just another
+no-file buffer, so it immediately qualifies for the auto-save/restore feature above
+(no file, not read-only, not `special-mode`-derived) the moment you start typing into
+it --- the exact same protection `*scratch*` or any other plain buffer already gets.
+
 ## Named sessions: how many can be saved?
 
 As many as you like --- there is no limit coded here, only disk space. `C-c w s`/`C-c w r`
@@ -278,7 +293,7 @@ doesn't make obvious:
 
 ## Tests
 
-`tests/ert/emacs-session.el` (41 tests): keys bound; loaded eagerly (not autoloaded, and why);
+`tests/ert/emacs-session.el` (44 tests): keys bound; loaded eagerly (not autoloaded, and why);
 does not slow startup; every deliberate configuration choice (where the desktop lives,
 `desktop-save`/`desktop-load-locked-desktop`/`desktop-auto-save-timeout`/`desktop-
 restore-eager`); a real regression test pinning down the `RELEASE`-argument bug for good;

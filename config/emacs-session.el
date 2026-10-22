@@ -667,5 +667,25 @@ disturbing the live, automatically-saved session."
 (define-key my/session-mode-map "L" #'my/session-named-list)
 (global-set-key (kbd "C-c w") my/session-mode-map)
 
+;; WHAT: `C-c N' --- a one-key "just give me a blank page", the same thing Notepad++'s
+;; own New button does. WHY: plain `C-x b' (already documented in KEYBOARD.md) needs a
+;; name typed first every time --- fine for a buffer you already have in mind, not for
+;; "as many as possible, as fast as possible" the way the user asked for this. WHY `C-c
+;; N', not the more obvious `C-c n': already bound to `newsticker-treeview' (see
+;; shortcuts.el's own reference list) --- checked first, not assumed free.
+;; HOW: `generate-new-buffer' (not `get-buffer-create') is what actually makes repeated
+;; presses give a DIFFERENT buffer every time --- `untitled', `untitled<2>', `untitled<3>',
+;; ... automatically, never colliding with an existing one, confirmed directly in its own
+;; docstring. No file, so no extra wiring needed to make it crash-safe: it immediately
+;; qualifies for `my/session--track-unsaved-buffers' above (no file, not read-only, not
+;; `special-mode'-derived, not already claimed) --- the SAME auto-save/restore every
+;; other no-file buffer already gets, the next periodic tick after you start typing.
+(defun my/new-empty-buffer ()
+  "Create and switch to a brand-new, empty, unnamed buffer --- Notepad++'s own New
+button, one key, as many times as you like."
+  (interactive)
+  (switch-to-buffer (generate-new-buffer "untitled")))
+(global-set-key (kbd "C-c N") #'my/new-empty-buffer)
+
 (provide 'emacs-session)
 ;;; emacs-session.el ends here

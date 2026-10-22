@@ -304,6 +304,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c w O` | `my/session-open` | **this config:** replace what's open with a named session |
 | `C-c w D` | `my/session-delete` | **this config:** delete a named session for good |
 | `C-c w L` | `my/session-named-list` | **this config:** list every named session saved |
+| `C-c N` | `my/new-empty-buffer` | **this config:** a brand-new, empty, unnamed buffer --- Notepad++'s own New button, as many times as you like ([SESSION.md](SESSION.md)); not `C-c n`, already `newsticker-treeview` |
 | `C-x 0` | `delete-window` | close this window |
 | `C-x 1` | `delete-other-windows` | keep only this window |
 | `C-x 2` | `split-window-below` | split top and bottom |

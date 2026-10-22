@@ -661,4 +661,40 @@ temp directories, so these tests never touch the real config's own session state
           (should (eq (key-binding (kbd "q")) 'quit-window))))
     (when (get-buffer my/session-named-list-buffer-name) (kill-buffer my/session-named-list-buffer-name))))
 
+;;; `C-c N': a one-key "just give me a blank page" (a direct user request: "as we press
+;;; new windows in notepad++ ... how can I create similar to that"). Not `C-c n': already
+;;; bound to `newsticker-treeview' (checked first, not assumed free).
+
+(ert-deftest emacs-session/new-empty-buffer-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c N")) 'my/new-empty-buffer))
+  ;; the real, found-first reason this isn't `C-c n'
+  (should (eq (key-binding (kbd "C-c n")) 'newsticker-treeview)))
+
+(ert-deftest emacs-session/new-empty-buffer-gives-a-different-buffer-every-time ()
+  (let (b1 b2)
+    (unwind-protect
+        (progn
+          (setq b1 (call-interactively #'my/new-empty-buffer))
+          (should (eq (current-buffer) b1))
+          (should-not buffer-file-name)
+          (should (= (point-min) (point-max)))       ; empty
+          (setq b2 (call-interactively #'my/new-empty-buffer))
+          ;; repeated presses: a genuinely different buffer every time, not the same one
+          (should-not (eq b1 b2))
+          (should (eq (current-buffer) b2)))
+      (dolist (b (list b1 b2)) (when (buffer-live-p b) (kill-buffer b))))))
+
+(ert-deftest emacs-session/new-empty-buffer-is-protected-by-the-no-file-auto-save-feature ()
+  "The whole point of building this on top of the no-file-buffer feature above, not as
+its own separate thing: no extra wiring needed, it just qualifies immediately."
+  (let (buf)
+    (unwind-protect
+        (progn
+          (setq buf (call-interactively #'my/new-empty-buffer))
+          (insert "something worth keeping")
+          (my/session--track-unsaved-buffers)
+          (should (eq (buffer-local-value 'desktop-save-buffer buf)
+                      #'my/session--unsaved-misc-data)))
+      (when (buffer-live-p buf) (kill-buffer buf)))))
+
 ;;; emacs-session.el ends here
