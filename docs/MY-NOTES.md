@@ -122,6 +122,10 @@ commands and one-line notes, added to as they come up.
 | What actually gets saved | window placement, buffers, files and frame chrome (menu bar/tool bar/decorations) all persist on their own, via `desktop-save-mode`'s own "frameset" mechanism --- confirmed directly by inspecting a real saved file, not assumed from the name "session" |
 | The color theme | did NOT persist on its own (`theme-buffet` always re-picked a fresh random one at every startup regardless) --- fixed with `my/session-theme`, saved/restored via `desktop-globals-to-save` + `desktop-save-hook`/`desktop-after-read-hook`, timed to run after `theme-buffet`'s own startup pick so it correctly wins |
 | `C-c w r` (`my/session-reset`) | only deletes the *saved* file --- it does **not** touch your currently running Emacs's frame/theme at all. If menu-bar/theme/etc. are wrong in the live session when you run this, they'll just get auto-saved wrong again on the very next exit. Fix the live state first (or use `C-c U`, which does both at once), then reset/save |
+| A buffer with no file at all | now protected too (Notepad++-style, no recovery prompt) --- `desktop-save-buffer` can be a *function*, not just `t`; its return value is the buffer's own saved misc-data, round-tripped through `desktop-buffer-mode-handlers`. Covers `fundamental-mode`/`text-mode`/`lisp-interaction-mode` (`*scratch*`)/`org-mode` only --- no mode inheritance in `desktop-buffer-mode-handlers`, so some other mode's no-file buffer isn't covered yet |
+| Default Dired buffer | wherever Emacs was launched from always has a Dired buffer in the buffer list (`C-x b`/`C-c w l`), created silently (`dired-noselect`), never shown on screen |
+| `ranger`/Treemacs as defaults | **not** done --- `ranger` always does `delete-other-windows` and takes over the frame the instant it runs, no silent-creation mode exists; Treemacs was built the same way as Dired but dropped on request |
+| `C-c N` (`my/new-empty-buffer`) | a brand-new, empty, unnamed buffer every press (`untitled`, `untitled<2>`, ...) --- Notepad++'s own New button. Not `C-c n`: already `newsticker-treeview` |
 
 ## Which-key
 
