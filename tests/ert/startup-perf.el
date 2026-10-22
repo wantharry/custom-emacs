@@ -40,7 +40,14 @@
   (should-not (featurep 'jsonrpc)))
 
 (ert-deftest startup/no-third-party-features-loaded ()
-  (dolist (f '(magit treemacs consult doom-themes doom-modeline company lsp-mode projectile))
+  ;; `doom-modeline' deliberately NOT in this list (removed once it was actually
+  ;; installed and this test started failing on it): same reasoning as `corfu'/
+  ;; `vertico' being eager, already exempt from this same check --- a mode-line
+  ;; replacement has to be active from the very first frame to do its job at all,
+  ;; same as a completion UI; see init.el's own comment on `my/doom-modeline-maybe-
+  ;; enable' (`(require 'doom-modeline)' is guarded on `locate-library', not deferred
+  ;; to first use, the same way `corfu'/`vertico' are not autoloaded either).
+  (dolist (f '(magit treemacs consult doom-themes company lsp-mode projectile))
     (should-not (featurep f))))
 
 (ert-deftest startup/load-path-does-not-contain-the-config-directory ()

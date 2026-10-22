@@ -63,13 +63,24 @@ ERT's own error handling."
 
 (ert-deftest treemacs/is-not-loaded-until-used ()
   ;; In a fresh Emacs, because other tests here load it into this one.
+  ;;
+  ;; `dash' deliberately dropped from this check (real, found-by-testing gap): once
+  ;; `doom-modeline' was actually installed, this started failing on `dash' alone,
+  ;; with `treemacs' itself genuinely still `nil' --- confirmed directly, not assumed,
+  ;; by hiding `doom-modeline''s own elpa directory and re-running this exact `--eval'
+  ;; (treemacs/doom-modeline both nil), then restoring it (treemacs nil, doom-modeline
+  ;; t). `doom-modeline' requires `shrink-path', which requires `dash' --- a real,
+  ;; separate, equally legitimate reason for `dash' to be loaded at startup now,
+  ;; nothing to do with Treemacs at all, so it is no longer a valid proxy for "has
+  ;; Treemacs been touched." `hydra' is untouched by this and stays as a second,
+  ;; still-valid witness (Treemacs's own optional quick-menu dependency).
   (let ((out (with-output-to-string
                (with-current-buffer standard-output
                  (call-process test-emacs nil t nil "--batch" "--init-directory" (getenv "CONFIG_DIR")
                                "-l" (expand-file-name "early-init.el" (getenv "CONFIG_DIR"))
                                "-l" (expand-file-name "init.el" (getenv "CONFIG_DIR"))
-                               "--eval" "(princ (list (featurep 'treemacs) (featurep 'dash) (featurep 'hydra)))")))))
-    (should (string-match-p "(nil nil nil)" out))))
+                               "--eval" "(princ (list (featurep 'treemacs) (featurep 'hydra)))")))))
+    (should (string-match-p "(nil nil)" out))))
 
 (ert-deftest treemacs/is-in-the-package-list-and-melpa-is-a-source ()
   (with-temp-buffer
