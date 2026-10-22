@@ -3955,3 +3955,130 @@ turned out to be Dired inside the built `Emacs.app` itself (not the terminal), a
 ("Files and Folders") permission the ad-hoc-signed app needs granted explicitly, and which
 may need re-granting again after each rebuild since the app's signature changes. Explained
 to the user as a System Settings fix, not a bug in this repo.
+
+### Follow-up, same session: the common fixes ported to `main`/`utilities`, a real macOS Gatekeeper/TCC hang finally explained, a whole new "no-file buffer" auto-save feature, a parallel session's `doom-modeline` landing (and a real bug it shipped with), three more direct feature requests, and v1.5
+
+**Common (non-Java) fixes cherry-picked onto `main` and `utilities`**, per a direct user
+request ("merge these to main and utilities since these are common fixes not the java
+ones ignore the java for these branches"): 16 commits --- the macOS bundle + CI job, the
+Windows release job, the `cloudmacs.sh` macOS fix, both the wrong and the correct fix for
+the Windows package version-gate failure, and every session-restore fix --- picked in
+order onto both branches (a `fork` agent did the mechanical work; verified with each
+branch's own full test suite against its own pre-cherry-pick baseline first, to confirm
+zero new failure categories, not just "tests still mostly pass"). `main` needed one real
+conflict resolved (`docs/CONVERSATION-LOG.md`, `docs/DISTRIBUTION.md`); `utilities`
+applied clean. Explicitly excluded: `corfu-auto`/jdtls (Java-specific), `examples/
+mavenproject`, the jdtls test fix, `java`'s own log entry. Pushed to both
+(`main` `a05c216`, `utilities` `1ee7f0f`) only after the user confirmed via a direct
+push/no-push/review-first choice.
+
+**A real macOS Gatekeeper/TCC hang, finally explained end to end**: the user reported the
+freshly-downloaded `v1.4` macOS bundle (re-extracted to Desktop) "hangs after a few
+seconds... doesn't get updated in minibuffer." Diagnosed in stages, each one real, not
+assumed: `sample` showed the process genuinely idle in Emacs's own normal event loop at
+first (not frozen); a screenshot showed the menu bar fully populated but the "window" was
+actually just the desktop wallpaper showing through --- no frame ever rendered; a direct
+launch (`Emacs.app/Contents/MacOS/Emacs` with the real `--dump-file`/`--init-directory`
+flags) surfaced the real, concrete error: `Opening directory: Operation not permitted,
+.../config/elpa` --- not a crash, a genuine macOS privacy (TCC) denial on the Desktop
+folder specifically, which also silently blocked this session's OWN shell from the same
+path moments later (confirmed: a plain `cp`/`ls` from a totally unrelated process hit the
+identical error). Moving the bundle to `~/Downloads` fixed the shell's own access
+immediately, but launching Emacs there (via a backgrounded shell, then via `open -a`)
+revealed a SECOND real fact: a process launched by this automated session cannot surface
+or receive a macOS permission dialog at all --- the GUI process gets stuck forever inside
+a single blocking `open()` syscall (confirmed via `sample`: identical stack frame across
+the full sampling window, `Fload -> openp -> emacs_openat -> open`), since no human is
+there to click "Allow." The real, durable fix handed to the user: grant **Full Disk
+Access** to `Emacs.app` directly in System Settings, once, so there is never a runtime
+permission decision to make at all. Documented here as a real, structural limit on what
+this session can diagnose for the user versus what only a human in the GUI session can
+actually resolve.
+
+**A new feature: buffers with no file at all now survive a crash too, Notepad++-style,
+no recovery prompt** --- three direct user requests in a row built this up: "I typed
+something, closed it, opened Emacs, it shows the start screen why" (diagnosed: a
+never-saved buffer is invisible to both `auto-save-visited-mode`, which needs a real
+filename, and plain `desktop-save-buffer` set to `t`, which only remembers a name/window
+slot, never text) -> "save all buffers automatically that are without file, no prompt,
+like Notepad++." The real API this rides on, found by reading `desktop.el`'s own source
+rather than guessing: `desktop-save-buffer` may be a FUNCTION, not just `t`
+(`(when (functionp desktop-save-buffer) (funcall desktop-save-buffer desktop-dirname))`,
+confirmed directly), and whatever it returns is embedded as that buffer's own misc-data,
+restored later through `desktop-buffer-mode-handlers` --- the exact same extension point
+`my/start-mode`/`my/shortcuts-mode` already used, just returning real content instead of
+regenerating a fixed display. A qualifying buffer (no file, not already claimed, not a
+minibuffer/internal, not read-only, not `special-mode`-derived) opts in automatically
+every periodic (~10s) tick. **Two real bugs found only by testing, not by reading the
+code**: (1) this config's own `*docs*` buffer (`my/docs-mode`, derived from `outline-
+mode`, not `special-mode`) matched every other check and got silently swept in, then
+failed to restore --- fixed by adding a `buffer-read-only` check, the actually-principled
+signal ("if you can't type into it, it's not yours to preserve") the file was missing;
+(2) registering a mode handler by major mode ALONE also intercepts a real file-backed
+buffer sharing that same mode (a plain `.txt` file is `text-mode` too) --- broke four
+pre-existing restore tests the moment `text-mode`/`fundamental-mode` joined the handler
+list, caught only by running the FULL suite, not this feature in isolation; fixed by
+checking the handler's own `FILE` argument and delegating to `desktop-restore-file-buffer`
+whenever it's non-nil. Verified with real save/kill/simulated-fresh-process/restore round
+trips both ways. Synced into the user's own Desktop bundle directly, same as every other
+live-tested change this session.
+
+**A parallel session's `doom-modeline` work landed via a routine `git push` rejection**
+(another session had pushed `404a1ba` while this one worked) --- merged cleanly, but a
+real, found-only-by-running-the-full-suite bug shipped with it: a bare, unguarded
+`(require 'doom-modeline)` at the top of `init.el`, unlike every other optional package
+in this file. Reproduced directly: this package is installed by `./build.sh packages`
+into `config/elpa` (never committed), so a checkout that had not re-run that script since
+the package was added --- exactly this machine's own state, right after the merge --- failed
+to load `init.el' AT ALL, `file-missing`, before anything else in the file even ran.
+Fixed the same way every other optional package here already works: wrapped in
+`(when (locate-library "doom-modeline") ...)`. Packages installed locally
+(`./build.sh packages`) so this Mac actually has it; headless load confirmed both with
+and without the package present.
+
+**Three more direct feature requests, each investigated for real constraints before
+building**: (1) "add a few more buffers default like dired, ranger, treemacs maybe
+default to current directory" --- clarified first (buffer-list only, not shown on screen;
+"wherever Emacs was launched from," not a fixed directory): a Dired buffer for the launch
+directory (`my/session--launch-directory`, captured at the very top of `emacs-session.el`,
+as early as possible) is now always present via `dired-noselect` (never selects/displays,
+so it cannot disturb the start screen); Treemacs was built the identical way (pre-
+register a project without calling `treemacs-select-window`, confirmed that alone shows
+no window) and then dropped on a direct follow-up ("lets not add treemacs"); `ranger` was
+never attempted at all --- confirmed directly in its own source (`my/ranger-to-dired`'s own
+comment) that it unconditionally calls `delete-other-windows` and takes over the whole
+frame the instant it runs, with no silent-creation mode to use instead. (2) "as we press
+new windows in notepad++... how can I create similar to that" --- `C-c N`
+(`my/new-empty-buffer`, not `C-c n`, already `newsticker-treeview`, checked first) calls
+`generate-new-buffer` so repeated presses give a genuinely different buffer every time
+(`untitled`, `untitled<2>`, ...); built directly on top of the no-file-buffer feature
+just above, so it is automatically crash-safe with zero extra wiring. (3) "did you get
+all the commands add it shortcuts and notes and others required" --- `C-c N` had only
+made it into `docs/KEYBOARD.md`; added to `config/shortcuts.el` (the `*shortcuts*`
+buffer/`C-c k`, and the Custom menu, generated from the same data --- confirmed, not a
+second hand-written copy) and `docs/MY-NOTES.md`'s own running "Session" log too, which
+also now records the ranger/Treemacs decisions for future reference.
+
+**`v1.5` tagged and pushed** (user confirmed first), covering everything in this entry
+plus the two test fixes below --- release build running on GitHub Actions as of this
+entry; `v1.4` is the last one actually verified downloadable.
+
+**Running the full suite (`--full`) surfaced two more real, but outdated, test
+assumptions, not product bugs** --- found only because this was the first time
+`doom-modeline` was both installed AND the full suite run together: `startup/no-third-
+party-features-loaded` listed `doom-modeline` among packages that must never load
+eagerly, when it correctly now does (same reasoning `corfu`/`vertico`, already exempt
+from this same check, already established: a mode-line replacement has to be active from
+the very first frame). `treemacs/is-not-loaded-until-used` used `(featurep 'dash)` as its
+proxy for "Treemacs untouched" --- confirmed directly (hid `doom-modeline`'s own `elpa`
+directory, re-ran the exact check, restored it) that `doom-modeline` requires
+`shrink-path`, which requires `dash`, entirely independent of Treemacs; `dash` dropped
+from that check, `hydra` kept as the still-valid second witness. Also found and removed:
+a stale, gitignored `config/session/.emacs.desktop`/`.emacs.desktop.lock` left over from
+this session's own earlier manual (non-isolated) test invocations --- real per-machine
+state, never committed, not a code issue, but worth noting since it briefly looked like a
+cross-test-contamination bug before being traced to its real, mundane cause.
+`VERIFY-PRUNE`'s own "PROBLEMS FOUND" is unrelated to all of this and pre-existing: it
+needs `build/src/emacs`/`install/bin/emacs` (this project's own from-source Linux build),
+which simply does not exist on this Mac at all (confirmed: neither path exists) --- out of
+scope here, not a regression.
