@@ -718,6 +718,44 @@ key sequence can never make a file editable."
     (add-to-list 'load-path dir)
     (add-to-list 'custom-theme-load-path dir)))
 
+;;; Mode-line ---------------------------------------------------------------------
+
+;; WHAT: `doom-modeline' replaces the plain stock mode-line --- the single most
+;; popular mode-line package in the ecosystem, user request ("what are other famous
+;; packages to add"). WHY `nerd-icons' (not the older `all-the-icons') for its icons:
+;; `nerd-icons' needs only ONE plain Nerd Font, and this config already bundles one,
+;; `JetBrainsMono Nerd Font Mono' (tools/fonts/ --- this config's own DEFAULT font,
+;; see the font-selection comment near the top of this file); `all-the-icons'
+;; instead needs FOUR separate icon-only font files of its own, none of which this
+;; project bundles.
+;; HOW: placed here, right after `load-path' gets the elpa directories added just
+;; above, not back with the rest of the font/UI settings near the top of this file
+;; --- `require' needs those directories on `load-path' first; `vertico'/`orderless'/
+;; `marginalia' just above hit this exact same ordering mistake once already, see
+;; that section's own comment. `nerd-icons-font-family' is pointed at that exact
+;; bundled font's own real installed name (confirmed via `fc-scan', same name the
+;; font-selection comment above already confirmed). `doom-modeline-icon' is gated on
+;; the SAME `find-font' check that font-selection block already relies on --- a
+;; real, found-by-checking gap, not assumed: `doom-modeline' does not itself check
+;; whether its configured icon font is actually present, and silently tries to
+;; render glyphs from a non-existent font otherwise (a row of empty tofu boxes, not
+;; a clean fallback). Pulled into its own function, not an inline `when' block, so a
+;; test can call it directly regardless of `display-graphic-p' (real GUI font
+;; detection is not meaningfully testable in a `--batch' run with no display at all,
+;; the same reasoning `my/absolute-line-numbers--maybe-enable' is split out for).
+(require 'doom-modeline)
+(defvar my/doom-modeline-icon-font "JetBrainsMono Nerd Font Mono"
+  "The Nerd Font `doom-modeline''s icons render from --- see the WHAT/WHY/HOW
+comment just above `my/doom-modeline-maybe-enable'.")
+(defun my/doom-modeline-maybe-enable ()
+  "Enable `doom-modeline-mode', with icons only if `my/doom-modeline-icon-font'
+is actually installed on this machine."
+  (setq nerd-icons-font-family my/doom-modeline-icon-font)
+  (setq doom-modeline-icon (and (find-font (font-spec :name my/doom-modeline-icon-font)) t))
+  (doom-modeline-mode 1))
+(when (display-graphic-p)
+  (my/doom-modeline-maybe-enable))
+
 ;;; Completion ------------------------------------------------------------------
 
 ;; The minibuffer completion UI and matching style: `vertico' (a vertical candidate
