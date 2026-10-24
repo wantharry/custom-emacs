@@ -53,7 +53,24 @@ eglot+jdtls section in init.el already uses, instead of a separate download."
               ((file-directory-p dir)))
     (setq lsp-java-server-install-dir (file-name-as-directory dir)))
   (when-let* ((java (my/bundled-jdk-java)))
-    (setq lsp-java-java-path java)))
+    (setq lsp-java-java-path java)
+    ;; WHAT: `lsp-java-java-path' only controls which JVM runs jdtls ITSELF; it
+    ;; says nothing about which JDK jdtls should resolve `java.lang.*'/the rest
+    ;; of `java.base' against for the PROJECT being analyzed --- a real, found-
+    ;; by-reproducing-it gap, confirmed directly: without this, every single
+    ;; class in a real project got a real compiler error, `Implicit super
+    ;; constructor Object() is undefined', on every file --- jdtls could not
+    ;; resolve `java.lang.Object' itself, with no project runtime configured at
+    ;; all (`lsp-java-configuration-runtimes' defaults to nil). WHY `JavaSE-21'
+    ;; specifically: the bundled JDK's own real major version (Adoptium Temurin
+    ;; 21, `tools/dist-windows.sh''s own `JDK_VERSION'), not the project's lower
+    ;; `maven.compiler.source' (17, in `examples/mavenproject/pom.xml') --- a
+    ;; newer JDK compiling down to an older release level is standard and
+    ;; already how `javac --release' itself works; jdtls does the equivalent.
+    (setq lsp-java-configuration-runtimes
+          (vector (list :name "JavaSE-21"
+                        :path (directory-file-name (file-name-directory (directory-file-name (file-name-directory java))))
+                        :default t)))))
 
 ;; WHAT: force `lsp-completion-mode' back on if it gets left off even after the
 ;; server genuinely supports completion. WHY needed at all, not a guess: confirmed
