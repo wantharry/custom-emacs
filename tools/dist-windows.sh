@@ -28,6 +28,38 @@ ZIG=("${ZIG_PYTHON:-$DIST/.venv/bin/python}" -m ziglang)
 command -v 7z >/dev/null || { echo "7z is needed to make the zip (sudo apt-get install p7zip-full)" >&2; exit 1; }
 command -v cmd.exe >/dev/null || { echo "this needs WSL (it runs the Windows Emacs to compile packages)" >&2; exit 1; }
 [ -d "$ROOT/config/elpa" ] || { echo "no packages: run ./build.sh packages" >&2; exit 1; }
+# WHAT/WHY: a real bug this session hit directly, not hypothetical --- the check above
+# only confirms `config/elpa' EXISTS, not that it is COMPLETE; a prior run of this exact
+# script silently bundled a Windows zip missing a large batch of `my/packages' entries
+# (doom-modeline, nerd-icons, evil, magit, consult, corfu, gptel and more), because
+# the "compile the packages with the Windows Emacs itself" step below only byte-
+# recompiles whatever is ALREADY on disk --- it never installs anything missing, so an
+# incomplete `config/elpa' (left that way by an earlier, partially-failed `./build.sh
+# packages' run) ships just as "successfully" as a complete one, with no error at any
+# point. Caught only by manually diffing the delivered zip's contents against
+# `my/packages' after a real user hit the resulting "Cannot open load file" crash.
+# HOW: loading `install-packages.el' itself (not just reading `my/packages') re-runs
+# its own install loop, which SELF-HEALS anything missing (confirmed directly: with
+# `doom-modeline' deliberately removed first, this step printed "Installed doom-
+# modeline" and continued) --- cheap and network-free when everything is already
+# present (confirmed directly too: no "Contacting host" line in that case), since
+# `package-refresh-contents' only ever runs when something is actually missing, the
+# same property this file's own `install-packages.el' already documents. The final
+# `package-installed-p' check after that is the true safety net: if the self-heal
+# itself could not fix something (e.g. no network at all right now), fail loudly here,
+# before any of the slow download/compile work below, instead of silently shipping an
+# incomplete zip the way the original bug did.
+EMACS_FOR_CHECK="$(command -v emacs || true)"
+if [ -x "$ROOT/install/bin/emacs" ]; then EMACS_FOR_CHECK="$ROOT/install/bin/emacs"; fi
+if [ -n "$EMACS_FOR_CHECK" ]; then
+  "$EMACS_FOR_CHECK" --batch --init-directory="$ROOT/config" --eval "
+    (progn
+      (load (expand-file-name \"tools/install-packages.el\" \"$ROOT\") nil t)
+      (let ((missing (seq-remove #'package-installed-p my/packages)))
+        (when missing
+          (princ (format \"incomplete config/elpa: missing %S -- run ./build.sh packages\n\" missing))
+          (kill-emacs 1))))"
+fi
 mkdir -p "$CACHE"
 
 fetch() {   # fetch URL FILE

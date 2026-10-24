@@ -96,6 +96,7 @@ research-emacs/
 | [docs/SEARCH-OPTIONS.md](docs/SEARCH-OPTIONS.md) | The inventory of every way to search in Emacs: what is built in, what was added here, what was pruned, and which packages exist but are not installed (with versions and overlap) |
 | [docs/SEARCHING.md](docs/SEARCHING.md) | Finding anything: files (the fast finder, recent, tree, Dired), text (in a file, a project, a folder), code by meaning, help. Every key checked, with measured speeds and screenshots |
 | [docs/EGLOT.md](docs/EGLOT.md) | Code intelligence from a language server: start it, definitions, references, implementations, diagnostics, rename; how the Windows bundle runs Java with nothing installed |
+| [docs/LSP-JAVA.md](docs/LSP-JAVA.md) | `lsp-java` branch only: a deeper Java IDE (`C-c L`) alongside eglot+jdtls --- refactoring, code generation, a visual debugger, a test runner, a dependency viewer |
 | [docs/TREEMACS.md](docs/TREEMACS.md) | The file tree sidebar (`C-c t`): keys, how it fits with the finder and Dired, and how it works with the read-only lock |
 | [docs/DISK-USAGE.md](docs/DISK-USAGE.md) | A WizTree-style disk usage browser (`C-c W`) powered by `dua`, plus recursive sizes right inside Dired (`dired-du-mode`, the same key) |
 | [docs/CLOUDMACS.md](docs/CLOUDMACS.md) | `tools/cloudmacs.sh`: this actual Emacs, reachable in a browser tab (local machine only), via Gotty and `emacsclient --tty` --- no Docker, why not the real `karlicoss/cloudmacs` image, and the security tradeoffs of ever exposing it beyond your own machine |

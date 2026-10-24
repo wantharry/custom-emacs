@@ -90,4 +90,20 @@ lsp-ui/lsp-treemacs/dap-mode/lsp-java/flycheck is missing."
     (require 'dap-ui)
     (require 'dap-mouse)
     (require 'dap-java)
-    (dap-auto-configure-mode 1)))
+    (dap-auto-configure-mode 1))
+  ;; WHAT: `C-c l g s' --- a symbols outline (tree of every class/method/field in the
+  ;; current file). WHY added by hand: `lsp-mode''s own `lsp-command-map' (confirmed by
+  ;; reading its source, not assumed) already wires up `lsp-treemacs-errors-list' (`C-c
+  ;; l g e') and `lsp-treemacs-call-hierarchy' (`C-c l g h') under the same "g" (goto)
+  ;; prefix automatically once `lsp-treemacs' is loaded --- but leaves `lsp-treemacs-
+  ;; symbols' (along with references/implementations/type-hierarchy as trees, and the
+  ;; Java dependency viewer) unbound, available only via `M-x'. `gs' was free in that
+  ;; same "g" category, so extending the map lsp-mode itself already built is more
+  ;; consistent than inventing a parallel one. The other unbound lsp-treemacs views
+  ;; (`lsp-treemacs-references'/`-implementations'/`-type-hierarchy'/`-java-deps-list')
+  ;; are left as `M-x'-only --- each already has a non-tree equivalent lsp-mode binds
+  ;; itself (`gr'/`gi' call plain `xref'), so a tree view of the same thing is a nice-
+  ;; to-have, not something used often enough to need its own key.
+  (when (locate-library "lsp-treemacs")
+    (require 'lsp-treemacs)
+    (define-key lsp-command-map "gs" #'lsp-treemacs-symbols)))
