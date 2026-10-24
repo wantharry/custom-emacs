@@ -25,7 +25,8 @@
                         multiple-cursors verb devdocs
                         dired-du
                         move-text
-                        doom-modeline nerd-icons)
+                        doom-modeline nerd-icons
+                        lsp-mode lsp-ui lsp-treemacs dap-mode lsp-java flycheck)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -110,7 +111,14 @@ tools/fonts/ --- this config's own DEFAULT font, see init.el's font-selection
 comment), so nothing new needs installing on a machine already running this config's
 own default setup. See init.el's own comment on `my/doom-modeline-maybe-enable' for
 how the icons are gated off cleanly on a machine where that font is not actually
-installed.")
+installed.
+`lsp-mode'/`lsp-ui'/`lsp-treemacs'/`dap-mode'/`lsp-java' (this `lsp-java' branch
+only): a deeper Java IDE than this config's own eglot+jdtls setup (init.el) offers on
+its own --- refactoring, code generation, a visual debugger, a test-runner tree UI;
+bound to `C-c L' (`config/lsp-java.el'), side by side with eglot, not a replacement
+for it. `flycheck' is lsp-mode's own conventional diagnostics display (the ecosystem
+default it is built and documented around), distinct from Eglot's own use of the
+built-in `flymake' for the exact same job in the plain eglot+jdtls setup above.")
 
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete

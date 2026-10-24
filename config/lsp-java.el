@@ -1,0 +1,93 @@
+;;; lsp-java.el --- lsp-mode + lsp-java: a deeper Java IDE, as an alternative to eglot+jdtls  -*- lexical-binding: t; -*-
+
+;; `C-c L' starts it for the current buffer (refactoring, code generation, a visual
+;; debugger, a test runner --- all beyond what the plain eglot+jdtls setup in init.el
+;; offers). Research branch (`lsp-java'): this is deliberately a SEPARATE path from
+;; init.el's own `my/bundled-jdtls-command' (eglot) --- nothing here replaces or
+;; disables that; both exist side by side so either can be tried on the same files.
+;; Like eglot, this is manual-start only (`C-c L', not a `java-mode-hook'), the same
+;; "don't slow down opening a file just to maybe use an LSP later" philosophy the
+;; eglot section already follows.
+;;
+;; WHAT lsp-java adds that eglot+jdtls does not, confirmed from its own README, not
+;; assumed: refactorings (extract method/constant/field/parameter/local, organize
+;; imports), code generation (toString, equals/hashCode, overrides, getters/setters),
+;; a real visual debugger (`dap-mode'), a test-runner tree UI (`lsp-jt-browser'),
+;; a dependency viewer, and (experimental) Spring Boot integration.
+;;
+;; Once `C-c L' has started it for a buffer, `C-c l' (lowercase, `lsp-keymap-prefix'
+;; below) is lsp-mode's own full command menu --- rename, format, code actions,
+;; workspace folders, and everything else lsp-mode itself binds; press it and wait a
+;; moment for which-key (built into Emacs now) to show every option, rather than
+;; this file hand-binding each one individually.
+;;
+;; Packages needed (`./build.sh packages'): lsp-mode, lsp-ui, lsp-treemacs, dap-mode,
+;; lsp-java, flycheck, yasnippet (already pulled in elsewhere in this config).
+
+;; WHAT: tells lsp-mode which prefix key to bind its own large command map under, once
+;; `lsp-mode' (the minor mode) actually turns on in a buffer. WHY this exact key: `C-c
+;; l' (lowercase) is lsp-mode's own documented, widely-used community convention ---
+;; keeping it, rather than picking a different one, means anyone already familiar with
+;; lsp-mode elsewhere needs nothing new to learn here. MUST be set before `lsp-mode' is
+;; `require'd (it reads this variable once, at load time, to build its keymap), which
+;; is why it is the very first real line in this file.
+(setq lsp-keymap-prefix "C-c l")
+
+;; WHAT: point `lsp-java' at the SAME bundled jdtls (and bundled JDK) the eglot section
+;; in init.el already resolves, instead of letting `lsp-java' manage its own separate
+;; download/copy of the identical server. WHY: confirmed directly (this session's own
+;; research) that `lsp-java-server-install-dir' just needs to contain the standard
+;; `plugins/org.eclipse.equinox.launcher_*.jar' + `config_<os>' layout any real
+;; eclipse.jdt.ls distribution already has --- the exact layout `my/bundled-jdtls-dir'
+;; (init.el) already points at --- so reusing it is a straight substitution, not a
+;; guess; one bundled copy on Windows, not two. HOW: `my/bundled-jdtls-dir'/`my/
+;; bundled-jdk-java' are both already defined in init.el (loaded before this file,
+;; since `autoload' below only triggers once `C-c L' is actually pressed) --- this
+;; function is only ever called from `my/lsp-java', at which point both exist.
+;; Anywhere those return nil (not the bundled Windows build), `lsp-java' falls back to
+;; its own default behavior: auto-download its own copy on first use.
+(defun my/lsp-java--point-at-bundled-server ()
+  "If this is the bundled Windows build, point lsp-java at the SAME jdtls/JDK the
+eglot+jdtls section in init.el already uses, instead of a separate download."
+  (when-let* ((dir (my/bundled-jdtls-dir))
+              ((file-directory-p dir)))
+    (setq lsp-java-server-install-dir (file-name-as-directory dir)))
+  (when-let* ((java (my/bundled-jdk-java)))
+    (setq lsp-java-java-path java)))
+
+;;;###autoload
+(defun my/lsp-java ()
+  "Start the lsp-java Java IDE (refactoring, code generation, debugger, test runner)
+for the current buffer --- the `lsp-java' branch's alternative to `M-x eglot' for
+Java. Installs nothing by itself; run `./build.sh packages' first if any of lsp-mode/
+lsp-ui/lsp-treemacs/dap-mode/lsp-java/flycheck is missing."
+  (interactive)
+  (unless (locate-library "lsp-java")
+    (user-error "lsp-java is not installed.  Run ./build.sh packages"))
+  (require 'yasnippet)
+  (require 'flycheck)
+  (require 'lsp-mode)
+  (require 'lsp-java)
+  (my/lsp-java--point-at-bundled-server)
+  ;; `lsp-auto-guess-root': without this, lsp-mode interactively asks "which project
+  ;; root?" the first time any file in a not-yet-seen project is opened --- fine at
+  ;; the keyboard, but there is no reason to ask when a `pom.xml'/`build.gradle' (the
+  ;; markers `lsp-java' itself already knows to look for) makes the real root
+  ;; unambiguous.
+  (setq lsp-auto-guess-root t)
+  (yas-minor-mode 1)
+  (flycheck-mode 1)
+  (lsp)
+  (when (locate-library "lsp-ui") (require 'lsp-ui) (lsp-ui-mode 1))
+  (when (locate-library "dap-mode")
+    (require 'dap-mode)
+    ;; `dap-auto-configure-mode' calls `dap-ui-mode' and (via `dap-features->modes')
+    ;; `dap-tooltip-mode' directly, but does not `require' the files those two
+    ;; actually live in itself --- confirmed for real, not assumed: calling it
+    ;; without these two first fails with `(void-function dap-ui-mode)' then
+    ;; `(void-function dap-tooltip-mode)', both real errors this session hit
+    ;; directly, one at a time, each only surfacing once the previous was fixed.
+    (require 'dap-ui)
+    (require 'dap-mouse)
+    (require 'dap-java)
+    (dap-auto-configure-mode 1)))

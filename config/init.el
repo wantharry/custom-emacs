@@ -1058,6 +1058,16 @@ stdin, exactly like a real terminal would."
     (compile compile-command t)))
 (global-set-key (kbd "C-c J") #'my/run-java-file)
 
+;; `C-c L': `lsp-java' --- a deeper Java IDE (refactoring, code generation, a visual
+;; debugger, a test runner) than plain eglot+jdtls above offers, as a side-by-side
+;; alternative rather than a replacement --- see config/lsp-java.el for the full
+;; WHAT/WHY and exactly what it adds. Autoloaded the same way disk-usage.el/dictate.el/
+;; gitfolders.el already are: nothing in that file loads until `C-c L' is actually
+;; pressed.
+(autoload 'my/lsp-java (expand-file-name "lsp-java" user-emacs-directory)
+  "Start the lsp-java Java IDE for the current buffer." t)
+(global-set-key (kbd "C-c L") #'my/lsp-java)
+
 ;; `C-c j': run Maven goals on a real multi-file project (`C-c J' above only ever
 ;; handles one file, no classpath) --- user request, after being told the honest
 ;; answer that there was no multi-file build command at all, only `jdtls' navigation.

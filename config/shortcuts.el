@@ -368,7 +368,8 @@ by hand.")
     ;; one-key compile-and-run was worth adding; see `my/run-java-file''s own comment
     ;; in init.el for how it finds `javac'/`java' (bundled first, then `PATH').
     ("Java"
-     ("C-c J" my/run-java-file "compile and run the current buffer's .java file"))
+     ("C-c J" my/run-java-file "compile and run the current buffer's .java file")
+     ("C-c L" my/lsp-java "lsp-java branch only: a deeper Java IDE (refactoring, code generation, debugger, test runner), alongside eglot+jdtls, not a replacement"))
     ;; WHAT/WHY: follow-up to `C-c J' above --- that only ever handles one file, no
     ;; classpath, so a real multi-file project (anything with its own `pom.xml') needs
     ;; a real build tool instead. Maven is bundled the same way the JDK is on this
