@@ -1270,6 +1270,20 @@ only `let'-binds `default-directory' rather than passing the path as an argument
   (autoload 'ace-window "ace-window" "Jump to a window by the letter shown in it." t))
 (global-set-key (kbd "M-o") (if (locate-library "ace-window") #'ace-window #'other-window))
 
+;; WHAT: `M-O' (paired with `ace-window''s `M-o' just above --- lowercase jumps,
+;; uppercase rearranges) swaps a horizontal split (windows stacked top/bottom) for a
+;; vertical one (side by side), or back, keeping each window's own buffer. WHY:
+;; `transpose-frame' is the one package built for exactly this; the plain-Emacs
+;; alternative is deleting a window and re-splitting by hand, re-finding which buffer
+;; went where. A real message, not a silent no-op, when the package is not installed
+;; --- same pattern as `my/avy-missing' just above.
+(when (locate-library "transpose-frame")
+  (autoload 'transpose-frame "transpose-frame" "Transpose the window layout: horizontal split becomes vertical, or back." t))
+(defun my/transpose-frame-missing ()
+  (interactive)
+  (message "transpose-frame is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "M-O") (if (locate-library "transpose-frame") #'transpose-frame #'my/transpose-frame-missing))
+
 ;; `wgrep' makes a `grep'-shaped results buffer (`M-x rgrep', or one `embark-export'
 ;; builds from a `consult-ripgrep'/`C-x p g' search) directly editable: fix something
 ;; across every matched file at once, `C-c C-p' to start editing, `C-c C-e' to save it

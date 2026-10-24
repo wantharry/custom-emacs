@@ -17,7 +17,7 @@
 
 (defconst my/packages '(evil magit treemacs consult gptel
                         vertico orderless marginalia embark embark-consult
-                        avy ace-window wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes
+                        avy ace-window transpose-frame wgrep helpful symbol-overlay magit-delta theme-buffet atom-one-dark-theme catppuccin-theme solo-jazz-theme nimbus-theme rebecca-theme subatomic-theme night-owl-theme shanty-themes snazzy-theme horizon-theme immaterial-theme zenburn-theme solarized-theme dracula-theme kaolin-themes
                         casual csv-mode
                         corfu yasnippet expand-region diff-hl vterm pdf-tools
                         ranger

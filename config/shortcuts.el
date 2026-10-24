@@ -345,7 +345,8 @@ by hand.")
      ;; really runs the command it claims" test) as well as in the packages section above.
      ("C-c a c" my/llm-council "ask 3 local models at once, summarized by a bigger one"))
     ("Windows"
-     ("M-o" ace-window "jump to a window by the letter shown in it"))
+     ("M-o" ace-window "jump to a window by the letter shown in it")
+     ("M-O" transpose-frame "swap a horizontal split for a vertical one, or back"))
     ("Themes"
      ("C-c c" my/load-theme-by-number "pick a color theme by character (press C-c c, then 1-9/a-z/A-T; 0 is the default, no theme)")
      ("C-c ." my/cycle-theme "switch to the next theme, whatever slot it's in")
