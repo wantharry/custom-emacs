@@ -55,6 +55,38 @@ eglot+jdtls section in init.el already uses, instead of a separate download."
   (when-let* ((java (my/bundled-jdk-java)))
     (setq lsp-java-java-path java)))
 
+;; WHAT: force `lsp-completion-mode' back on if it gets left off even after the
+;; server genuinely supports completion. WHY needed at all, not a guess: confirmed
+;; directly, this session, by instrumenting a real connection start to finish ---
+;; real jdtls sends its own "Starting"/"Started"/"ServiceReady" status messages
+;; MORE THAN ONCE during one real connection (a second "Starting 100%" interleaved
+;; AFTER an earlier "Started"/"Ready", before the final "ServiceReady"), and
+;; `textDocument/completion' is DYNAMICALLY registered (confirmed: absent from the
+;; static `initialize' response, present only later via `client/registerCapability')
+;; part way through that same sequence. `lsp-configure-hook' --- what `lsp-mode'
+;; itself uses to turn `lsp-completion-mode' on --- fires repeatedly across that
+;; whole sequence (18 times, confirmed, all within the same second, for one buffer),
+;; and the two together race: completion was confirmed, directly, to still be OFF
+;; 20+ seconds after a real successful connection, in the one java-mode buffer
+;; actually open, despite `(lsp-feature? "textDocument/completion")' already
+;; returning true partway through that same firing sequence --- lsp-mode's own
+;; enable-on-hook logic landing on an "off" moment of jdtls's flip-flopping status,
+;; not jdtls ever failing to offer completion at all. HOW: poll instead of trusting
+;; a single hook firing to land at the right moment --- every 2s for up to a
+;; minute, in THIS buffer specifically (closed over, checked live via
+;; `buffer-live-p' so a since-closed buffer safely stops this), turn completion
+;; back on the moment the feature is available but the mode is not already on.
+(defun my/lsp-java--ensure-completion (buf deadline)
+  (when (buffer-live-p buf)
+    (with-current-buffer buf
+      (when (and (bound-and-true-p lsp-mode)
+                 (not (bound-and-true-p lsp-completion-mode))
+                 (ignore-errors (lsp-feature? "textDocument/completion")))
+        (lsp-completion-mode 1)))
+    (unless (or (with-current-buffer buf (bound-and-true-p lsp-completion-mode))
+                (> (float-time) deadline))
+      (run-with-timer 2 nil #'my/lsp-java--ensure-completion buf deadline))))
+
 ;;;###autoload
 (defun my/lsp-java ()
   "Start the lsp-java Java IDE (refactoring, code generation, debugger, test runner)
@@ -67,6 +99,25 @@ lsp-ui/lsp-treemacs/dap-mode/lsp-java/flycheck is missing."
   (require 'yasnippet)
   (require 'flycheck)
   (require 'lsp-mode)
+  ;; `lsp-mode.el' itself `require's only `lsp-protocol' (confirmed by reading its
+  ;; own top of file) --- every other generic UI feature it auto-configures on
+  ;; connect (modeline status, header-line breadcrumb, diagnostics, semantic
+  ;; tokens) lives in its OWN separate file, each normally loaded on demand by a
+  ;; real `package.el' autoload --- which this config does not use (packages are
+  ;; put on `load-path' directly, `my/elpa-dir' in init.el, never through `package-
+  ;; initialize'/`package-activate-all', the only thing that would also load each
+  ;; package's own generated `-autoloads.el' and wire those up). Left unrequired,
+  ;; `lsp-auto-configure' silently fails for each one with `(void-function ...)',
+  ;; logged once per `lsp-configure-hook' firing rather than raised as a real
+  ;; error --- confirmed directly, one at a time, each only surfacing once the
+  ;; previous was fixed (`lsp-modeline-workspace-status-mode', then `lsp-
+  ;; headerline-breadcrumb-mode'); required explicitly here instead of waiting for
+  ;; the next one to surface the same way.
+  (require 'lsp-modeline)
+  (require 'lsp-headerline)
+  (require 'lsp-diagnostics)
+  (require 'lsp-semantic-tokens)
+  (require 'lsp-icons)
   (require 'lsp-java)
   (my/lsp-java--point-at-bundled-server)
   ;; `lsp-auto-guess-root': without this, lsp-mode interactively asks "which project
@@ -78,6 +129,7 @@ lsp-ui/lsp-treemacs/dap-mode/lsp-java/flycheck is missing."
   (yas-minor-mode 1)
   (flycheck-mode 1)
   (lsp)
+  (my/lsp-java--ensure-completion (current-buffer) (+ (float-time) 60))
   (when (locate-library "lsp-ui") (require 'lsp-ui) (lsp-ui-mode 1))
   (when (locate-library "dap-mode")
     (require 'dap-mode)
