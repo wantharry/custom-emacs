@@ -30,6 +30,7 @@ Total real, distinct entries in this file: **197**.
 |---|---|---|
 | C-x o | other-window | move to next window |
 | M-o | ace-window | this config: jump to a window by its letter |
+| M-O | transpose-frame | this config: swap a horizontal split for a vertical one, or back |
 | C-x 2 | split-window-below | split top/bottom |
 | C-x 3 | split-window-right | split left/right |
 | C-x 0 | delete-window | close this window |
@@ -271,6 +272,7 @@ Total real, distinct entries in this file: **197**.
 - evil: vi keybindings emulation; opt-in via C-c v, off by default so it costs nothing until toggled
 - avy: jump-to-visible-char navigation; single tiny package, one entry point
 - ace-window: window selection by letter; tiny, no configuration needed
+- transpose-frame: swap a horizontal split for a vertical one, or back; tiny, no configuration needed
 - wgrep: makes grep/ripgrep result buffers directly editable and saveable
 - helpful: richer describe-function/variable/key buffers; replaces the built-in help, no extra keys
 - symbol-overlay: highlight every occurrence of the symbol at point; one command, one toggle
