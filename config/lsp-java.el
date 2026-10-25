@@ -104,6 +104,29 @@ eglot+jdtls section in init.el already uses, instead of a separate download."
                 (> (float-time) deadline))
       (run-with-timer 2 nil #'my/lsp-java--ensure-completion buf deadline))))
 
+;; WHAT: sanitize whatever `lsp-java--get-filename' (lsp-java's own upstream
+;; function, computing the local cache filename for a `jdt://' class-file URI)
+;; returns, before it is ever used as a real path. WHY: a real, reproduced user
+;; bug, clicking into `System.out.println' (go-to-definition on a JDK MODULE
+;; class) --- jdtls's own `jdt://' URIs are a pseudo-scheme, not real RFC3986,
+;; and for a module class the query portion embeds the class path a SECOND
+;; time with characters jdtls never escapes (confirmed directly, reconstructing
+;; the real shape and tracing `lsp-java--get-filename''s own fallback regex
+;; branch by hand: a literal `<' survives into the generated name). That branch
+;; only strips `/' and `\\' from what it captures, nothing else --- so a `<'
+;; reaches `with-temp-file' unchanged, and Windows/NTFS refuses outright to
+;; create a file with `<' in its name (`"Invalid argument"', the exact real
+;; error hit) --- breaking go-to-definition into ANY JDK module class on
+;; Windows. HOW: replace every character Windows disallows in a filename (`< >
+;; : " | ? *'; `/' and `\\' are already handled upstream) with `_' --- lossy,
+;; but safe: this is only ever a local cache filename, never round-tripped back
+;; into a real `jdt://' request (the real URI is saved separately, in the
+;; `.metadata' sidecar file `lsp-java--resolve-uri' already writes).
+(defun my/lsp-java--sanitize-filename (filename)
+  (replace-regexp-in-string "[<>:\"|?*]" "_" filename))
+(with-eval-after-load 'lsp-java
+  (advice-add 'lsp-java--get-filename :filter-return #'my/lsp-java--sanitize-filename))
+
 ;;;###autoload
 (defun my/lsp-java ()
   "Start the lsp-java Java IDE (refactoring, code generation, debugger, test runner)
