@@ -43,4 +43,30 @@
     (should-not (string-match-p "[<>:\"|?*]" name))
     (should (string-suffix-p ".java" name))))
 
+;; real, user-hit bug: `C-c L' on one file of a project left every OTHER file in
+;; that SAME project needing its own separate `C-c L' --- confirmed directly with a
+;; real two-file Maven project and a real jdtls connection (`lsp-mode'/workspaces
+;; correct in the first file, both nil/0 in the second, no `C-c L' pressed there).
+;; `my/lsp-java--attach-if-already-running' must attach ONLY when an existing
+;; workspace's root is a real ancestor of the file being opened --- never for a
+;; file outside every known workspace (which must stay untouched, no new server).
+(ert-deftest lsp-java/attach-if-already-running-only-attaches-to-a-real-match ()
+  (skip-unless (locate-library "lsp-mode"))
+  (require 'lsp-mode)
+  (let ((called 0))
+    (cl-letf (((symbol-function 'lsp) (lambda () (setq called (1+ called))))
+              ((symbol-function 'lsp-session) (lambda () 'fake-session))
+              ((symbol-function 'lsp--session-workspaces) (lambda (_session) (list 'ws-a 'ws-b)))
+              ((symbol-function 'lsp--workspace-root)
+               (lambda (ws) (if (eq ws 'ws-a) "/tmp/proj-a/" "/tmp/proj-b/"))))
+      (with-temp-buffer
+        (let ((buffer-file-name "/tmp/proj-a/src/main/java/demo/Other.java"))
+          (my/lsp-java--attach-if-already-running))
+        (should (= called 1))
+        ;; a file under NEITHER known workspace root must not attach (and must not
+        ;; start a new server for a project `C-c L' was never run on).
+        (let ((buffer-file-name "/tmp/unrelated-project/src/Foo.java"))
+          (my/lsp-java--attach-if-already-running))
+        (should (= called 1))))))
+
 ;;; lsp-java.el ends here

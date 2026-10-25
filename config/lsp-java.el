@@ -214,3 +214,36 @@ lsp-ui/lsp-treemacs/dap-mode/lsp-java/flycheck is missing."
   (when (locate-library "lsp-treemacs")
     (require 'lsp-treemacs)
     (define-key lsp-command-map "gs" #'lsp-treemacs-symbols)))
+
+;; WHAT: once a project already has a live `lsp-java'/jdtls connection (the user paid
+;; the one-time `C-c L' cost for ONE file in it), silently attach every OTHER java
+;; file opened in that SAME project to the already-running server too, instead of
+;; requiring `C-c L' again per file. WHY: a real, reproduced user report, confirmed
+;; directly with a live two-file Maven project and a real jdtls connection --- `C-c
+;; L' on file A left `lsp-mode' correctly on (1 workspace); opening file B in the
+;; SAME project, without pressing `C-c L' again, left `lsp-mode' OFF (0 workspaces)
+;; in B. Root cause: `lsp-mode' has no file-open hook of its own --- `(lsp)' only
+;; ever runs when something explicitly calls it, and `my/lsp-java' is deliberately
+;; bound only to `C-c L', never a major-mode-hook (this file's own header comment:
+;; "don't slow down opening a file just to maybe use an LSP later"). That philosophy
+;; is right for a project NEVER started with `C-c L' --- but once a project DOES
+;; have a live server, making every other file in it pay its own manual `C-c L' is
+;; pure friction with no benefit; attaching to an ALREADY-RUNNING workspace is fast
+;; (no new process, confirmed: `(lsp)' on a root that already has a connected
+;; workspace just joins it), not a cold start. HOW: hook `java-mode-hook'/`java-ts-
+;; mode-hook' (`major-mode-remap-alist' switches `.java' files to the latter once
+;; tree-sitter is available, so both are covered) --- but only once `lsp-mode' is
+;; ALREADY loaded (`with-eval-after-load'), so a java file opened before the first
+;; real `C-c L' this session never even registers the hook, let alone loads lsp-mode
+;; itself just to check; and even once registered, the hook only ever ATTACHES to an
+;; EXISTING workspace whose root is an ancestor of this file (never starts a new
+;; one), so a file in a project that was never started with `C-c L' still costs
+;; nothing to open.
+(defun my/lsp-java--attach-if-already-running ()
+  (when (and buffer-file-name
+             (cl-some (lambda (ws) (lsp-f-ancestor-of? (lsp--workspace-root ws) buffer-file-name))
+                      (lsp--session-workspaces (lsp-session))))
+    (lsp)))
+(with-eval-after-load 'lsp-mode
+  (add-hook 'java-mode-hook #'my/lsp-java--attach-if-already-running)
+  (add-hook 'java-ts-mode-hook #'my/lsp-java--attach-if-already-running))
