@@ -44,8 +44,18 @@ jobs:
       - name: Install system build dependencies
         run: |
           sudo apt-get update
+          # A real break, not hypothetical: `ubuntu-latest' migrated to Ubuntu 26.04
+          # (confirmed directly in a real CI run's own image annotation) partway
+          # through this project's life, whose default `gcc' is now 14, not 13 ---
+          # a hardcoded `libgccjit-13-dev' then installs headers for a DIFFERENT
+          # major version than the compiler actually on the runner, and `configure'
+          # fails outright with "Lisp native compiler was requested, but libgccjit
+          # was not found." Matching the runner's own real default `gcc' version
+          # here, dynamically, survives the NEXT Ubuntu/GCC bump too, not just this
+          # one already-confirmed one.
+          GCCJIT_VER="$(gcc -dumpversion | cut -d. -f1)"
           sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
-            libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
+            libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev "libgccjit-$GCCJIT_VER-dev" \
             libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
             liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev \
             p7zip-full python3-venv

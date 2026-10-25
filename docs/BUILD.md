@@ -8,7 +8,7 @@ and are untested.
 
 ```sh
 sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
-  libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev libgccjit-13-dev \
+  libxml2-dev libjansson-dev libsqlite3-dev libtree-sitter-dev "libgccjit-$(gcc -dumpversion | cut -d. -f1)-dev" \
   libgtk-3-dev librsvg2-dev libjpeg-dev libtiff-dev libgif-dev libwebp-dev \
   liblcms2-dev libharfbuzz-dev libcairo2-dev libxpm-dev libotf-dev
 ```
@@ -17,7 +17,7 @@ sudo apt-get install -y build-essential texinfo libgnutls28-dev libncurses-dev \
 |---|---|
 | `texinfo` | `makeinfo`. **Required** for a git checkout (release tarballs ship pre-built manuals, git does not) |
 | `libncurses-dev` | Terminal support. configure fails without a terminfo library |
-| `libgccjit-13-dev` | Native compilation (the main speed feature) |
+| `libgccjit-N-dev` (N = your `gcc`'s own major version, e.g. `gcc -dumpversion`) | Native compilation (the main speed feature) --- a mismatched N (confirmed, the hard way: `ubuntu-latest` migrating to Ubuntu 26.04's default gcc 14 broke a hardcoded `-13-`) makes `configure` fail outright with "libgccjit was not found" |
 | `libtree-sitter-dev` | Tree-sitter parsing and highlighting |
 | `libgtk-3-dev`, `libcairo2-dev`, `libharfbuzz-dev` | GUI toolkit, drawing, font shaping |
 | `libgnutls28-dev` | HTTPS, needed to download packages |
