@@ -122,8 +122,23 @@ eglot+jdtls section in init.el already uses, instead of a separate download."
 ;; but safe: this is only ever a local cache filename, never round-tripped back
 ;; into a real `jdt://' request (the real URI is saved separately, in the
 ;; `.metadata' sidecar file `lsp-java--resolve-uri' already writes).
+;;
+;; A SECOND, separate real bug in the same fallback branch, confirmed directly
+;; from a real user screenshot after the above fix: the branch's own format,
+;; `"%s(%s)"', NEVER ends in `.java' (it ends in the closing `)'), unlike the
+;; branch-1 \"clean\" case which always does --- so `auto-mode-alist' (which
+;; `find-file' uses to pick a major mode, matched by filename SUFFIX) never
+;; matches `java-mode'/`java-ts-mode' for one of these buffers, and Emacs falls
+;; back to plain `fundamental-mode': no syntax highlighting at all, confirmed
+;; directly, a real screenshot of `System.java(_java.lang(System.class)' shown
+;; completely uncolored next to a real, highlighted `.java' buffer for
+;; comparison. HOW: force the sanitized name to end in `.java' whenever it
+;; does not already --- cosmetically odd for one of these (`Foo(Bar).java'),
+;; but this is purely a local cache filename no one reads by hand; being
+;; highlighted correctly matters far more than how the name itself looks.
 (defun my/lsp-java--sanitize-filename (filename)
-  (replace-regexp-in-string "[<>:\"|?*]" "_" filename))
+  (let ((safe (replace-regexp-in-string "[<>:\"|?*]" "_" filename)))
+    (if (string-suffix-p ".java" safe) safe (concat safe ".java"))))
 (with-eval-after-load 'lsp-java
   (advice-add 'lsp-java--get-filename :filter-return #'my/lsp-java--sanitize-filename))
 
