@@ -325,6 +325,10 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `M-n` | `move-text-down` | **this config:** the same, downward |
 | `C-h D` | `devdocs-lookup` | **this config:** look up a symbol in a real, offline copy of a language/library's own docs (each doc set downloaded on first use with `devdocs-install`) |
 | `C-c W` | `my/disk-usage` | **this config:** a WizTree-style, drill-down disk usage browser, largest first, powered by `dua` ([DISK-USAGE.md](DISK-USAGE.md)) --- `C-c W` inside Dired instead toggles `dired-du-mode` (the same key, a different, locally-scoped binding) |
+| `C-c P` | `my/toggle-perspective` | **this config:** turn named groups of buffers/windows on or off, off by default ([PERSPECTIVE.md](PERSPECTIVE.md)) --- once on, `C-x x` is `perspective`'s own full command prefix |
+| `C-c B` | `my/writing` | **this config:** open a new, plain `untitled` buffer for prose; `C-c S` turns on synonym suggestions in it ([SYNONYMS.md](SYNONYMS.md)) |
+| `C-c S` | `my/synonyms-mode` | **this config:** turn synonym suggestions on/off in this buffer --- they then pop up automatically while typing; `F7` looks one up immediately |
+| `C-c X` | `my/typing-game` | **this config:** a graduated typing trainer --- alphabet, then +numbers, +special characters, +real Emacs keybindings ([TYPING-GAME.md](TYPING-GAME.md)) |
 | `C-x ^` | `enlarge-window` | taller |
 | `C-x }` | `enlarge-window-horizontally` | wider |
 | `C-x {` | `shrink-window-horizontally` | narrower |

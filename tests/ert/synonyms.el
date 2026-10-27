@@ -4,7 +4,7 @@
 (require 'synonyms (expand-file-name "synonyms" user-emacs-directory))
 
 (ert-deftest synonyms/new-writing-buffer-key-is-bound ()
-  (should (eq (key-binding (kbd "C-c N")) 'my/writing)))
+  (should (eq (key-binding (kbd "C-c B")) 'my/writing)))
 
 (ert-deftest synonyms/toggle-key-is-bound ()
   (should (eq (key-binding (kbd "C-c S")) 'my/synonyms-mode)))
@@ -30,7 +30,7 @@
 
 ;; direct, explicit user follow-up: "a writing buffer is not same as untitiled
 ;; buffer, i want writing buffer to show up only when i press some command and not
-;; on all the buffers" --- `C-c N' itself must open a PLAIN, inert buffer (no
+;; on all the buffers" --- `C-c B' itself must open a PLAIN, inert buffer (no
 ;; suggestions yet); only a later, separate command (`C-c S') turns suggestions on
 ;; AND is what actually makes it a "writing buffer" (confirmed below by the rename).
 

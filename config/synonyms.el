@@ -1,15 +1,22 @@
 ;;; synonyms.el --- on-demand synonym suggestions while writing prose  -*- lexical-binding: t; -*-
 
-;; `C-c N' opens a new buffer for prose (an email, a letter, a chapter) with synonym
-;; suggestions already on; `C-c S' toggles the same suggestions in ANY buffer (an
-;; existing draft, a real `message-mode' email, a `.org' chapter file, ...). User
-;; request, explicit: "when I start typing it should suggest me words like synonyms
-;; so that I can pick the best possible word ... useful for emails or letters or
-;; novel writing" --- and, after an on-demand-only first version, a direct follow-up
-;; correction: "it shouldnt be a keybound it should be automatically shows up as i
-;; type." Suggestions now pop up automatically while typing, in buffers with
-;; `my/synonyms-mode' on --- `F7'/`C-M-i' (see `my/synonyms-lookup' below) remain as
-;; an explicit, immediate lookup too, not removed.
+;; `C-c B' opens a new, PLAIN `untitled' buffer for prose (an email, a letter, a
+;; chapter) --- no suggestions yet; `C-c S' turns suggestions ON, in that buffer or
+;; ANY other (an existing draft, a real `message-mode' email, a `.org' chapter
+;; file, ...), renaming a still-`untitled' buffer to `writing' as a visual
+;; confirmation (see `my/synonyms--maybe-rename-to-writing' below). Not `C-c N':
+;; this branch is also merged onto `lsp-java'/`main', where `C-c N' is already a
+;; real, different, earlier feature (`my/new-empty-buffer', confirmed directly,
+;; not assumed --- a Notepad++-style blank buffer every press); `B' avoids
+;; colliding with it. User request, explicit: "when I start typing it should
+;; suggest me words like synonyms so that I can pick the best possible word ...
+;; useful for emails or letters or novel writing" --- then two direct follow-up
+;; corrections: "it shouldnt be a keybound it should be automatically shows up as
+;; i type," and "a writing buffer is not same as untitiled buffer, i want writing
+;; buffer to show up only when i press some command and not on all the buffers."
+;; Suggestions pop up automatically while typing, in buffers with `my/synonyms-
+;; mode' on --- `F7'/`C-M-i' (see `my/synonyms-lookup' below) remain as an
+;; explicit, immediate lookup too, not removed.
 ;;
 ;; WHAT/WHY: this is a real, scoped exception to this config's OWN general
 ;; preference against auto-popup completion --- `corfu-auto' (the global default for
@@ -182,11 +189,11 @@ auto-trigger hook once, when IT turns on, which already happened with
 ;; actually turn on in it --- a real, visual confirmation that it is now a
 ;; "writing buffer" with suggestions live, not just any blank buffer. WHY only
 ;; an `untitled'-named buffer, not every buffer `my/synonyms-mode' turns on in:
-;; explicit user request --- `C-c N' itself only ever opens a plain, inert
+;; explicit user request --- `C-c B' itself only ever opens a plain, inert
 ;; `untitled' buffer now (see `my/writing' below, no longer turns the mode on by
 ;; itself); this rename is what visibly marks the MOMENT it actually becomes a
-;; writing buffer, one explicit command later (`C-c S', or `F7'/`C-M-i' pressed
-;; directly in it, both of which turn the mode on first). A buffer that was
+;; writing buffer, one explicit command later (`C-c S' turns the mode on first;
+;; `F7'/`C-M-i' only do anything once that already has). A buffer that was
 ;; something else already (a real email draft, an existing `.org' chapter) keeps
 ;; its own real name --- renaming THAT would be actively unwanted, not a nice-to-
 ;; have, the same reasoning this function only ever touches a buffer whose name
