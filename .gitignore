@@ -29,6 +29,8 @@ __pycache__/
 !/config/mode-reference.el
 !/config/disk-usage.el
 !/config/lsp-java.el
+!/config/synonyms.el
+!/config/typing-game.el
 
 # Scratch local tooling (e.g. puppeteer-core, for real GUI/browser screenshots
 # during development) --- not a tracked project dependency, no package.json here.

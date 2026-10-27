@@ -215,4 +215,29 @@ inherit when first created --- not whatever folder it is actually showing."
                (lambda (cmd) (if (equal cmd my/disk-usage-dua-command) nil (funcall real cmd)))))
       (should-error (my/disk-usage default-directory) :type 'user-error))))
 
+;; real, user-hit bug: `dua' exits NON-ZERO whenever it hits an IO error on even one
+;; entry --- confirmed directly, scanning a real Windows `C:\' without elevation ---
+;; yet it still prints a real, correctly-computed size for every entry, including the
+;; ones it had trouble with (each gets its own `<N IO Errors>' suffix appended right
+;; onto that entry's own line, same shape `disk-usage/parse-line-reads-a-real-dua-line'
+;; above already covers for "System Volume Information"). The non-zero exit alone must
+;; not throw that real data away.
+(ert-deftest disk-usage/partial-output-on-nonzero-exit-is-not-a-failure ()
+  (let (result)
+    (my/disk-usage--handle-scan-result
+     "/c" (current-time) (lambda (pairs) (setq result pairs)) 1
+     "42515916432 b Windows <51 IO Errors>\n914104228280 b Users <4 IO Errors>\n")
+    (should-not (and (consp result) (eq (car result) :error)))
+    (should (= (length result) 2))
+    (should (equal (cdr (nth 0 result)) "Users <4 IO Errors>"))
+    (should (equal (cdr (nth 1 result)) "Windows <51 IO Errors>"))))
+
+;; a non-zero exit with NOTHING parseable at all --- `dua' genuinely missing, the
+;; target not a directory, etc. --- is still a real failure.
+(ert-deftest disk-usage/no-output-on-nonzero-exit-is-still-a-failure ()
+  (let (result)
+    (my/disk-usage--handle-scan-result
+     "/c" (current-time) (lambda (pairs) (setq result pairs)) 1 "dua: no such file or directory\n")
+    (should (and (consp result) (eq (car result) :error)))))
+
 ;;; disk-usage.el ends here
