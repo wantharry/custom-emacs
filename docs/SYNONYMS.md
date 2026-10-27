@@ -6,15 +6,19 @@ follow-up corrections: "it shouldnt be a keybound it should be automatically sho
 then "a writing buffer is not same as untitiled buffer, i want writing buffer to show up only when i
 press some command and not on all the buffers."
 
+Bound to `C-c B`, not the more obvious `C-c N`: this feature is also merged onto the `lsp-java`/`main`
+branches, where `C-c N` is already a real, different, earlier feature (`my/new-empty-buffer`, a
+Notepad++-style blank buffer every press) --- `B` avoids colliding with it.
+
 | Key | Command | What it does |
 |---|---|---|
-| `C-c N` | `my/writing` | open a new, PLAIN `untitled` buffer --- no suggestions yet |
+| `C-c B` | `my/writing` | open a new, PLAIN `untitled` buffer --- no suggestions yet |
 | `C-c S` | `my/synonyms-mode` | turn suggestions ON in the buffer you are in --- renames an `untitled` buffer to `writing` as visual confirmation; toggles OFF again on a second press |
 | `F7` (once suggestions are on) | `my/synonyms-lookup` | look up synonyms for the word at point RIGHT NOW, without waiting for the automatic pause-trigger |
 
 ## How it actually works
 
-`C-c N` only ever opens a plain, inert `untitled` buffer --- nothing special happens in it yet, same as
+`C-c B` only ever opens a plain, inert `untitled` buffer --- nothing special happens in it yet, same as
 opening any new document. Suggestions only turn on, in THAT buffer or any other, once you explicitly ask
 for them with `C-c S` --- and the moment they do, an `untitled` buffer renames itself to `writing`, a
 clear visual sign suggestions are now live in it. A buffer that was already something else (a real email

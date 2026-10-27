@@ -1886,19 +1886,26 @@ or Windows outside the bundle)."
 
 ;;; Synonyms while writing prose (config/synonyms.el) ---------------------------
 
-;; `C-c N' opens a new buffer for writing with synonym suggestions already on;
-;; `C-c S' toggles them in any existing buffer. User request, explicit: "when I
-;; start typing it should suggest me words like synonyms... useful for emails or
-;; letters or novel writing." Autoloaded lazily, the same shape as `my/disk-usage'
-;; just above --- this file only ever loads the moment one of these two keys is
-;; actually used. See config/synonyms.el's own header comment for the full WHAT/
-;; WHY/HOW (why on-demand not automatic, why an API not a bundled dictionary) and
-;; docs/SYNONYMS.md.
+;; `C-c B' opens a new, plain `untitled' buffer for writing; `C-c S' turns on
+;; synonym suggestions in it (or any other buffer), renaming it to `writing' as a
+;; visual confirmation --- see config/synonyms.el's own `my/synonyms--maybe-rename-
+;; to-writing' comment for why these two are deliberately separate commands. User
+;; request, explicit: "when I start typing it should suggest me words like
+;; synonyms... useful for emails or letters or novel writing." Not `C-c N': this
+;; branch is also merged onto `lsp-java'/`main', where `C-c N' is already a real,
+;; different, earlier feature (`my/new-empty-buffer', confirmed directly, not
+;; assumed --- "a brand-new empty buffer every time, like Notepad++'s New button")
+;; --- `B' avoids colliding with it rather than silently shadowing it on merge.
+;; Autoloaded lazily, the same shape as `my/disk-usage' just above --- this file
+;; only ever loads the moment one of these two keys is actually used. See config/
+;; synonyms.el's own header comment for the full WHAT/WHY/HOW (why on-demand not
+;; automatic, why an API not a bundled dictionary) and docs/SYNONYMS.md.
 (autoload 'my/writing (expand-file-name "synonyms" user-emacs-directory)
-  "Open a new buffer for prose writing, with synonym suggestions (F7) already on." t)
+  "Open a new, plain buffer for prose writing --- no synonym suggestions until
+C-c S explicitly turns them on." t)
 (autoload 'my/synonyms-mode (expand-file-name "synonyms" user-emacs-directory)
   "Toggle synonym suggestions (F7) for the word at point in this buffer." t)
-(global-set-key (kbd "C-c N") #'my/writing)
+(global-set-key (kbd "C-c B") #'my/writing)
 (global-set-key (kbd "C-c S") #'my/synonyms-mode)
 
 ;;; Typing game (config/typing-game.el) ------------------------------------------
