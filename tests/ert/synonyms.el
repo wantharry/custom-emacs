@@ -4,7 +4,7 @@
 (require 'synonyms (expand-file-name "synonyms" user-emacs-directory))
 
 (ert-deftest synonyms/new-writing-buffer-key-is-bound ()
-  (should (eq (key-binding (kbd "C-c N")) 'my/writing)))
+  (should (eq (key-binding (kbd "C-c B")) 'my/writing)))
 
 (ert-deftest synonyms/toggle-key-is-bound ()
   (should (eq (key-binding (kbd "C-c S")) 'my/synonyms-mode)))
@@ -30,7 +30,7 @@
 
 ;; direct, explicit user follow-up: "a writing buffer is not same as untitiled
 ;; buffer, i want writing buffer to show up only when i press some command and not
-;; on all the buffers" --- `C-c N' itself must open a PLAIN, inert buffer (no
+;; on all the buffers" --- `C-c B' itself must open a PLAIN, inert buffer (no
 ;; suggestions yet); only a later, separate command (`C-c S') turns suggestions on
 ;; AND is what actually makes it a "writing buffer" (confirmed below by the rename).
 
@@ -96,19 +96,25 @@
 ;; mode' (already active everywhere via `global-corfu-mode') only wires up the real
 ;; trigger hook ONCE, when it itself turns on, which already happened before
 ;; `my/synonyms-mode' runs, with `corfu-auto' still nil at that moment.
+;; Checks `local-variable-p', not a hardcoded nil/t value --- a branch can set a
+;; different GLOBAL default for `corfu-auto' for its own unrelated reasons (the
+;; `lsp-java' branch turns it on globally for real Eglot/jdtls Java completion), so
+;; the real, branch-agnostic invariant `my/synonyms-mode' must uphold is "this
+;; buffer specifically got its own LOCAL binding, another untouched buffer did
+;; not" --- not "the resulting boolean happens to be nil elsewhere."
 (ert-deftest synonyms/mode-on-turns-on-corfu-auto-for-this-buffer-only ()
   (let ((other (generate-new-buffer "syn-other")))
     (unwind-protect
         (with-temp-buffer
           (text-mode)
-          (should-not (bound-and-true-p corfu-auto))
+          (should-not (local-variable-p 'corfu-auto))
           (my/synonyms-mode 1)
           (should corfu-auto)
+          (should (local-variable-p 'corfu-auto))
           (should (memq #'corfu-auto--post-command post-command-hook))
-          ;; buffer-local, not global --- another buffer must be untouched.
-          (should-not (buffer-local-value 'corfu-auto other))
-          (should-not (memq #'corfu-auto--post-command
-                             (buffer-local-value 'post-command-hook other))))
+          ;; buffer-local, not global --- my/synonyms-mode itself must not have
+          ;; made `corfu-auto' buffer-local in another, unrelated buffer.
+          (should-not (with-current-buffer other (local-variable-p 'corfu-auto))))
       (kill-buffer other))))
 
 (ert-deftest synonyms/mode-off-reverts-corfu-auto ()

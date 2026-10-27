@@ -634,6 +634,11 @@ Total real, distinct entries in this file: **1008**.
 | C-c m | my/dictate |  |
 | C-c M | my/dictate-live |  |
 | C-c n | newsticker-treeview |  |
+| C-c W | my/disk-usage | WizTree-style disk usage browser, largest first |
+| C-c P | my/toggle-perspective | named groups of buffers/windows, off by default |
+| C-c B | my/writing | a new, plain untitled buffer for prose |
+| C-c S | my/synonyms-mode | synonym suggestions while typing, on/off |
+| C-c X | my/typing-game | graduated typing trainer: alphabet, +numbers, +special chars, +Emacs keybindings |
 | 5 | my/start-open-nth-file |  |
 | d | my/start-open-dired |  |
 | f | my/start-find-in-project |  |
@@ -697,6 +702,8 @@ Total real, distinct entries in this file: **1008**.
 - evil: vi keybindings emulation; opt-in via C-c v, off by default so it costs nothing until toggled
 - avy: jump-to-visible-char navigation; single tiny package, one entry point
 - ace-window: window selection by letter; tiny, no configuration needed
+- transpose-frame: swap a horizontal split for a vertical one, or back; tiny, no configuration needed
+- perspective: named groups of buffers/windows; opt-in via C-c P, off by default so it costs nothing until toggled
 - wgrep: makes grep/ripgrep result buffers directly editable and saveable
 - helpful: richer describe-function/variable/key buffers; replaces the built-in help, no extra keys
 - symbol-overlay: highlight every occurrence of the symbol at point; one command, one toggle

@@ -300,7 +300,7 @@ by hand.")
     ("Disk usage"
      ("C-c W" my/disk-usage "a WizTree-style, drill-down disk usage browser, largest first"))
     ("Synonyms while writing"
-     ("C-c N" my/writing "open a new, plain untitled buffer for prose (email/letter/novel)")
+     ("C-c B" my/writing "open a new, plain untitled buffer for prose (email/letter/novel)")
      ("C-c S" my/synonyms-mode "turn on automatic synonym suggestions (renames untitled -> writing); F7 for an immediate lookup; press again to turn off"))
     ("Typing game"
      ("C-c X" my/typing-game "a graduated typing trainer: alphabet, +numbers, +special chars, +real Emacs keybindings"))

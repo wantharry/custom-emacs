@@ -100,7 +100,7 @@ research-emacs/
 | [docs/TREEMACS.md](docs/TREEMACS.md) | The file tree sidebar (`C-c t`): keys, how it fits with the finder and Dired, and how it works with the read-only lock |
 | [docs/DISK-USAGE.md](docs/DISK-USAGE.md) | A WizTree-style disk usage browser (`C-c W`) powered by `dua`, plus recursive sizes right inside Dired (`dired-du-mode`, the same key) |
 | [docs/PERSPECTIVE.md](docs/PERSPECTIVE.md) | Named groups of buffers/windows (`C-c P` to turn on, `C-x x` for its full command prefix), off by default |
-| [docs/SYNONYMS.md](docs/SYNONYMS.md) | Synonym suggestions while writing prose (`C-c N` plain new buffer, `C-c S` turns suggestions on, `F7` to look one up immediately) |
+| [docs/SYNONYMS.md](docs/SYNONYMS.md) | Synonym suggestions while writing prose (`C-c B` plain new buffer, `C-c S` turns suggestions on, `F7` to look one up immediately) |
 | [docs/TYPING-GAME.md](docs/TYPING-GAME.md) | A graduated typing trainer (`C-c X`): alphabet, +numbers, +special characters, +real Emacs keybindings, scored |
 | [docs/CLOUDMACS.md](docs/CLOUDMACS.md) | `tools/cloudmacs.sh`: this actual Emacs, reachable in a browser tab (local machine only), via Gotty and `emacsclient --tty` --- no Docker, why not the real `karlicoss/cloudmacs` image, and the security tradeoffs of ever exposing it beyond your own machine |
 | [docs/MAGIT.md](docs/MAGIT.md) | Git inside Emacs with Magit: `C-x g`, stage, commit, push, with screenshots; how it works with the read-only lock |
