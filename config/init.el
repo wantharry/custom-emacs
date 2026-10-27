@@ -652,6 +652,55 @@ key sequence can never make a file editable."
     (add-to-list 'load-path dir)
     (add-to-list 'custom-theme-load-path dir)))
 
+;;; Mode-line ---------------------------------------------------------------------
+
+;; WHAT: `doom-modeline' replaces the plain stock mode-line --- the single most
+;; popular mode-line package in the ecosystem, user request ("what are other famous
+;; packages to add"). WHY `nerd-icons' (not the older `all-the-icons') for its icons:
+;; `nerd-icons' needs only ONE plain Nerd Font, and this config already bundles one,
+;; `JetBrainsMono Nerd Font Mono' (tools/fonts/ --- this config's own DEFAULT font,
+;; see the font-selection comment near the top of this file); `all-the-icons'
+;; instead needs FOUR separate icon-only font files of its own, none of which this
+;; project bundles.
+;; HOW: placed here, right after `load-path' gets the elpa directories added just
+;; above, not back with the rest of the font/UI settings near the top of this file
+;; --- `require' needs those directories on `load-path' first; `vertico'/`orderless'/
+;; `marginalia' just above hit this exact same ordering mistake once already, see
+;; that section's own comment. `nerd-icons-font-family' is pointed at that exact
+;; bundled font's own real installed name (confirmed via `fc-scan', same name the
+;; font-selection comment above already confirmed). `doom-modeline-icon' is gated on
+;; the SAME `find-font' check that font-selection block already relies on --- a
+;; real, found-by-checking gap, not assumed: `doom-modeline' does not itself check
+;; whether its configured icon font is actually present, and silently tries to
+;; render glyphs from a non-existent font otherwise (a row of empty tofu boxes, not
+;; a clean fallback). Pulled into its own function, not an inline `when' block, so a
+;; test can call it directly regardless of `display-graphic-p' (real GUI font
+;; detection is not meaningfully testable in a `--batch' run with no display at all,
+;; the same reasoning `my/absolute-line-numbers--maybe-enable' is split out for).
+;; `(locate-library "doom-modeline")': a real, found-the-hard-way gap, not
+;; hypothetical --- every other optional package in this file is guarded this way
+;; (`./build.sh packages' is what actually installs it; a fresh clone, or this
+;; file's own `noelpa' test harness, genuinely does not have it yet), but this
+;; `require' was bare, unconditional, confirmed to crash Emacs outright
+;; (`(file-missing "Cannot open load file" ... "doom-modeline")') on exactly those
+;; two cases --- caught indirectly, not by testing this section itself: it broke
+;; EVERY test using the `noelpa' harness (`evil-missing.el' among them), since
+;; THIS whole file fails to load at all once one bare `require' at its own top
+;; level signals an error.
+(when (locate-library "doom-modeline")
+  (require 'doom-modeline)
+  (defvar my/doom-modeline-icon-font "JetBrainsMono Nerd Font Mono"
+    "The Nerd Font `doom-modeline''s icons render from --- see the WHAT/WHY/HOW
+comment just above `my/doom-modeline-maybe-enable'.")
+  (defun my/doom-modeline-maybe-enable ()
+    "Enable `doom-modeline-mode', with icons only if `my/doom-modeline-icon-font'
+is actually installed on this machine."
+    (setq nerd-icons-font-family my/doom-modeline-icon-font)
+    (setq doom-modeline-icon (and (find-font (font-spec :name my/doom-modeline-icon-font)) t))
+    (doom-modeline-mode 1))
+  (when (display-graphic-p)
+    (my/doom-modeline-maybe-enable)))
+
 ;;; Completion ------------------------------------------------------------------
 
 ;; The minibuffer completion UI and matching style: `vertico' (a vertical candidate
@@ -807,6 +856,65 @@ so it costs nothing until then.  If either is not installed, offer to install it
       (setq my/evil-collection-initialized t)))
   (evil-mode (if evil-mode -1 1))
   (message "Evil mode %s" (if evil-mode "enabled" "disabled")))
+
+;;; Perspective: named groups of buffers/windows, off by default ----------------
+
+;; WHAT: `perspective' lets you group buffers and windows into named
+;; "perspectives" and switch between them, so working on one project does not
+;; clutter the buffer list/window layout with everything left open from another.
+;; User request, picked from a shortlist of common Emacs utilities not yet in this
+;; config. NOT the same package as (and not interchangeable with) the similarly
+;; named `persp-mode' --- a real, found-by-checking distinction: `doom-modeline''s
+;; own `persp-name' mode-line segment (already in this config) explicitly does
+;; NOT support `perspective', confirmed directly in its own source comment,
+;; "Support `persp-mode', while not support `perspective'" --- so that segment is
+;; deliberately left off; `perspective' shows its own current-perspective name in
+;; the mode-line automatically once enabled (`persp-mode-line', wired in by the
+;; package itself), no extra integration needed. Off by default, toggled with
+;; `C-c P' --- the same "costs nothing until actually wanted" shape as
+;; `my/toggle-evil' (`C-c v') just above. Uppercase, not lowercase `p': confirmed
+;; directly against the REAL live keymap (a static grep missed this once already,
+;; a real lesson from this same session --- `C-c s' looked free by text search but
+;; was actually a prefix for Consult's search commands, wired through a data-
+;; driven loop no literal `(kbd "C-c s")' text match could catch), `C-c p' is
+;; already the password-manager prefix (`C-c p f'/`i'/`g'/`I').
+;;
+;; `persp-mode-prefix-key': confirmed directly in the package's own source, its
+;; documented default (`C-x x') only applies on Emacs before 28 --- on Emacs 28+
+;; (this config's Emacs 32 included) the real default is `nil', and `C-x x' would
+;; silently do nothing at all without this. MUST be set before `(require
+;; 'perspective)': the package wires its prefix key into `persp-mode-map' as
+;; top-level code run once at load time, not inside `persp-mode' itself, so
+;; setting it any later has no effect (confirmed in its source, not assumed).
+;; `C-x x' is kept rather than invented fresh (the same reasoning `lsp-keymap-
+;; prefix', `lsp-java' branch, already uses for its own prefix) --- NOT because it
+;; was unused (confirmed directly it is not: `C-x x' is a real STOCK Emacs 28+
+;; prefix of its own, `rename-buffer'/`toggle-truncate-lines'/`insert-buffer'/etc.,
+;; found live, not by grepping this project's own code, which only covers bindings
+;; THIS config adds), but because `perspective' safely layers its own commands on
+;; top rather than replacing it wholesale: confirmed directly, where `perspective'
+;; defines its own command for a letter a stock one already used, its own wins
+;; (`C-x x u' becomes `persp-unmerge', not the stock `rename-uniquely'); every
+;; other stock `C-x x' command untouched by `perspective' still falls through and
+;; works exactly as before (`C-x x t' is still plain `toggle-truncate-lines').
+(setq persp-mode-prefix-key (kbd "C-x x"))
+
+(defun my/toggle-perspective ()
+  "Toggle `persp-mode' (named groups of buffers/windows) globally.
+Loaded on first use, so it costs nothing until then.  If not installed, offer to
+install it.  Once on, `C-x x' is `perspective''s own full command prefix ---
+`C-x x s' switch (prompts for a name, creating it if new), `C-x x r' rename,
+`C-x x c' kill, `C-x x C-s'/`C-x x C-l' save/load across restarts; see
+docs/PERSPECTIVE.md."
+  (interactive)
+  (unless (require 'perspective nil t)
+    (if (y-or-n-p "perspective.el (named buffer/window groups) is not installed.  Install from MELPA? ")
+        (progn (my/install-package 'perspective)
+               (require 'perspective))
+      (user-error "perspective.el is not installed")))
+  (persp-mode (if (bound-and-true-p persp-mode) -1 1))
+  (message "Perspectives %s" (if (bound-and-true-p persp-mode) "enabled (C-x x for commands)" "disabled")))
+(global-set-key (kbd "C-c P") #'my/toggle-perspective)
 
 ;;; Languages: tree-sitter grammars and language servers ----------------------
 
@@ -1488,6 +1596,20 @@ only `let'-binds `default-directory' rather than passing the path as an argument
   (message "devdocs is not installed.  Run ./build.sh packages"))
 (global-set-key (kbd "C-h D") (if (locate-library "devdocs") #'devdocs-lookup #'my/devdocs-missing))
 
+;; WHAT: `shr' (Emacs's built-in HTML renderer --- what `devdocs' itself renders fetched
+;; docs with, also used by `eww'/HTML mail) renders body text in the `variable-pitch'
+;; face by default, a deliberate "looks like a real webpage" choice --- but it means a
+;; devdocs buffer's prose shows in a different, proportional font than every other
+;; buffer's own configured default (monospace) font, a real, user-reported "the font
+;; doesn't match" gap. WHY `shr-use-fonts' specifically (not customizing the
+;; `variable-pitch' face to just LOOK the same instead): a direct user request for a
+;; permanent fix; this is `shr''s own documented variable for "use the buffer's normal
+;; default face for everything, proportional fonts off entirely" --- a real, built-in
+;; off switch, not a workaround. Affects every `shr' consumer the same way (`eww', HTML
+;; mail), not just `devdocs', consistent with wanting one normal-looking monospace font
+;; everywhere in this config.
+(setq shr-use-fonts nil)
+
 ;; `ranger' is a real ranger-style file manager (Miller columns: parent directory,
 ;; current listing, and a live preview of whatever file the cursor is on). User
 ;; request, explicit: keep plain Dired (and everything already built on it this
@@ -1628,6 +1750,39 @@ what actually gets back to a clean, single plain-Dired window afterward."
   (interactive)
   (message "`dua' is not installed/not on PATH --- see docs/DISK-USAGE.md"))
 (global-set-key (kbd "C-c W") (if (executable-find "dua") #'my/disk-usage #'my/disk-usage-missing))
+
+;;; Synonyms while writing prose (config/synonyms.el) ---------------------------
+
+;; `C-c N' opens a new buffer for writing with synonym suggestions already on;
+;; `C-c S' toggles them in any existing buffer. User request, explicit: "when I
+;; start typing it should suggest me words like synonyms... useful for emails or
+;; letters or novel writing." Autoloaded lazily, the same shape as `my/disk-usage'
+;; just above --- this file only ever loads the moment one of these two keys is
+;; actually used. See config/synonyms.el's own header comment for the full WHAT/
+;; WHY/HOW (why on-demand not automatic, why an API not a bundled dictionary) and
+;; docs/SYNONYMS.md.
+(autoload 'my/writing (expand-file-name "synonyms" user-emacs-directory)
+  "Open a new buffer for prose writing, with synonym suggestions (F7) already on." t)
+(autoload 'my/synonyms-mode (expand-file-name "synonyms" user-emacs-directory)
+  "Toggle synonym suggestions (F7) for the word at point in this buffer." t)
+(global-set-key (kbd "C-c N") #'my/writing)
+(global-set-key (kbd "C-c S") #'my/synonyms-mode)
+
+;;; Typing game (config/typing-game.el) ------------------------------------------
+
+;; `C-c X' --- a graduated typing trainer, user request, explicit: "can you make a
+;; typing game in emacs with alphabets in one session, numbers and alphabets,
+;; special characters numbers and alphabets and emacs keys special characters
+;; numbers and alphabets in separate session." `X' (not `G', the obvious one):
+;; confirmed directly against the live keymap --- both `C-c g' and `C-c G' are
+;; already Magit (`magit-file-dispatch'/`magit-dispatch'); `X' for "eXercise."
+;; Autoloaded lazily, the same shape as `my/disk-usage'/`my/writing' just above ---
+;; this file only ever loads the moment `C-c X' is actually pressed. See config/
+;; typing-game.el's own header comment for the full WHAT/WHY/HOW and docs/
+;; TYPING-GAME.md.
+(autoload 'my/typing-game (expand-file-name "typing-game" user-emacs-directory)
+  "Start a graduated typing-practice session (characters, then Emacs keybindings)." t)
+(global-set-key (kbd "C-c X") #'my/typing-game)
 
 ;;; Start screen ---------------------------------------------------------------
 

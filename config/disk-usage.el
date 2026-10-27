@@ -159,6 +159,30 @@ them to CALLBACK."
   (my/disk-usage--save-cache)
   (funcall callback pairs))
 
+(defun my/disk-usage--handle-scan-result (dir mtime callback status output)
+  "Common to both the sync and async paths: decide whether a finished `dua' run
+is real data or a real failure. `dua' exits NON-ZERO whenever it could not read
+one or more entries --- confirmed directly, the hard way: an unprivileged scan
+of a real Windows `C:\\' root hits this on every single run (protected system
+folders under `Windows'/`Program Files'/`Users'), yet `dua' still prints a real,
+already-computed recursive size for every one of those folders, each with its
+own ` <N IO Errors>' suffix appended to that one line rather than the whole run
+aborting. The ORIGINAL code here treated ANY non-zero exit as total failure and
+threw away all of that real, useful, already-correct output every time --- a
+real user-hit bug, not hypothetical: a real `C:\\' scan showed six real,
+correctly-sized top-level folders on screen while the header line simultaneously
+claimed \"dua FAILED, g to retry\", because the stale PREVIOUS scan's rows were
+still on screen and this run's real output was discarded outright. Now: any
+output that actually parses into real (SIZE . NAME) pairs is treated as a real
+result (surfacing each line's own IO-error count to the user via the Name
+column, same as `dua' already shows it) --- only a non-zero exit with NOTHING
+parseable at all (a real total failure: `dua' missing, the target not a
+directory, etc.) still counts as `:error'."
+  (let ((pairs (my/disk-usage--parse-dua-output output)))
+    (if (or (zerop status) pairs)
+        (my/disk-usage--finish-scan dir mtime callback pairs)
+      (funcall callback (cons :error output)))))
+
 (defun my/disk-usage--scan-sync (dir mtime callback)
   "The ORIGINAL, simpler path: run `dua' with `call-process', which blocks all of
 Emacs until it exits.  Fine for a small, fast directory; see `my/disk-usage-async'."
@@ -167,9 +191,7 @@ Emacs until it exits.  Fine for a small, fast directory; see `my/disk-usage-asyn
       (setq status (call-process my/disk-usage-dua-command nil t nil
                                   "aggregate" "-f" "bytes" "--no-total" dir)
             output (buffer-string)))
-    (if (zerop status)
-        (my/disk-usage--finish-scan dir mtime callback (my/disk-usage--parse-dua-output output))
-      (funcall callback (cons :error output)))))
+    (my/disk-usage--handle-scan-result dir mtime callback status output)))
 
 (defun my/disk-usage--scan-async-1 (dir mtime callback)
   "The async path: run `dua' with `make-process', never blocking Emacs; see
@@ -183,11 +205,9 @@ live process."
      (lambda (proc _event)
        (unless (process-live-p proc)
          (unwind-protect
-             (if (zerop (process-exit-status proc))
-                 (my/disk-usage--finish-scan
-                  dir mtime callback
-                  (my/disk-usage--parse-dua-output (with-current-buffer outbuf (buffer-string))))
-               (funcall callback (cons :error (with-current-buffer outbuf (buffer-string)))))
+             (my/disk-usage--handle-scan-result
+              dir mtime callback (process-exit-status proc)
+              (with-current-buffer outbuf (buffer-string)))
            (kill-buffer outbuf)))))))
 
 (defun my/disk-usage--scan-async (dir force callback)
