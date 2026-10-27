@@ -299,6 +299,11 @@ by hand.")
     ;; dired-to-ranger' already set: this list only ever holds genuinely global keys).
     ("Disk usage"
      ("C-c W" my/disk-usage "a WizTree-style, drill-down disk usage browser, largest first"))
+    ("Synonyms while writing"
+     ("C-c N" my/writing "open a new, plain untitled buffer for prose (email/letter/novel)")
+     ("C-c S" my/synonyms-mode "turn on automatic synonym suggestions (renames untitled -> writing); F7 for an immediate lookup; press again to turn off"))
+    ("Typing game"
+     ("C-c X" my/typing-game "a graduated typing trainer: alphabet, +numbers, +special chars, +real Emacs keybindings"))
     ("Recent work"
      ("C-c h" my/start "the start screen: recent files, folders and projects")
      ("C-c r" recentf-open "open a recent file"))
@@ -319,6 +324,8 @@ by hand.")
      ;; OPEN/CLOSE/COMMANDS fields are prose, not callable commands --- this one entry
      ;; genuinely belongs in both places, and now is.
      ("C-c v" my/toggle-evil "turn vi-style (Evil) keybindings on; C-c v again turns them off"))
+    ("Perspectives, named buffer/window groups"
+     ("C-c P" my/toggle-perspective "turn perspectives on; C-x x is then its full command prefix (switch/rename/kill); C-c P again turns them off"))
     ;; WHAT/WHY: user request --- a key to turn the always-visible reference panel
     ;; (config/mode-reference.el) off, for once they're comfortable with Dired/
     ;; ranger/Treemacs and no longer need it on screen; on by default until then.
