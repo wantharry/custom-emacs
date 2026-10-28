@@ -46,7 +46,23 @@ pick_emacs() {   # EMACS=/path overrides; else the pruned install; else the buil
   else echo "$BUILD/src/emacs"; fi
 }
 ncpus() { nproc 2>/dev/null || sysctl -n hw.ncpu; }
-build()   { make -C "$BUILD" -j"$(ncpus)"; }
+# WHAT/WHY: a real, confirmed bug in upstream Emacs's own top-level Makefile.in, not
+# this script or this machine --- its own `info_dir_deps'/doc-translations machinery
+# (the comment right next to it in Makefile.in even names this exact class of problem:
+# "two sub-makes producing the same outputs race under 'make -j'") can fail parallel
+# `make -jN' with `Makefile:NNNN: *** multiple target patterns.  Stop.', a parse-time
+# error from a generated Makefile fragment caught mid-write by a second, concurrent
+# sub-make reading it --- confirmed directly: the exact same source, built serially
+# (`-j1'), compiled cleanly every time. Retrying serially ONLY on failure keeps parallel
+# compilation (the slow part, native-comp AOT) fast on the common path, while never
+# leaving a real race looking like a broken build.
+build() {
+  make -C "$BUILD" -j"$(ncpus)" || {
+    echo "build.sh: parallel build failed (a known upstream make -jN race, not" \
+         "necessarily a broken source tree) --- retrying serially (-j1)..." >&2
+    make -C "$BUILD" -j1
+  }
+}
 install_() { make -C "$BUILD" install; }
 prune()   { python3 "$ROOT/prune.py" --apply "$INSTALL"; }
 packages() {
