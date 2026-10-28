@@ -118,7 +118,7 @@ research-emacs/
 
 | Measure | Value |
 |---|---|
-| Emacs version / commit | 32.0.50, `7bc4f49a3686` (master, 2026-09-25) |
+| Emacs version / commit | 32.0.50, `078edfd6455a` (master, 2026-10-28) |
 | Elisp in `lisp/` | ~2.03 M lines |
 | C in `src/` | ~567 K lines |
 | Startup, headless, bare `-Q` | 0.03 s |
