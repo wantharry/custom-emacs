@@ -49,6 +49,34 @@
   (wl--skip-unless-installed)
   (should (file-executable-p (wl--bin "ngserver"))))
 
+(ert-deftest wl/angular-cli-is-on-the-resulting-path ()
+  (wl--skip-unless-installed)
+  (should (file-executable-p (wl--bin "ng"))))
+
+;; A real, confirmed gap: this machine's own system Node (root-owned) was too old
+;; for the latest `@angular/cli' (needs >=22.22.3, system has 22.22.0) ---
+;; downloaded a real, checksum-verified, pinned Node locally into `tools/node/'
+;; instead of needing root to upgrade the system one, put FIRST on both
+;; `exec-path' and `PATH' so every tool's own `#!/usr/bin/env node' shebang
+;; resolves to it, not the older system one.
+(defmacro wl--skip-unless-node-installed ()
+  '(skip-unless (file-directory-p my/node-bin-dir)))
+
+(ert-deftest wl/local-node-is-on-exec-path-and-path-when-present ()
+  (wl--skip-unless-node-installed)
+  (should (member my/node-bin-dir exec-path))
+  (should (member my/node-bin-dir (split-string (getenv "PATH") path-separator))))
+
+(ert-deftest wl/local-node-binary-is-executable ()
+  (wl--skip-unless-node-installed)
+  (should (file-executable-p (expand-file-name "node" my/node-bin-dir))))
+
+;; A real, confirmed first-run UX gap: the Angular CLI's first invocation on a
+;; machine asks interactively whether to share usage analytics, which just hangs
+;; a `compile' buffer forever waiting for a y/N keypress it never sends.
+(ert-deftest wl/angular-cli-analytics-prompt-is-disabled ()
+  (should (equal (getenv "NG_CLI_ANALYTICS") "false")))
+
 (defun wl--entry-modes (entry)
   "The bare mode symbols an `eglot-server-programs' ENTRY's car covers.
 Each one may itself be a plain symbol or a (MODE :language-id STRING) list
@@ -186,6 +214,40 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
       (should (string-match-p "CatsService" (test-read-file (concat d "src/cats/cats.service.ts"))))
       ;; the owning module really gets updated, not just the new file created
       (should (string-match-p "CatsService" (test-read-file (concat d "src/app.module.ts"))))
+      (kill-buffer "*compilation*"))))
+
+;;; C-c i a: ng generate
+
+(ert-deftest wl/ng-keys-are-bound ()
+  (should (eq (key-binding (kbd "C-c i a")) #'my/ng-generate)))
+
+(ert-deftest wl/ng-generate-errors-clearly-with-no-angular-json ()
+  (test-with-temp-dir d
+    (let ((buffer-file-name (concat d "a.ts")) (default-directory d))
+      (should-error (my/ng-generate) :type 'user-error))))
+
+(ert-deftest wl/ng-generate-creates-the-real-file-in-a-real-angular-project ()
+  ;; A real, confirmed fact about the Angular CLI, not assumed: `ng generate'
+  ;; needs `angular.json' (checked above) but NOT a full `npm install' of the
+  ;; project's own dependencies to run --- its own schematics ship as part of
+  ;; `@angular/cli' itself. Scaffolds a minimal but genuinely real Angular project
+  ;; layout (the parts `ng generate' itself actually reads) rather than a full
+  ;; `ng new', to keep this fast.
+  (wl--skip-unless-installed) (wl--skip-unless-node-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "angular.json")
+                      "{\"version\": 1, \"projects\": {\"t\": {\"root\": \"\", \"sourceRoot\": \"src\", \"projectType\": \"application\"}}}")
+    (make-directory (concat d "src/app") t)
+    (test-write-file (concat d "src/app/app.ts")
+                      "import { Component } from '@angular/core';\n@Component({ selector: 'app-root', template: '' })\nexport class App {}\n")
+    (let ((buffer-file-name (concat d "src/app/app.ts")) (default-directory d))
+      (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "component"))
+                ((symbol-function 'read-string) (lambda (&rest _) "cats")))
+        (my/ng-generate))
+      (with-timeout (15 (error "ng generate did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (should (file-exists-p (concat d "src/app/cats/cats.ts")))
+      (should (string-match-p "class Cats" (test-read-file (concat d "src/app/cats/cats.ts"))))
       (kill-buffer "*compilation*"))))
 
 ;;; Real server sessions (opt-in: tests/run-all.sh --lsp)

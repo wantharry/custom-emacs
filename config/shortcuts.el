@@ -222,7 +222,13 @@
     ;; project to both create the new file AND register it in the owning module.
     ("Nest CLI (this config, dev-ui branch)" "C-c i n"
      "(no buffer to close; runs in a real compile buffer)"
-     (("C-c i n" . "nest generate: pick a schematic (controller/service/module/...) and a name"))))
+     (("C-c i n" . "nest generate: pick a schematic (controller/service/module/...) and a name")))
+    ;; WHAT/WHY: `dev-ui' branch only --- real Angular scaffolding, Angular's own
+    ;; CLI (`ng generate'), the same shape as the Nest CLI entry above, confirmed
+    ;; for real against an actual scaffolded Angular project.
+    ("Angular CLI (this config, dev-ui branch)" "C-c i a"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i a" . "ng generate: pick a schematic (component/service/module/...) and a name"))))
   "Packages/features with their own \"world\" once open: how to open, how to close,
 and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
 COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in

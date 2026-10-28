@@ -1202,6 +1202,21 @@ docs/PERSPECTIVE.md."
   (expand-file-name "../tools/node-lsp/node_modules/.bin" user-emacs-directory)
   "Where this branch's own local copies of the JS/TS/HTML/CSS/Angular language
 servers live --- see tools/node-lsp/package.json.")
+;; `tools/node/': a real, pinned Node.js runtime, downloaded directly from
+;; nodejs.org and checksum-verified before extracting --- this machine's own
+;; system Node (root-owned, confirmed directly, not assumed; this is NOT the
+;; Windows-bundle case above) turned out to be too old for the latest
+;; `@angular/cli' (needs >=22.22.3; this machine has 22.22.0), and upgrading the
+;; real system Node would need root and could affect other things on this
+;; machine that are not this config's to touch. Put FIRST on both `exec-path'
+;; and `PATH' (not just appended, the way `my/web-lsp-bin-dir' below is) so every
+;; `node'/`npm'/`npx' invocation from any of these tools' own `#!/usr/bin/env
+;; node' shebang lines resolves to this one, not the older system one.
+(defvar my/node-bin-dir (expand-file-name "../tools/node/bin" user-emacs-directory)
+  "Where this branch's own locally-downloaded, pinned Node.js runtime lives.")
+(when (file-directory-p my/node-bin-dir)
+  (add-to-list 'exec-path my/node-bin-dir)
+  (setenv "PATH" (concat my/node-bin-dir path-separator (getenv "PATH"))))
 ;; `exec-path' alone is not enough: `compile'/`shell-command'-style invocations
 ;; (used by `my/npm-run-script'/`my/npm-install'/`my/nest-generate' below) run the
 ;; command through a real shell subprocess, which does its OWN PATH lookup from
@@ -1239,6 +1254,14 @@ servers live --- see tools/node-lsp/package.json.")
 (defun my/angular-project-root ()
   "The nearest directory above the current file with angular.json, or nil."
   (locate-dominating-file (or buffer-file-name default-directory) "angular.json"))
+
+;; A real, confirmed first-run UX gap, found running `my/ng-generate' (below) for
+;; real against a scaffolded Angular project before considering this done: the
+;; Angular CLI's very first invocation on a machine asks interactively whether to
+;; share anonymous usage analytics, which just hangs a `compile' buffer waiting
+;; for a y/N keypress `compile' never sends --- `NG_CLI_ANALYTICS=false' is the
+;; CLI's own documented way to skip that prompt outright.
+(setenv "NG_CLI_ANALYTICS" "false")
 
 (defun my/angular-language-server-command (root)
   "The ngserver command line, pointed at ROOT's own node_modules --- it needs
@@ -1336,6 +1359,34 @@ it with npm."
                         (shell-quote-argument name))
                 t))))
 (global-set-key (kbd "C-c i n") #'my/nest-generate)
+
+;; `C-c i a': `ng generate', the Angular CLI's own equivalent --- `@angular/cli' is
+;; installed the same way `@nestjs/cli' above is, into `tools/node-lsp/'. Reuses
+;; `my/angular-project-root' (above, already written for the Eglot dispatch) rather
+;; than a second `angular.json'-finding function. The schematic list below is
+;; Angular's own documented set (`ng generate --help') that takes a plain NAME the
+;; same way Nest's schematics do --- `config'/`environments'/`service-worker'/
+;; `app-shell'/`application'/`ai-config' are left out on purpose, since each of
+;; those is workspace-level or takes different arguments, not "schematic + name."
+;; Confirmed for real against an actual scaffolded Angular project before writing
+;; this, not assumed: `ng generate component cats' created the component's files
+;; correctly.
+(defun my/ng-generate ()
+  "Run `ng generate SCHEMATIC NAME' in the current Angular project."
+  (interactive)
+  (let ((root (or (my/angular-project-root)
+                   (user-error "No angular.json found above %s" default-directory))))
+    (let* ((schematic (completing-read "ng generate: "
+                                        '("component" "directive" "pipe" "service" "class"
+                                          "guard" "interceptor" "module" "enum" "interface"
+                                          "resolver" "web-worker" "library")
+                                        nil nil))
+           (name (read-string (format "ng generate %s: " schematic)))
+           (default-directory root))
+      (compile (format "ng generate %s %s" (shell-quote-argument schematic)
+                        (shell-quote-argument name))
+                t))))
+(global-set-key (kbd "C-c i a") #'my/ng-generate)
 
 ;;; Clicking through code -------------------------------------------------------
 

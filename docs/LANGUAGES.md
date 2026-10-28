@@ -202,15 +202,33 @@ Nest's own documented set) and a name --- confirmed for real against an actual s
 Nest project: it creates the right file AND updates the owning module's `imports'/
 `providers'/`controllers' array automatically, the same as running it from a real terminal.
 
+`C-c i a': `ng generate' (Angular's own CLI, `@angular/cli', the same install location as
+above), the same shape as `C-c i n' --- a schematic (component/directive/pipe/service/...,
+Angular's own documented set that takes a plain name; `config'/`environments'/`service-
+worker'/`app-shell'/`application'/`ai-config' are left out on purpose, since each of those
+is workspace-level or takes different arguments) and a name. Confirmed for real against an
+actual scaffolded Angular project: creates the right files, the same as a real terminal.
+
 A real, confirmed gap fixed along the way: `exec-path' alone is not enough for `compile'/
 `shell-command'-style invocations (every command above) --- they run through a real shell
 subprocess, which does its own PATH lookup from the `PATH' environment variable, never
 consulting Emacs's `exec-path'. `nest generate' failed with a plain shell "command not
 found" until `setenv' was added alongside `add-to-list' on `exec-path'.
 
+Two more real gaps, found getting `ng generate' working specifically: the latest
+`@angular/cli' needs Node >=22.22.3, and this machine's own system Node (root-owned) was
+22.22.0 --- rather than needing root to upgrade the real system Node (which other things on
+this machine may depend on staying as it is), a real, checksum-verified Node release was
+downloaded directly from nodejs.org into this branch's own `tools/node/', put FIRST on both
+`exec-path' and `PATH' so every tool's own `#!/usr/bin/env node' shebang resolves to it.
+Separately, the Angular CLI's very first invocation on a machine asks interactively whether
+to share usage analytics, which just hangs a `compile' buffer forever waiting for a y/N
+keypress it never sends --- `(setenv "NG_CLI_ANALYTICS" "false")' is the CLI's own
+documented way to skip that prompt outright.
+
 See `tests/ert/languages-web-lsp.el' for the real checks (wiring, Angular detection and
-dispatch, the npm/nest commands --- including a real `nest generate' against a real
-scaffolded project --- and two tests --- `./build.sh test --lsp' only --- that start the
+dispatch, the npm/nest/ng commands --- including real `nest generate'/`ng generate' runs
+against real scaffolded projects --- and two tests --- `./build.sh test --lsp' only --- that start the
 real servers and confirm they answer through Eglot).
 
 ## Known limits

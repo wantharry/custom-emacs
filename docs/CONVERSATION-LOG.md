@@ -3850,6 +3850,58 @@ real scaffolded Nest project layout (not a full `nest new', to stay fast), check
 both the new file's content and the owning module's real update. Full regression: same
 18 pre-existing flaky failures, zero new ones (1239 tests now).
 
+### Follow-up, same session: Angular's own CLI added, a real system-Node version wall hit and fixed by bundling a pinned one
+
+User, after a quick status recap of exactly which of npm/Angular/React/NestJS/
+TypeScript actually have a dedicated command (only npm and Nest did; Angular/React/
+TypeScript are automatic via Eglot, no command needed): "Yes" (to adding an Angular
+CLI equivalent of `C-c i n').
+
+Installing `@angular/cli' hit a real, hard version wall, not a soft warning:
+`ng version' refused to run outright, "The Angular CLI requires a minimum Node.js
+version of v22.22.3" --- this machine's real system Node (root-owned, confirmed
+directly) is 22.22.0. User, asked how to proceed: "Get the highest node version
+right?" --- i.e. upgrade Node, not downgrade Angular. Downgrading `@angular/cli' to
+21.x (which does support 22.22.0, confirmed by checking its own `engines' field) was
+tried and WORKED, but discarded once the better option was clear: upgrading the real
+system Node would need root and could affect other things on this machine that are
+not this config's to touch, so instead a real Node release (v26.13.0, the current
+LTS) was downloaded directly from nodejs.org into a brand new `tools/node/' ---
+checksum-verified against the official `SHASUMS256.txt' before extracting, same
+"confirmed, not assumed" standard as everything else in this session --- gitignored,
+same shape as `tools/node-lsp/node_modules'. Put FIRST on both `exec-path' and `PATH'
+(ahead of `tools/node-lsp/node_modules/.bin', added in the entry above) so every
+tool's own `#!/usr/bin/env node' shebang resolves to it, not the system one.
+`@angular/cli'/`@angular/language-server' both stayed pinned at their real latest
+(`^22.2.5'/`^22.2.3') once this landed --- re-verified the existing TS/HTML Eglot
+wiring and `nest generate' still both work correctly against the new Node before
+moving on, not assumed safe just because the version changed.
+
+`my/ng-generate' (`C-c i a') added, the same shape as `my/nest-generate': prompts for
+a schematic (Angular's own documented set that takes a plain name --- component/
+directive/pipe/service/class/guard/interceptor/module/enum/interface/resolver/web-
+worker/library; `config'/`environments'/`service-worker'/`app-shell'/`application'/
+`ai-config' left out, each workspace-level or taking different arguments) and a
+name, reusing the already-existing `my/angular-project-root' from the entry above
+rather than a second `angular.json'-finding function. Verified against a REAL
+scaffolded Angular project (`ng new', then `ng generate component cats' by hand)
+before writing any Elisp, same discipline as the Nest CLI work.
+
+**A real first-run UX gap found getting this to actually work**, not caught until
+testing for real: the Angular CLI's very first invocation on any machine asks
+interactively whether to share usage analytics, which just hung the `compile' buffer
+forever waiting for a y/N keypress `compile' never sends. Fixed with the CLI's own
+documented escape hatch, `(setenv "NG_CLI_ANALYTICS" "false")'.
+
+7 more tests in `tests/ert/languages-web-lsp.el' (32 total): the local Node on
+`exec-path'/`PATH', the Angular CLI on the resulting path, the analytics env var,
+`my/ng-generate''s keybinding and no-`angular.json' error case, and a real `ng
+generate' run against a minimal but genuinely real scaffolded Angular project
+(confirmed first, by hand, that `ng generate' does NOT need the project's full
+dependency tree installed to run, the same as `nest generate' --- only needs
+`angular.json' itself, since its schematics ship as part of `@angular/cli'). Full
+regression: same 18 pre-existing flaky failures, zero new ones (1246 tests now).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
