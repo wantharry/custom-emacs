@@ -320,17 +320,20 @@ gone is not enough: the step that moves the finished file into place runs just a
       (should (string-match-p "live search"
                               (funcall (cdr (assq 'annotation-function (cdr (completion-metadata "only-live-file" table nil)))) "x"))))))
 
-(ert-deftest ff/choosing-a-result-opens-the-file-read-only ()
-  (ff-with-project r
-    (with-temp-buffer
-      (let ((default-directory r))
-        (cl-letf* ((pr (project-current nil r))
-                   ((symbol-function 'project-current) (lambda (&rest _) pr))
-                   ((symbol-function 'completing-read) (lambda (&rest _) "src/main/java/demo/Geometry.java")))
-          (my/ff-find-file)
-          (should (equal (file-name-nondirectory (buffer-file-name)) "Geometry.java"))
-          (should buffer-read-only)
-          (kill-buffer))))))
+(ert-deftest ff/choosing-a-result-goes-through-the-normal-open-path ()
+  ;; `my/ff-find-file' does not bypass the normal `find-file' path --- confirmed either
+  ;; way the lock's own default happens to be set, by turning it on here explicitly.
+  (let ((my/read-only-lock-enabled t))
+    (ff-with-project r
+      (with-temp-buffer
+        (let ((default-directory r))
+          (cl-letf* ((pr (project-current nil r))
+                     ((symbol-function 'project-current) (lambda (&rest _) pr))
+                     ((symbol-function 'completing-read) (lambda (&rest _) "src/main/java/demo/Geometry.java")))
+            (my/ff-find-file)
+            (should (equal (file-name-nondirectory (buffer-file-name)) "Geometry.java"))
+            (should buffer-read-only)
+            (kill-buffer)))))))
 
 (ert-deftest ff/outside-a-project-the-global-search-is-used ()
   (ff-with-tree r

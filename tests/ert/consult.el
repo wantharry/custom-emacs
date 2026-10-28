@@ -169,16 +169,62 @@ to / (on Windows `fd' prints native separators; the fast finder asks ripgrep for
               (should (= 3 (length cands)))))
         (kill-buffer b)))))
 
-;;; The read-only lock: files these commands open must stay locked
+(ert-deftest consult/theme-key-is-bound-to-consult-theme ()
+  (unless (locate-library "consult") (ert-skip "consult is not installed"))
+  (should (eq (key-binding (kbd "C-c C")) 'consult-theme)))
 
-(ert-deftest consult/a-file-opened-through-fd-and-find-file-is-read-only ()
-  ;; consult-fd hands the chosen path to `find-file' once you pick it (RET); simulate that step
-  ;; directly, since driving the async minibuffer end to end is what the GUI test does.
+(ert-deftest consult/yank-pop-is-bound-to-m-y ()
+  (unless (locate-library "consult") (ert-skip "consult is not installed"))
+  (should (eq (key-binding (kbd "M-y")) 'consult-yank-pop)))
+
+(ert-deftest consult/buffer-sources-includes-the-real-buffer-source ()
+  (cs-need)
+  (should (memq 'consult-source-buffer consult-buffer-sources)))
+
+(ert-deftest consult/line-candidates-are-in-real-buffer-order ()
+  (cs-need)
+  (test-with-temp-dir d
+    (let* ((f (test-write-file (concat d "a.txt") "first line\nsecond line\nthird line\n"))
+           (b (find-file-noselect f)))
+      (unwind-protect
+          (with-current-buffer b
+            (let ((cands (consult--line-candidates nil 1)))
+              (should (string-match-p "\\`first line" (nth 0 cands)))
+              (should (string-match-p "\\`second line" (nth 1 cands)))
+              (should (string-match-p "\\`third line" (nth 2 cands)))))
+        (kill-buffer b)))))
+
+(ert-deftest consult/ripgrep-excludes-the-dot-git-directory ()
+  ;; ripgrep's own default behavior (consult-ripgrep adds no extra excludes) --- a
+  ;; match planted inside .git/ (git's own internal bookkeeping, never real project
+  ;; content) must not show up as a hit.
+  (cs-need)
+  (skip-unless (executable-find "rg"))
+  (cs-with-project root
+    (test-write-file (concat root ".git/a-stray-file-with-area-in-it.txt") "area\n")
+    (should (= 2 (length (cs--rg-hits root "area"))))))
+
+(ert-deftest consult/fd-finds-a-file-in-a-nested-subdirectory ()
   (cs-need)
   (skip-unless (executable-find "fd"))
   (cs-with-project root
-    (let* ((hits (cs--fd-hits root "Geometry")) (b (find-file-noselect (car hits))))
-      (unwind-protect (should (buffer-local-value 'buffer-read-only b))
-        (kill-buffer b)))))
+    (let ((hits (cs--fd-hits root "Circle")))
+      (should (= 1 (length hits)))
+      (should (string-suffix-p "src/main/java/demo/Circle.java" (car hits))))))
+
+;;; The read-only lock: these commands must not bypass it, whatever its default is
+
+(ert-deftest consult/a-file-opened-through-fd-and-find-file-goes-through-the-normal-open-path ()
+  ;; consult-fd hands the chosen path to `find-file' once you pick it (RET); simulate that step
+  ;; directly, since driving the async minibuffer end to end is what the GUI test does.
+  ;; The lock's own default is turned on here explicitly, since this is testing that the
+  ;; command does not bypass the lock hook, not what the hook's default happens to be.
+  (cs-need)
+  (skip-unless (executable-find "fd"))
+  (let ((my/read-only-lock-enabled t))
+    (cs-with-project root
+      (let* ((hits (cs--fd-hits root "Geometry")) (b (find-file-noselect (car hits))))
+        (unwind-protect (should (buffer-local-value 'buffer-read-only b))
+          (kill-buffer b))))))
 
 ;;; consult.el ends here

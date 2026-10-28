@@ -167,17 +167,20 @@ ERT's own error handling."
     (should (eq (treemacs-current-visibility) 'visible))
     (should (equal (treemacs--prop-at-point :path) (expand-file-name "README.md" d)))))
 
-(ert-deftest treemacs/visiting-a-file-from-the-tree-opens-it-read-only ()
+(ert-deftest treemacs/visiting-a-file-from-the-tree-goes-through-the-normal-open-path ()
+  ;; Treemacs does not bypass the normal `find-file' path --- confirmed either way the
+  ;; lock's own default happens to be set, by turning it on here explicitly.
   (tm-need)
-  (tm-with-project d
-    (my/treemacs-reveal)
-    (with-current-buffer (treemacs-get-local-buffer)
-      (goto-char (point-min))
-      (search-forward "README.md")
-      (treemacs-RET-action))
-    (let ((b (find-buffer-visiting (concat d "README.md"))))
-      (should b)
-      (should (buffer-local-value 'buffer-read-only b)))))
+  (let ((my/read-only-lock-enabled t))
+    (tm-with-project d
+      (my/treemacs-reveal)
+      (with-current-buffer (treemacs-get-local-buffer)
+        (goto-char (point-min))
+        (search-forward "README.md")
+        (treemacs-RET-action))
+      (let ((b (find-buffer-visiting (concat d "README.md"))))
+        (should b)
+        (should (buffer-local-value 'buffer-read-only b))))))
 
 (ert-deftest treemacs/c-c-shift-t-also-works-from-dired-on-a-subdirectory ()
   ;; A real gap, found while adding cross-navigation between Dired/ranger/Treemacs:

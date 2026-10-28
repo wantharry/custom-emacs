@@ -1,12 +1,16 @@
-;;; readonly.el --- files open read-only; one typed command allows editing  -*- lexical-binding: t; -*-
+;;; readonly.el --- files open editable; an optional lock keeps one from changing  -*- lexical-binding: t; -*-
 ;; harness: config
 ;;
-;; Why the feature exists at all (config/init.el's own "Every file opens read-only" section):
-;; nothing on disk should change by accident, such as a slip while learning shortcuts turning
-;; into typed text. The unlock is deliberately a three-key chord (`C-c e e'), never a single
-;; key or the standard `C-x C-q' toggle, so no mistyped sequence can ever turn editing on by
-;; itself --- the "Slips of the fingers" and the chord-length sections below check exactly
-;; that, not just that editing is off by default.
+;; config/init.el's own "An optional lock that keeps a file read-only" section: files
+;; open editable by default, the normal Emacs way --- user request, "keep the default
+;; eMacs buffers as edit unlocked now for all the apps," reversing this config's own
+;; earlier default. The lock itself still exists, still works exactly as before, it is
+;; simply OFF by default now: `stop-editing' (`C-c e l') locks one buffer, `C-c e a'
+;; flips the DEFAULT for every file opened from then on. Whenever the lock IS active
+;; (either way), it still has to be a deliberate three-key chord to undo, never a
+;; single key or the standard `C-x C-q' toggle, so no mistyped sequence can ever turn
+;; editing back on by itself --- the "Slips of the fingers" section below checks
+;; exactly that.
 
 (require 'ibuffer) (require 'dired)
 
@@ -27,93 +31,103 @@ hook runs.  Also binds `ro-file' to the path."
            (with-current-buffer ,var (set-buffer-modified-p nil))
            (kill-buffer ,var))))))
 
-(ert-deftest readonly/existing-file-opens-read-only ()
-  (ro-with-file (b "a.txt" "hello\n")
-    (should buffer-read-only)
-    (should-error (insert "x") :type 'buffer-read-only)
-    (should (equal (buffer-string) "hello\n"))
-    (should-not (buffer-modified-p))))
+;;; The new default: files open editable
 
-(ert-deftest readonly/every-kind-of-file-opens-read-only ()
+(ert-deftest readonly/existing-file-opens-editable ()
+  (ro-with-file (b "a.txt" "hello\n")
+    (should-not buffer-read-only)
+    (goto-char (point-max))
+    (insert "world\n")
+    (should (equal (buffer-string) "hello\nworld\n"))))
+
+(ert-deftest readonly/every-kind-of-file-opens-editable ()
   (dolist (name '("a.py" "a.rs" "a.java" "a.el" "a.txt" "a.json" "a.c" "a.js" "Makefile" "noext"))
     (ro-with-file (b name "x\n")
-      (should buffer-read-only))))
+      (should-not buffer-read-only))))
 
-(ert-deftest readonly/the-file-on-disk-is-never-touched ()
+(ert-deftest readonly/edits-reach-disk-after-saving ()
+  (ro-with-file (b "a.txt" "hello\n")
+    (insert "X")
+    (should (equal (test-read-file ro-file) "hello\n"))
+    (save-buffer)
+    (should (equal (test-read-file ro-file) "Xhello\n"))))
+
+(ert-deftest readonly/a-file-that-does-not-exist-yet-opens-editable ()
+  (test-with-temp-dir d
+    (let ((b (find-file-noselect (concat d "new.txt"))))
+      (unwind-protect
+          (with-current-buffer b
+            (should-not buffer-read-only)
+            (insert "fresh\n")
+            (save-buffer)
+            (should (equal (test-read-file (concat d "new.txt")) "fresh\n")))
+        (with-current-buffer b (set-buffer-modified-p nil))
+        (kill-buffer b)))))
+
+(ert-deftest readonly/symlinked-files-open-editable ()
+  (test-with-temp-dir d
+    (let* ((real (test-write-file (concat d "real.txt") "x")) (link (concat d "link.txt")))
+      (condition-case nil (make-symbolic-link real link)
+        (file-error (ert-skip "this system will not create symbolic links (Windows needs Developer Mode)")))
+      (let ((b (find-file-noselect link)))
+        (unwind-protect (should-not (buffer-local-value 'buffer-read-only b))
+          (kill-buffer b))))))
+
+(ert-deftest readonly/reopening-a-file-stays-editable ()
+  (test-with-temp-dir d
+    (let ((f (test-write-file (concat d "a.txt") "x\n")))
+      (dotimes (_ 3)
+        (let ((b (find-file-noselect f)))
+          (unwind-protect
+              (with-current-buffer b (should-not buffer-read-only))
+            (kill-buffer b)))))))
+
+(ert-deftest readonly/allow-editing-when-already-editable-is-harmless ()
+  (ro-with-file (b "a.txt" "hello\n")
+    (allow-editing)
+    (should-not buffer-read-only)))
+
+;;; The optional lock, when turned on for one buffer (`stop-editing', `C-c e l')
+
+(ert-deftest readonly/stop-editing-locks-the-buffer ()
+  (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
+    (should buffer-read-only)
+    (should-error (insert "x") :type 'buffer-read-only)
+    (should (equal (buffer-string) "hello\n"))))
+
+(ert-deftest readonly/locked-buffer-disk-is-never-touched ()
   (ro-with-file (b "a.txt" "original\n")
+    (stop-editing)
     (let ((mtime (file-attribute-modification-time (file-attributes ro-file))))
       (ignore-errors (insert "zzz"))
       (ignore-errors (save-buffer))
       (should (equal (test-read-file ro-file) "original\n"))
       (should (equal mtime (file-attribute-modification-time (file-attributes ro-file)))))))
 
-(ert-deftest readonly/a-file-that-does-not-exist-yet-opens-read-only ()
-  (test-with-temp-dir d
-    (let ((b (find-file-noselect (concat d "new.txt"))))
-      (unwind-protect
-          (with-current-buffer b
-            (should buffer-read-only)
-            (should-error (insert "x") :type 'buffer-read-only))
-        (kill-buffer b)))))
-
-(ert-deftest readonly/symlinked-files-open-read-only ()
-  (test-with-temp-dir d
-    (let* ((real (test-write-file (concat d "real.txt") "x")) (link (concat d "link.txt")))
-      (condition-case nil (make-symbolic-link real link)
-        (file-error (ert-skip "this system will not create symbolic links (Windows needs Developer Mode)")))
-      (let ((b (find-file-noselect link)))
-        (unwind-protect (should (buffer-local-value 'buffer-read-only b))
-          (kill-buffer b))))))
-
-(ert-deftest readonly/reopening-a-file-is-read-only-again ()
-  (test-with-temp-dir d
-    (let ((f (test-write-file (concat d "a.txt") "x\n")))
-      (dotimes (_ 3)
-        (let ((b (find-file-noselect f)))
-          (unwind-protect
-              (with-current-buffer b
-                (should buffer-read-only)
-                (allow-editing)
-                (should-not buffer-read-only))
-            (with-current-buffer b (set-buffer-modified-p nil))
-            (kill-buffer b)))))))
-
-(ert-deftest readonly/nothing-else-can-make-it-writable-again ()
+(ert-deftest readonly/nothing-else-can-make-it-writable-again-when-the-lock-is-on ()
   ;; Something running before our hook (like version control) tries to unlock it.
-  (let ((unlock (lambda () (setq buffer-read-only nil))))
+  ;; Only meaningful with the lock actually turned on --- restored from before the
+  ;; default flip, adapted the same way the other "turn the lock on explicitly
+  ;; first" tests above are.
+  (let ((my/read-only-lock-enabled t)
+        (unlock (lambda () (setq buffer-read-only nil))))
     (add-hook 'find-file-hook unlock 50)
     (unwind-protect
         (ro-with-file (b "a.txt" "x\n") (should buffer-read-only))
       (remove-hook 'find-file-hook unlock))))
 
-;;; The one deliberate way to edit
-
-(ert-deftest readonly/allow-editing-makes-the-buffer-editable ()
+(ert-deftest readonly/allow-editing-unlocks-a-locked-buffer ()
   (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
     (allow-editing)
     (should-not buffer-read-only)
     (goto-char (point-max))
     (insert "world\n")
     (should (equal (buffer-string) "hello\nworld\n"))))
 
-(ert-deftest readonly/edits-reach-the-disk-only-after-saving ()
-  (ro-with-file (b "a.txt" "hello\n")
-    (allow-editing)
-    (insert "X")
-    (should (equal (test-read-file ro-file) "hello\n"))
-    (save-buffer)
-    (should (equal (test-read-file ro-file) "Xhello\n"))))
-
-(ert-deftest readonly/stop-editing-locks-it-again ()
-  (ro-with-file (b "a.txt" "hello\n")
-    (allow-editing)
-    (stop-editing)
-    (should buffer-read-only)
-    (should-error (insert "x") :type 'buffer-read-only)))
-
 (ert-deftest readonly/stop-editing-warns-about-unsaved-changes ()
   (ro-with-file (b "a.txt" "hello\n")
-    (allow-editing)
     (insert "X")
     ;; `inhibit-message' only suppresses the echo area, so `current-message' here would just
     ;; hand back whatever was displayed *before* this call, not the suppressed text --- the
@@ -121,18 +135,11 @@ hook runs.  Also binds `ro-file' to the path."
     (let ((msg (let ((inhibit-message t)) (stop-editing) (current-message))))
       (should (string-match-p "UNSAVED" (or (with-current-buffer "*Messages*" (buffer-substring (max (point-min) (- (point-max) 300)) (point-max))) msg))))))
 
-(ert-deftest readonly/allow-editing-when-already-editable-is-harmless ()
-  (ro-with-file (b "a.txt" "hello\n")
-    (allow-editing)
-    (allow-editing)
-    (should-not buffer-read-only)))
-
 (ert-deftest readonly/allow-editing-creates-new-files ()
   (test-with-temp-dir d
     (let* ((f (concat d "brand-new.txt")) (b (find-file-noselect f)))
       (unwind-protect
           (with-current-buffer b
-            (allow-editing)
             (insert "fresh\n")
             (save-buffer)
             (should (equal (test-read-file f) "fresh\n")))
@@ -144,29 +151,40 @@ hook runs.  Also binds `ro-file' to the path."
   (should (commandp 'stop-editing))
   (should (commandp 'my/read-only-hint)))
 
-;;; Slips of the fingers must not edit anything
+;;; Slips of the fingers must not unlock a buffer that IS locked
 
-(ert-deftest readonly/c-x-c-q-does-not-enable-editing ()
+(ert-deftest readonly/c-x-c-q-does-not-unlock-a-locked-buffer ()
   (should (eq (key-binding (kbd "C-x C-q")) 'my/read-only-hint))
   (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
+    (execute-kbd-macro (kbd "C-x C-q"))
+    (should buffer-read-only)))
+
+(ert-deftest readonly/c-x-c-q-locks-an-editable-buffer ()
+  ;; The other direction carries no risk --- a stray key LOCKING a buffer is
+  ;; harmless, so this does not need the same three-key discipline.
+  (ro-with-file (b "a.txt" "hello\n")
+    (should-not buffer-read-only)
     (execute-kbd-macro (kbd "C-x C-q"))
     (should buffer-read-only)))
 
 (ert-deftest readonly/the-standard-toggle-has-no-other-easy-key ()
-  ;; Only the typed commands (or `M-x read-only-mode') can turn editing on.
+  ;; Only the typed commands (or `M-x read-only-mode') can turn editing back on.
   (should-not (where-is-internal 'read-only-mode global-map))
   (should-not (where-is-internal 'toggle-read-only global-map)))
 
-(ert-deftest readonly/typing-text-changes-nothing ()
+(ert-deftest readonly/typing-text-changes-nothing-when-locked ()
   (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
     (dolist (keys '("x" "hello world" "RET" "TAB" "DEL"))
       (ignore-errors (execute-kbd-macro (kbd keys))))
     (should (equal (buffer-string) "hello\n"))
     (should-not (buffer-modified-p))))
 
-(ert-deftest readonly/mistyped-editing-shortcuts-change-nothing ()
+(ert-deftest readonly/mistyped-editing-shortcuts-change-nothing-when-locked ()
   ;; Emacs editing keys someone might hit by accident while learning.
   (ro-with-file (b "a.txt" "alpha beta\ngamma delta\n")
+    (stop-editing)
     (dolist (keys '("C-k" "C-y" "M-d" "C-w" "C-d" "C-o" "C-t" "M-t" "M-u" "M-l" "M-c"
                     "C-j" "M-q" "M-;" "C-x C-t" "M-DEL" "M-z x" "C-M-k" "M-\\" "C-x C-o"))
       (goto-char (point-min))
@@ -174,14 +192,16 @@ hook runs.  Also binds `ro-file' to the path."
       (should (equal (buffer-string) "alpha beta\ngamma delta\n")))
     (should-not (buffer-modified-p))))
 
-(ert-deftest readonly/save-is-a-no-op-on-an-unchanged-buffer ()
+(ert-deftest readonly/save-is-a-no-op-on-an-unchanged-locked-buffer ()
   (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
     (execute-kbd-macro (kbd "C-x C-s"))
     (should (equal (test-read-file ro-file) "hello\n"))))
 
-(ert-deftest readonly/evil-typing-changes-nothing ()
+(ert-deftest readonly/evil-typing-changes-nothing-when-locked ()
   (skip-unless (locate-library "evil"))
   (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
     (my/toggle-evil)
     (unwind-protect
         (progn (dolist (keys '("i x" "a x" "o x" "x" "dd" "p" "cw y"))
@@ -194,21 +214,22 @@ hook runs.  Also binds `ro-file' to the path."
 
 (ert-deftest readonly/edit-chord-turns-editing-on-and-lock-chord-turns-it-off ()
   (ro-with-file (b "a.txt" "hello\n")
-    (should buffer-read-only)
-    (execute-kbd-macro (kbd "C-c e e"))
     (should-not buffer-read-only)
     (execute-kbd-macro (kbd "C-c e l"))
-    (should buffer-read-only)))
+    (should buffer-read-only)
+    (execute-kbd-macro (kbd "C-c e e"))
+    (should-not buffer-read-only)))
 
 (ert-deftest readonly/chords-are-bound-globally-to-the-commands ()
   (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))
   (should (eq (key-binding (kbd "C-c e l")) 'stop-editing)))
 
-(ert-deftest readonly/no-single-or-double-key-turns-editing-on ()
+(ert-deftest readonly/no-single-or-double-key-unlocks-a-locked-buffer ()
   ;; The unlock needs three keys, and the partial sequences do nothing.
   (should (= 3 (length (kbd "C-c e e"))))
   (dolist (keys '("C-c" "C-c e" "C-c e x" "C-c e RET" "C-c l" "C-c e C-g"))
     (ro-with-file (b "a.txt" "hello\n")
+      (stop-editing)
       (ignore-errors (execute-kbd-macro (kbd keys)))
       (should buffer-read-only))))
 
@@ -224,6 +245,7 @@ hook runs.  Also binds `ro-file' to the path."
                   ("a.txt" . text-mode)))
     (ro-with-file (b (car spec) "x\n")
       (should (eq major-mode (cdr spec)))
+      (stop-editing)
       (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))
       (execute-kbd-macro (kbd "C-c e e"))
       (should-not buffer-read-only))))
@@ -234,20 +256,23 @@ hook runs.  Also binds `ro-file' to the path."
     (when (treesit-language-available-p (nth 1 spec))
       (ro-with-file (b (car spec) "x\n")
         (should (eq major-mode (nthcdr 2 spec)))
+        (stop-editing)
         (execute-kbd-macro (kbd "C-c e e"))
         (should-not buffer-read-only)))))
 
 (ert-deftest readonly/the-chord-is-not-shadowed-by-evil ()
   (skip-unless (locate-library "evil"))
+  ;; See `readonly/evil-typing-changes-nothing-when-locked''s own comment on this stub.
+  (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) nil)))
   (ro-with-file (b "a.txt" "hello\n")
     (my/toggle-evil)
     (unwind-protect
-        (progn (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))
-               (execute-kbd-macro (kbd "C-c e e"))
-               (should-not buffer-read-only)
+        (progn (should (eq (key-binding (kbd "C-c e l")) 'stop-editing))
                (execute-kbd-macro (kbd "C-c e l"))
-               (should buffer-read-only))
-      (evil-mode -1))))
+               (should buffer-read-only)
+               (execute-kbd-macro (kbd "C-c e e"))
+               (should-not buffer-read-only))
+      (evil-mode -1)))))
 
 (ert-deftest readonly/the-chord-is-not-shadowed-in-dired-or-ibuffer ()
   (test-with-temp-dir d
@@ -257,8 +282,10 @@ hook runs.  Also binds `ro-file' to the path."
   (test-in-buffer #'ibuffer-mode "" (should (eq (key-binding (kbd "C-c e e")) 'allow-editing))))
 
 (ert-deftest readonly/the-reminder-mentions-the-chord ()
-  (let ((msg (let ((inhibit-message t)) (my/read-only-hint) (current-message))))
-    (should (string-match-p "C-c e e" (with-current-buffer "*Messages*" (buffer-substring (max (point-min) (- (point-max) 200)) (point-max)))))))
+  (ro-with-file (b "a.txt" "hello\n")
+    (stop-editing)
+    (let ((msg (let ((inhibit-message t)) (my/read-only-hint) (current-message))))
+      (should (string-match-p "C-c e e" (with-current-buffer "*Messages*" (buffer-substring (max (point-min) (- (point-max) 200)) (point-max))))))))
 
 ;; user request: "should be everything like default emacs not just file buffers
 ;; also dired and others." A real, confirmed regression: this config's own global
@@ -286,62 +313,64 @@ hook runs.  Also binds `ro-file' to the path."
           (set-buffer-modified-p nil))
         (kill-buffer b)))))
 
-(ert-deftest readonly/a-plain-file-buffer-still-only-gets-the-hint ()
-  ;; no remap of `read-only-mode' in a plain file buffer --- the hint path (and
-  ;; the lock itself) must still apply there, unaffected by the Dired fix above.
+(ert-deftest readonly/a-plain-file-buffer-still-only-gets-the-lock-hint-logic ()
+  ;; no remap of `read-only-mode' in a plain file buffer --- the lock/hint path
+  ;; must still apply there, unaffected by the Dired fix above.
   (ro-with-file (b "a.txt" "hello\n")
     (should-not (command-remapping 'read-only-mode))
+    (should-not buffer-read-only)
     (execute-kbd-macro (kbd "C-x C-q"))
     (should buffer-read-only)))
 
-;;; Toggling the lock globally (C-c e a) --- user request: "once i enable it only
-;;; that file is enabled or buffer is enabled, can i make it such that all the
-;;; things i open are enabled once i enable it"
+;;; Toggling the lock's DEFAULT globally (C-c e a) --- user requests, in order:
+;;; first "once i enable it only that file is enabled or buffer is enabled, can i
+;;; make it such that all the things i open are enabled once i enable it" (added
+;;; the toggle, locked-by-default remained the shipped default); then later,
+;;; "keep the default eMacs buffers as edit unlocked now for all the apps" (flipped
+;;; which state is the shipped default --- the toggle itself did not change).
 
-(ert-deftest readonly/lock-is-enabled-by-default ()
-  (should my/read-only-lock-enabled))
+(ert-deftest readonly/lock-is-disabled-by-default ()
+  (should-not my/read-only-lock-enabled))
 
-(ert-deftest readonly/toggling-off-makes-new-files-open-editable ()
+(ert-deftest readonly/toggling-on-makes-new-files-open-locked ()
   (unwind-protect
       (progn
         (my/toggle-read-only-lock)
-        (should-not my/read-only-lock-enabled)
+        (should my/read-only-lock-enabled)
         (ro-with-file (b "a.txt" "hello\n")
-          (should-not buffer-read-only)
-          (goto-char (point-max))
-          (insert "world")
-          (should (equal (buffer-string) "hello\nworld"))))
-    (setq my/read-only-lock-enabled t)))
+          (should buffer-read-only)
+          (should-error (insert "x") :type 'buffer-read-only)))
+    (setq my/read-only-lock-enabled nil)))
 
-(ert-deftest readonly/toggling-off-affects-every-later-file-not-just-one ()
+(ert-deftest readonly/toggling-on-affects-every-later-file-not-just-one ()
   (unwind-protect
       (progn
         (my/toggle-read-only-lock)
         (dolist (name '("a.txt" "b.el" "c.py"))
           (ro-with-file (b name "x\n")
-            (should-not buffer-read-only))))
-    (setq my/read-only-lock-enabled t)))
+            (should buffer-read-only))))
+    (setq my/read-only-lock-enabled nil)))
 
-(ert-deftest readonly/toggling-off-does-not-retroactively-unlock-an-already-open-buffer ()
+(ert-deftest readonly/toggling-on-does-not-retroactively-lock-an-already-open-buffer ()
   (ro-with-file (b "a.txt" "hello\n")
-    (should buffer-read-only)
+    (should-not buffer-read-only)
     (unwind-protect
         (progn
           (my/toggle-read-only-lock)
-          ;; still locked --- the toggle only changes what happens to files
+          ;; still editable --- the toggle only changes what happens to files
           ;; opened AFTER this point, same as its own docstring says.
-          (should buffer-read-only))
-      (setq my/read-only-lock-enabled t))))
+          (should-not buffer-read-only))
+      (setq my/read-only-lock-enabled nil))))
 
-(ert-deftest readonly/toggling-off-then-on-again-restores-the-normal-lock ()
+(ert-deftest readonly/toggling-on-then-off-again-restores-the-default ()
   (unwind-protect
       (progn
         (my/toggle-read-only-lock)
         (my/toggle-read-only-lock)
-        (should my/read-only-lock-enabled)
+        (should-not my/read-only-lock-enabled)
         (ro-with-file (b "a.txt" "hello\n")
-          (should buffer-read-only)))
-    (setq my/read-only-lock-enabled t)))
+          (should-not buffer-read-only)))
+    (setq my/read-only-lock-enabled nil)))
 
 (ert-deftest readonly/toggle-lock-is-a-typeable-command ()
   (should (commandp 'my/toggle-read-only-lock)))
@@ -350,7 +379,7 @@ hook runs.  Also binds `ro-file' to the path."
   (should (eq (key-binding (kbd "C-c e a")) 'my/toggle-read-only-lock)))
 
 ;; same "no accidental enable" discipline as the edit/lock chords above --- a
-;; single slipped key must not be able to leave every future file unlocked.
+;; single slipped key must not be able to leave every future file locked.
 (ert-deftest readonly/toggle-lock-chord-needs-three-keys ()
   (should (= 3 (length (kbd "C-c e a"))))
   (let ((keys (where-is-internal 'my/toggle-read-only-lock nil)))
@@ -360,7 +389,7 @@ hook runs.  Also binds `ro-file' to the path."
 
 (ert-deftest readonly/always-editable-files-stay-editable-regardless-of-the-toggle ()
   (unwind-protect
-      (dolist (enabled '(t nil))
+      (dolist (enabled '(nil t))
         (setq my/read-only-lock-enabled enabled)
         (test-with-temp-dir d
           (let* ((f (concat d "COMMIT_EDITMSG")) (dotgit (concat d ".git/")))
@@ -370,7 +399,7 @@ hook runs.  Also binds `ro-file' to the path."
             (let ((b (find-file-noselect f)))
               (unwind-protect (with-current-buffer b (should-not buffer-read-only))
                 (kill-buffer b))))))
-    (setq my/read-only-lock-enabled t)))
+    (setq my/read-only-lock-enabled nil)))
 
 ;;; What must keep working
 

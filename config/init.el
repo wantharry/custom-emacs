@@ -542,11 +542,16 @@ installed; wraps around at either end."
 
 ;;; Every file opens read-only -------------------------------------------------
 
-;; Nothing on disk changes by accident, for example when a slip while learning
-;; shortcuts turns into typed text.  Each file you visit is read-only until you
-;; deliberately type  M-x allow-editing  or press  C-c e e  (C-c e l  or
-;; M-x stop-editing  locks it again).
-;; This also covers files that do not exist yet: allow editing to create them.
+;; WHAT/WHY: user request --- "keep the default eMacs buffers as edit unlocked
+;; now for all the apps." Files now open EDITABLE by default, the same as stock
+;; Emacs, Dired, ranger, and Treemacs already behave in this config --- the lock
+;; below still exists and still works exactly as before, it is simply OFF by
+;; default now instead of on.  `C-c e l'/`M-x stop-editing' locks the current
+;; buffer if you want that back for one file; `C-c e a'/`my/toggle-read-only-
+;; lock' flips the DEFAULT itself for every file opened from then on, the same
+;; command as before, just starting from the opposite state.
+;; This also covers files that do not exist yet: either way, nothing on disk
+;; changes until you save.
 ;;
 ;; The hook runs last (depth 90) so nothing else, such as version control, can make
 ;; the buffer writable again.  Emacs's own writers still work: `customize' saves
@@ -562,19 +567,17 @@ installed; wraps around at either end."
           "\\|/\\.cache/treemacs-persist\\(?:-at-last-error\\)?\\'")
   "Files whose buffers are left editable by the read-only lock.")
 
-(defvar my/read-only-lock-enabled t
-  "Whether a newly opened file gets locked read-only by default, the way this
-config always has --- see `my/toggle-read-only-lock' (`C-c e a'), a direct
-user request: having to press `C-c e e'/`allow-editing' separately in EVERY
-file opened was real, wanted friction, but not always --- this lets that
-friction be turned off for a whole session (every file opened AFTER
-toggling it off starts editable immediately) without weakening the DEFAULT
-this config ships with, which stays locked-by-default for anyone who
-never touches this toggle at all.")
+(defvar my/read-only-lock-enabled nil
+  "Whether a newly opened file gets locked read-only by default.
+Off by default (a direct user request: \"keep the default eMacs buffers as
+edit unlocked now for all the apps\" --- files now open editable, the same as
+every other buffer/app in this config already did).  See `my/toggle-read-
+only-lock' (`C-c e a') to turn the lock back on for every file opened from
+then on, or `stop-editing' (`C-c e l') to lock just the current buffer.")
 
 (defun my/make-file-buffer-read-only ()
-  "Make the file-visiting buffer that was just opened read-only, unless
-`my/read-only-lock-enabled' has been turned off (`C-c e a')."
+  "Make the file-visiting buffer that was just opened read-only, if
+`my/read-only-lock-enabled' has been turned on (`C-c e a').  Off by default."
   (when (and my/read-only-lock-enabled
              buffer-file-name
              (not (string-match-p my/always-editable-file-regexp buffer-file-name)))
@@ -582,22 +585,23 @@ never touches this toggle at all.")
 (add-hook 'find-file-hook #'my/make-file-buffer-read-only 90)
 
 (defun my/toggle-read-only-lock ()
-  "Toggle whether a newly opened file starts read-only (the default) or
-editable right away. OFF means every file you open FROM NOW ON in this
-session starts editable immediately, no `C-c e e' needed per file; ON
-restores the normal one-file-at-a-time lock for anything opened after
-that point. Either way, buffers ALREADY open are not touched --- this only
-changes what happens the next time `find-file' runs, same as the hook it
-flips."
+  "Toggle whether a newly opened file starts editable right away (the
+default) or read-only.  ON means every file you open FROM NOW ON in this
+session starts locked, the same `C-c e e'/`allow-editing' step needed per
+file as this config used to require by default; OFF (the default) restores
+plain, editable-on-open files for anything opened after that point.  Either
+way, buffers ALREADY open are not touched --- this only changes what
+happens the next time `find-file' runs, same as the hook it flips."
   (interactive)
   (setq my/read-only-lock-enabled (not my/read-only-lock-enabled))
   (message "New files open %s (C-c e a to change this again)"
-           (if my/read-only-lock-enabled "read-only, as usual" "already editable")))
+           (if my/read-only-lock-enabled "read-only, locked" "editable, as usual")))
 
 (defun allow-editing ()
   "Make the current buffer editable.
-Files open read-only.  This is the one deliberate way to change that;
-`stop-editing' locks the buffer again."
+The one deliberate way to unlock a buffer that IS locked (either a file
+opened while `my/read-only-lock-enabled' was on, or one locked by hand with
+`stop-editing', which locks it again)."
   (interactive)
   (if (not buffer-read-only)
       (message "Already editable: %s" (buffer-name))
@@ -615,30 +619,37 @@ Files open read-only.  This is the one deliberate way to change that;
              "")))
 
 (defun my/read-only-hint ()
-  "Tell how to edit a locked FILE buffer.  Replaces the standard `C-x C-q'
-toggle on purpose, for those buffers only --- a single shortcut must not be
-able to switch editing on, so that a mistyped key sequence can never make a
-file editable.
+  "Replace the standard `C-x C-q' toggle on a locked FILE buffer with a
+hint instead of unlocking it directly --- a single shortcut must not be
+able to switch editing ON, so that a mistyped key sequence can never make a
+file editable.  There is no such risk the other way: on an EDITABLE file
+buffer (the default now --- see \"Every file opens read-only\" above for
+why that is no longer a contradiction), `C-x C-q' just locks it, the same
+as `stop-editing', since a stray keypress accidentally LOCKING a buffer is
+harmless, not something this config needs to guard against.
 Everywhere else behaves exactly like stock Emacs instead: this config's own
-read-only lock only ever applies to real file-visiting buffers (see \"Every
-file opens read-only\" above) --- Dired buffers, for one, are their own,
-separate kind of read-only, already true in stock Emacs with no config of
-ours involved, and a blanket override here used to block Dired's own real
-`C-x C-q' (normally `dired-toggle-read-only', entering WDired to edit
-filenames as text) --- a real, confirmed regression: `(key-binding (kbd
-\"C-x C-q\"))' inside a real Dired buffer returned THIS function instead of
-ever reaching it, confirmed by reading `dired-mode-map''s own source,
-`\"<remap> <read-only-mode>\"' --- that remap only ever fires when `C-x C-q'
-would otherwise run the plain `read-only-mode' command, which overriding
-the KEY directly (not the command) bypassed outright.  Fixed by checking
-for a remap of `read-only-mode' in the CURRENT buffer first --- the exact
-mechanism `C-x C-q' itself would normally use --- and deferring to it
-whenever one exists (Dired, and any other mode that does the same thing);
-only a plain file-visiting buffer with none falls through to the hint."
+read-only lock only ever applies to real file-visiting buffers --- Dired
+buffers, for one, are their own, separate kind of read-only, already true
+in stock Emacs with no config of ours involved, and a blanket override here
+used to block Dired's own real `C-x C-q' (normally `dired-toggle-read-only',
+entering WDired to edit filenames as text) --- a real, confirmed regression:
+`(key-binding (kbd \"C-x C-q\"))' inside a real Dired buffer returned THIS
+function instead of ever reaching it, confirmed by reading `dired-mode-
+map''s own source, `\"<remap> <read-only-mode>\"' --- that remap only ever
+fires when `C-x C-q' would otherwise run the plain `read-only-mode'
+command, which overriding the KEY directly (not the command) bypassed
+outright.  Fixed by checking for a remap of `read-only-mode' in the CURRENT
+buffer first --- the exact mechanism `C-x C-q' itself would normally use
+--- and deferring to it whenever one exists (Dired, and any other mode
+that does the same thing); only a plain file-visiting buffer with none
+falls through to the lock/hint logic above."
   (interactive)
-  (if-let* ((remapped (command-remapping 'read-only-mode)))
-      (call-interactively remapped)
-    (message "Files open read-only.  To edit, type:  C-c e e   (or M-x allow-editing; C-c e a makes every new file editable by default)")))
+  (cond
+   ((command-remapping 'read-only-mode)
+    (call-interactively (command-remapping 'read-only-mode)))
+   (buffer-read-only
+    (message "This buffer is locked.  To edit, type:  C-c e e   (or M-x allow-editing)"))
+   (t (stop-editing))))
 (global-set-key (kbd "C-x C-q") #'my/read-only-hint)
 
 ;; Deliberate three-key chords under C-c (the prefix Emacs reserves for users), so a
