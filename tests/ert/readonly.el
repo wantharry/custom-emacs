@@ -260,6 +260,118 @@ hook runs.  Also binds `ro-file' to the path."
   (let ((msg (let ((inhibit-message t)) (my/read-only-hint) (current-message))))
     (should (string-match-p "C-c e e" (with-current-buffer "*Messages*" (buffer-substring (max (point-min) (- (point-max) 200)) (point-max)))))))
 
+;; user request: "should be everything like default emacs not just file buffers
+;; also dired and others." A real, confirmed regression: this config's own global
+;; `C-x C-q' override (`my/read-only-hint') used to block Dired's own real `C-x C-q'
+;; (`dired-toggle-read-only', entering WDired to edit filenames as text) outright
+;; --- `(key-binding (kbd "C-x C-q"))' inside a real Dired buffer returned
+;; `my/read-only-hint', never reaching it, confirmed by reading `dired-mode-map''s
+;; own source: it only remaps the COMMAND `read-only-mode', which overriding the
+;; KEY directly bypassed. `my/read-only-hint' now checks `command-remapping' first
+;; and defers to whatever is remapped --- this is the SAME mechanism `C-x C-q'
+;; itself would normally use, so it is not Dired-specific: any other mode that
+;; remaps `read-only-mode' the same way is covered too, with no per-mode code here.
+(ert-deftest readonly/c-x-c-q-enters-wdired-in-a-real-dired-buffer ()
+  (require 'wdired)
+  (test-with-temp-dir d
+    (test-write-file (concat d "a.txt") "x")
+    (let ((b (dired-noselect d)))
+      (unwind-protect
+          (progn
+            (with-current-buffer b (call-interactively #'my/read-only-hint))
+            (should (eq (buffer-local-value 'major-mode b) 'wdired-mode))
+            (should-not (buffer-local-value 'buffer-read-only b)))
+        (with-current-buffer b
+          (when (eq major-mode 'wdired-mode) (ignore-errors (wdired-abort-changes)))
+          (set-buffer-modified-p nil))
+        (kill-buffer b)))))
+
+(ert-deftest readonly/a-plain-file-buffer-still-only-gets-the-hint ()
+  ;; no remap of `read-only-mode' in a plain file buffer --- the hint path (and
+  ;; the lock itself) must still apply there, unaffected by the Dired fix above.
+  (ro-with-file (b "a.txt" "hello\n")
+    (should-not (command-remapping 'read-only-mode))
+    (execute-kbd-macro (kbd "C-x C-q"))
+    (should buffer-read-only)))
+
+;;; Toggling the lock globally (C-c e a) --- user request: "once i enable it only
+;;; that file is enabled or buffer is enabled, can i make it such that all the
+;;; things i open are enabled once i enable it"
+
+(ert-deftest readonly/lock-is-enabled-by-default ()
+  (should my/read-only-lock-enabled))
+
+(ert-deftest readonly/toggling-off-makes-new-files-open-editable ()
+  (unwind-protect
+      (progn
+        (my/toggle-read-only-lock)
+        (should-not my/read-only-lock-enabled)
+        (ro-with-file (b "a.txt" "hello\n")
+          (should-not buffer-read-only)
+          (goto-char (point-max))
+          (insert "world")
+          (should (equal (buffer-string) "hello\nworld"))))
+    (setq my/read-only-lock-enabled t)))
+
+(ert-deftest readonly/toggling-off-affects-every-later-file-not-just-one ()
+  (unwind-protect
+      (progn
+        (my/toggle-read-only-lock)
+        (dolist (name '("a.txt" "b.el" "c.py"))
+          (ro-with-file (b name "x\n")
+            (should-not buffer-read-only))))
+    (setq my/read-only-lock-enabled t)))
+
+(ert-deftest readonly/toggling-off-does-not-retroactively-unlock-an-already-open-buffer ()
+  (ro-with-file (b "a.txt" "hello\n")
+    (should buffer-read-only)
+    (unwind-protect
+        (progn
+          (my/toggle-read-only-lock)
+          ;; still locked --- the toggle only changes what happens to files
+          ;; opened AFTER this point, same as its own docstring says.
+          (should buffer-read-only))
+      (setq my/read-only-lock-enabled t))))
+
+(ert-deftest readonly/toggling-off-then-on-again-restores-the-normal-lock ()
+  (unwind-protect
+      (progn
+        (my/toggle-read-only-lock)
+        (my/toggle-read-only-lock)
+        (should my/read-only-lock-enabled)
+        (ro-with-file (b "a.txt" "hello\n")
+          (should buffer-read-only)))
+    (setq my/read-only-lock-enabled t)))
+
+(ert-deftest readonly/toggle-lock-is-a-typeable-command ()
+  (should (commandp 'my/toggle-read-only-lock)))
+
+(ert-deftest readonly/toggle-lock-chord-is-bound-globally ()
+  (should (eq (key-binding (kbd "C-c e a")) 'my/toggle-read-only-lock)))
+
+;; same "no accidental enable" discipline as the edit/lock chords above --- a
+;; single slipped key must not be able to leave every future file unlocked.
+(ert-deftest readonly/toggle-lock-chord-needs-three-keys ()
+  (should (= 3 (length (kbd "C-c e a"))))
+  (let ((keys (where-is-internal 'my/toggle-read-only-lock nil)))
+    (should keys)
+    (dolist (k keys)
+      (should (>= (length k) 3)))))
+
+(ert-deftest readonly/always-editable-files-stay-editable-regardless-of-the-toggle ()
+  (unwind-protect
+      (dolist (enabled '(t nil))
+        (setq my/read-only-lock-enabled enabled)
+        (test-with-temp-dir d
+          (let* ((f (concat d "COMMIT_EDITMSG")) (dotgit (concat d ".git/")))
+            (make-directory dotgit t)
+            (setq f (concat dotgit "COMMIT_EDITMSG"))
+            (test-write-file f "commit message\n")
+            (let ((b (find-file-noselect f)))
+              (unwind-protect (with-current-buffer b (should-not buffer-read-only))
+                (kill-buffer b))))))
+    (setq my/read-only-lock-enabled t)))
+
 ;;; What must keep working
 
 (ert-deftest readonly/scratch-and-other-non-file-buffers-stay-editable ()
