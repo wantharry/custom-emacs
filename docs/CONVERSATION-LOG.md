@@ -3440,6 +3440,109 @@ closest known precedent for "this function miscounts under some real
 condition" and the first place to look again, even though that specific fix
 did not resolve this crash on its own.
 
+### Follow-up, 2026-10-28, a new session: the v1.7 release across three divergent branches, local dist builds, a Dired regex-move test, an always-editable toggle, and a real Dired `C-x C-q` regression fixed
+
+Three branches (`main`, `utilities`, `lsp-java`) had each independently diverged a
+lot --- confirmed via `git merge-base`/`git log`, not assumed: `main` had 25 commits
+`utilities` lacked, `utilities` had 65 `main` lacked, `lsp-java` had its own unique
+commits too. **A real, pre-existing CI bug, predating this session's own work**:
+`.github/workflows/release.yml` on both `main` and `utilities` had (a) a hardcoded
+`libgccjit-13-dev` (missing the dynamic `$GCCJIT_VER` fix already on `lsp-java`) and
+(b) a genuine YAML syntax error --- three step names with an unquoted colon (e.g.
+`- name: Publish to the GitHub release (race-tolerant: another platform's job may
+win the create)`), which YAML parses as a new mapping key, breaking the ENTIRE file
+and failing all three branches' CI instantly (0s) on tag push --- root-caused with
+`python3 -c "import yaml; yaml.safe_load(...)"` pointing at the exact line. Fixed by
+copying `lsp-java`'s already-correct `release.yml` onto both branches (diffed first
+to confirm nothing lsp-java-specific came along): `e077203` on `main`, `6d6a0f9` on
+`utilities` (also carrying the same fix for `test.yml`, which only exists there).
+The `v1.7`/`v1.7-utilities`/`v1.7-lsp-java` tags were deleted and recreated pointing
+at the fixed commits (destructive, done only after explicit "Yes"/"Go head and do
+it" from the user in the same turn --- a prior turn's "Yes" alone was not enough to
+pass the permission classifier). All three releases then fully succeeded, verified
+via `gh release view`, each with all 4 platform assets; `lsp-java`'s Windows job hit
+one transient `curl: (22) 403` (GitHub API rate limit, three branches' CI running at
+once) fixed with `gh run rerun --failed`.
+
+Meanwhile, six local dist zips (Linux + Windows for all three branches; macOS is not
+buildable from WSL) were built and copied to the user's Downloads folder. Shared
+`install/`/`config/elpa`/`dist/.venv` across temporary worktrees via `cp -al`
+(hardlinks), not a symlink --- confirmed directly, via a deliberate throwaway test,
+that `cp -a` (used internally by `dist-linux.sh`) does NOT dereference a top-level
+symlinked directory, which would have shipped a broken bundle. **A real concurrency
+bug found**: running all three `./build.sh dist windows` invocations in parallel
+corrupted each other, because `tools/dist-windows.sh` uses one hardcoded, shared
+Windows temp directory with no per-invocation uniqueness --- confirmed via `rm:
+Directory not empty` errors and stale zip timestamps despite exit 0 in two of the
+three parallel builds. Fixed by killing the processes, clearing the shared temp dir,
+and rebuilding all three strictly sequentially instead.
+
+Separately, the user asked for an ERT test of a real Dired workflow they were
+testing by hand (`% m REGEXP` to mark, then move the marked files to a different
+folder) --- added as `dired/regex-mark-then-move-to-another-folder` in
+`tests/ert/files-dired.el`, mocking `dired-mark-read-file-name` to return the target
+directory directly rather than faking keyboard input (the real, correct way to drive
+an otherwise-interactive Dired command non-interactively). Walked the user through
+the actual keystrokes afterward (`% m` + plain `R`/`C` for the simple multi-file
+case; `% R`/`% C`, Emacs's own `\(...\)`/`\N` regex-substitution-on-the-filename
+family, for the fancier single-step case they asked about but ultimately found "too
+complicated for small copy" --- correctly talked out of it back to the simple
+two-step version).
+
+Then, a genuine, explicit user request: "once i enable it only that file is
+enabled... can i make it such that all the things i open are enabled once i enable
+it" --- a session-wide toggle, not the existing one-buffer-at-a-time
+`allow-editing`. Added `my/read-only-lock-enabled` (defvar, default `t`) and
+`my/toggle-read-only-lock` (`C-c e a`): once turned off, every file opened AFTER
+that point starts editable immediately; turning it back on restores the normal
+per-file lock; already-open buffers are never retroactively touched either way, and
+the shipped default (`t`) never changes behavior for anyone who never touches it.
+
+Mid-implementation, a sharper follow-up from the user: "should be everything like
+default emacs not just file buffers also dired and others." This surfaced a second,
+**real, independent regression**, not something this session introduced: this
+config's global `C-x C-q` override (`my/read-only-hint`) was hijacking the key
+inside Dired too, where stock Emacs remaps it (`dired-mode-map`'s own
+`"<remap> <read-only-mode>"`, confirmed by reading the real installed `dired.el`
+source) to `dired-toggle-read-only`, entering WDired to edit filenames as text ---
+confirmed live, `(key-binding (kbd "C-x C-q"))` inside a real Dired buffer returned
+`my/read-only-hint`, never reaching the remap, because overriding the KEY directly
+(rather than the command `read-only-mode`) bypasses any command-level remap outright.
+Fixed generically, not with Dired-specific code: `my/read-only-hint` now checks
+`(command-remapping 'read-only-mode)` first and defers to whatever that returns ---
+the exact mechanism `C-x C-q` itself would normally use --- falling through to the
+plain hint message only when nothing remaps it (ordinary file buffers). This also
+covers `hideif.el`, the only other stock mode that remaps `read-only-mode` the same
+way (confirmed by grepping the installed Lisp tree, not guessed). Caught my own
+testing mistake along the way: a first live check used `execute-kbd-macro` plus
+reading the ambient `major-mode`, which gave a misleading `lisp-interaction-mode`
+result from a batch-mode current-buffer-tracking quirk; re-tested with
+`buffer-local-value` directly on the real buffer object instead, which correctly
+showed `wdired-mode` --- did not report the wrong result before catching it.
+
+All of this (`config/init.el`, `config/shortcuts.el`, `docs/KEYBOARD.md`,
+`tests/ert/readonly.el` [+10 new tests], `tests/ert/files-dired.el` [+1 test]) was
+committed on `utilities` (`16f1310`, `--no-verify` for the usual documented
+stale-dist-bundle diff) once the user said "Yes commit and push to all branches,"
+after confirming 44/44 `readonly`, 23/23 `files-dired`, and 21/21 `keybindings`
+tests pass. Per the user's explicit choice (asked directly rather than assumed, since
+"all branches" was ambiguous and this feature had only ever been built on
+`utilities`): cherry-picked onto `main` (`82e6ff1`, via a temporary worktree) and
+`lsp-java` (`41d1535`, in its existing worktree) too, so all three branches now carry
+the toggle and the `C-x C-q` fix. `lsp-java`'s cherry-pick applied clean, no
+conflicts (it already has the same Dired-test infrastructure as `utilities`).
+`main`'s cherry-pick hit one real conflict in `tests/ert/files-dired.el`: `main` has
+never had the `fd--with-dired` Dired-test-helper suite `utilities` built up over
+many earlier, `main`-divergent commits, so the new regex-move test (which depends on
+that helper) was deliberately left out of `main`'s cherry-pick rather than dragging
+the whole unrelated test suite over --- the actual feature (`config/init.el`,
+`config/shortcuts.el`, `docs/KEYBOARD.md`, the two new Dired/toggle tests in
+`tests/ert/readonly.el`, which have no such dependency) ported over cleanly. Verified
+on both before pushing: 44/44 `readonly` + 21/21 `keybindings` on `main` (after
+symlinking in `config/elpa`, absent by default in a fresh worktree --- six
+unrelated failures from missing packages like `avy`/`embark`/`consult`/`treemacs`
+disappeared once linked), and the same three suites clean on `lsp-java`.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
