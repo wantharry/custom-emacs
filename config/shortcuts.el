@@ -191,7 +191,25 @@
       (">" . "next year")))
     ("Evil, vi keys" "C-c v turns it on"
      "C-c v again turns it off"
-     nil))
+     nil)
+    ;; WHAT/WHY: user request, "add projectile and make sure it's not conflicting with
+    ;; other commands" --- `C-c q' here, NOT `C-c j' (projectile's own traditional
+    ;; `C-c p', AND the obvious free pick on `utilities'/`main'): on THIS branch
+    ;; specifically, `C-c j' is already this branch's own Maven prefix (`C-c j c'/`t'/
+    ;; `p'/`i'/`C'/`g', below) --- see init.el's own, much longer comment for the real,
+    ;; confirmed-the-hard-way mutual corruption trying `C-c j' here caused. Only a
+    ;; handful of its ~80 sub-commands are listed here, the same selective-highlights
+    ;; approach the other entries above already take (Magit/Treemacs don't list every
+    ;; command either).
+    ("Projectile (this config, per-project commands)" "C-c q"
+     "(no buffer to close; each key just prompts/opens what it finds)"
+     (("C-c q f" . "find a file anywhere in the current project")
+      ("C-c q p" . "switch to another known project")
+      ("C-c q b" . "switch to a buffer belonging to the current project")
+      ("C-c q s s" . "search (grep) the whole project for text")
+      ("C-c q r" . "project-wide search-and-replace")
+      ("C-c q c c" . "compile the project")
+      ("C-c q k" . "kill every buffer belonging to the current project"))))
   "Packages/features with their own \"world\" once open: how to open, how to close,
 and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
 COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in

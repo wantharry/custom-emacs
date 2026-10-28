@@ -107,6 +107,37 @@
     (should (eq (plist-get (cdr (transient-get-suffix 'docker (nth 0 spec))) :command)
                 (nth 1 spec)))))
 
+(ert-deftest shortcuts/projectile-facts-are-real ()
+  (skip-unless (locate-library "projectile"))
+  (require 'projectile)
+  ;; `projectile-command-map' holds every sub-key BELOW the prefix (`C-c q' on THIS
+  ;; branch --- `C-c j' is already Maven's own, see init.el's own comment; the prefix
+  ;; itself is wired separately, via `projectile-keymap-prefix'/`projectile-mode-map'
+  ;; --- `shortcuts/projectile-prefix-reaches-the-command-map' below checks that half).
+  (dolist (spec '(("f" . projectile-find-file) ("p" . projectile-switch-project)
+                  ("b" . projectile-switch-to-buffer) ("s s" . projectile-search)
+                  ("r" . projectile-replace) ("c c" . projectile-compile-project)
+                  ("k" . projectile-kill-buffers)))
+    (should (eq (lookup-key projectile-command-map (kbd (car spec))) (cdr spec)))))
+
+(ert-deftest shortcuts/projectile-prefix-reaches-the-command-map ()
+  ;; The other half of the real fact above: `C-c q' (this branch's own projectile
+  ;; prefix --- `C-c j' is already Maven's, see init.el's own comment) itself really
+  ;; does lead into `projectile-command-map', whether or not `projectile' has loaded
+  ;; yet in this Emacs (deliberately not required here --- see init.el's own comment
+  ;; on why it must stay autoloaded). Only the full key sequence's resolution is
+  ;; checked, not the identity of the bare prefix's own binding: once `projectile-
+  ;; mode' is ON, BOTH this config's own autoload-keymap binding AND `projectile-
+  ;; mode-map''s own separate wiring of the same prefix are simultaneously active and
+  ;; get merged by Emacs into one composite keymap for lookup purposes --- confirmed
+  ;; directly, the hard way: `(key-binding (kbd "C-c q"))' is `eq' to the plain symbol
+  ;; `projectile-command-map' only ever BEFORE that merge happens, so asserting that
+  ;; identity here would pass or fail depending on whether some earlier test in this
+  ;; same Emacs process already loaded `projectile' and turned its mode on --- a
+  ;; real, test-order-dependent flake, not a real fact about the key.
+  (skip-unless (locate-library "projectile"))
+  (should (eq (key-binding (kbd "C-c q f")) 'projectile-find-file)))
+
 (ert-deftest shortcuts/kubernetes-facts-are-real ()
   (skip-unless (locate-library "kubernetes"))
   (require 'kubernetes-modes)
