@@ -1202,8 +1202,16 @@ docs/PERSPECTIVE.md."
   (expand-file-name "../tools/node-lsp/node_modules/.bin" user-emacs-directory)
   "Where this branch's own local copies of the JS/TS/HTML/CSS/Angular language
 servers live --- see tools/node-lsp/package.json.")
+;; `exec-path' alone is not enough: `compile'/`shell-command'-style invocations
+;; (used by `my/npm-run-script'/`my/npm-install'/`my/nest-generate' below) run the
+;; command through a real shell subprocess, which does its OWN PATH lookup from
+;; the `PATH' environment variable, never consulting Emacs's `exec-path' at all ---
+;; a real, confirmed gap: `nest generate' failed with a plain shell "command not
+;; found" until this was added, even though `executable-find' (which DOES use
+;; `exec-path') already found it fine.
 (when (file-directory-p my/web-lsp-bin-dir)
-  (add-to-list 'exec-path my/web-lsp-bin-dir))
+  (add-to-list 'exec-path my/web-lsp-bin-dir)
+  (setenv "PATH" (concat my/web-lsp-bin-dir path-separator (getenv "PATH"))))
 
 ;; Angular is the one genuinely separate case: its own language server
 ;; (`@angular/language-server', the `ngserver' binary) understands Angular
@@ -1295,6 +1303,39 @@ it with npm."
   (let ((default-directory (my/npm-root)))
     (compile "npm install" t)))
 (global-set-key (kbd "C-c i i") #'my/npm-install)
+
+;; `C-c i n': `nest generate', the NestJS CLI's own scaffolding command (a new
+;; controller/service/module/etc., wired into the right place automatically --- it
+;; also updates the owning module's `imports'/`providers'/`controllers' array for
+;; you, confirmed directly by actually running it against a real scaffolded Nest
+;; project, not assumed). `@nestjs/cli' (`nest') and its own real dependency
+;; `@nestjs/schematics' (`nest generate'/`nest new' both need it; confirmed the hard
+;; way, a first attempt without it failed with "Collection '@nestjs/schematics'
+;; cannot be resolved") are installed the same way the language servers above are,
+;; into this branch's own `tools/node-lsp/' --- not a separate directory, despite the
+;; name: the exec-path wiring above already covers it, no reason to duplicate it.
+;; The list of schematic names below is Nest's own documented set (`nest generate
+;; --help'), not guessed.
+(defun my/nest-project-root ()
+  "The nearest directory above the current file with nest-cli.json, or nil."
+  (locate-dominating-file (or buffer-file-name default-directory) "nest-cli.json"))
+
+(defun my/nest-generate ()
+  "Run `nest generate SCHEMATIC NAME' in the current Nest project."
+  (interactive)
+  (let ((root (or (my/nest-project-root)
+                   (user-error "No nest-cli.json found above %s" default-directory))))
+    (let* ((schematic (completing-read "nest generate: "
+                                        '("controller" "service" "module" "provider" "guard"
+                                          "interceptor" "pipe" "filter" "middleware" "resolver"
+                                          "gateway" "class" "interface" "decorator" "resource")
+                                        nil nil))
+           (name (read-string (format "nest generate %s: " schematic)))
+           (default-directory root))
+      (compile (format "nest generate %s %s" (shell-quote-argument schematic)
+                        (shell-quote-argument name))
+                t))))
+(global-set-key (kbd "C-c i n") #'my/nest-generate)
 
 ;;; Clicking through code -------------------------------------------------------
 

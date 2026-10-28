@@ -1,11 +1,13 @@
 {
   "name": "node-lsp-tools",
   "private": true,
-  "description": "Language servers for JS/TS/HTML/CSS/Angular, installed locally (not system-wide) so this project stays self-contained.",
+  "description": "Language servers for JS/TS/HTML/CSS/Angular, plus the Nest CLI, installed locally (not system-wide) so this project stays self-contained.",
   "dependencies": {
-    "typescript": "^5.6.3",
+    "typescript": "^6.0.3",
     "typescript-language-server": "^4.3.3",
     "vscode-langservers-extracted": "^4.10.0",
-    "@angular/language-server": "^22.2.3"
+    "@angular/language-server": "^22.2.3",
+    "@nestjs/cli": "^12.0.11",
+    "@nestjs/schematics": "^12.0.11"
   }
 }

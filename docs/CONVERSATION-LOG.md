@@ -3797,6 +3797,59 @@ it are unaffected), race-safe (`ln -sfn') since `run_one' backgrounds every test
 in parallel. Full regression after all of this: same 18 pre-existing flaky failures,
 zero new ones (1233 tests now, the 19 new ones included).
 
+### Follow-up, same session: `dev-ui` made Express/NestJS-ready, and a real PATH gap found and fixed
+
+User, after a short detour asking what a backend framework even is (answered directly,
+tying it back to this project: Express/NestJS/Fastify in JS, or `lsp-java' if the
+backend is Java): "Can you make this branch express and nest js ready."
+
+Express needed nothing new: it is plain TypeScript/JavaScript, already covered by the
+`typescript-language-server' wiring from the entry above --- confirmed for real with a
+scratch `app.ts' (`express'/`@types/express' installed in its own temp project, not
+assumed), zero diagnostics. NestJS is the same underneath (also plain TS, just heavy on
+decorators --- `@Controller()'/`@Injectable()'/etc.) but conventionally needs its own
+CLI for scaffolding, so `@nestjs/cli' (and its own real dependency `@nestjs/schematics'
+--- a first attempt without it failed with "Collection '@nestjs/schematics' cannot be
+resolved", not guessed) were added to this branch's existing `tools/node-lsp/' (not
+renamed despite now also holding a CLI tool, since the exec-path/PATH wiring already
+covers it either way). A real, confirmed fact about the current npm ecosystem, not a
+mistake: `@nestjs/schematics' now requires TypeScript >=6.0.0, so `tools/node-lsp/
+package.json''s own `typescript' pin (`^5.6.3', from the entry above) had to be bumped
+to `^6.0.3' --- confirmed decorator support still works correctly afterward with a real
+scratch NestJS controller (`@nestjs/common' installed for real, not stubbed): zero
+diagnostics, correct symbols (`AppController'/`AppService').
+
+**A real, confirmed PATH gap found and fixed**: `nest generate', run through the new
+`my/nest-generate' (`C-c i n'), failed with a plain shell "nest: command not found"
+even though `executable-find' already found it fine --- `exec-path' is an Emacs-
+internal variable `compile'/`shell-command'-style invocations never consult, since
+they run through a real shell subprocess doing its own PATH lookup from the `PATH'
+environment variable instead. Fixed with a plain `setenv' alongside the existing
+`add-to-list' on `exec-path'. This quietly affected `my/npm-run-script'/`my/npm-
+install' too (from the entry above) --- they happened to still work in every
+manual test run so far only because `npm'/`node' themselves were already on the
+system's own real `PATH' outside this config entirely, not because of anything this
+branch had done; the servers/CLI in `tools/node-lsp/' specifically were the only
+things actually missing from the shell's own PATH until this fix.
+
+`nest generate' (schematic/name, Nest's own documented schematic set) verified for
+real against an ACTUAL scaffolded project (`nest new', then `nest generate service
+dogs' by hand first, confirmed it created the file AND registered it in `app.module.ts'
+before writing any Elisp at all) --- a real, unrelated npm bug hit along the way and
+correctly set aside rather than chased: a full `npm install' of the scaffolded
+project's own generated dependencies (`vite'/`vitest') crashed npm's own dependency
+resolver (`Cannot read properties of null (reading 'edgesOut')', an `@npmcli/arborist'
+bug) --- irrelevant to `nest generate' itself, which is pure code generation and does
+not need the project's full dependency tree installed to run, confirmed directly by
+running it anyway without that install and watching it work.
+
+New tests added to `tests/ert/languages-web-lsp.el' (6 more, 25 total): the Nest CLI on
+the resulting PATH, the PATH-env-var fix itself, `my/nest-project-root', the no-nest-
+cli.json error case, and a real `nest generate' run against a minimal but genuinely
+real scaffolded Nest project layout (not a full `nest new', to stay fast), checking
+both the new file's content and the owning module's real update. Full regression: same
+18 pre-existing flaky failures, zero new ones (1239 tests now).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

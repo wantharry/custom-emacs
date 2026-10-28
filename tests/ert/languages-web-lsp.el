@@ -23,6 +23,15 @@
   (wl--skip-unless-installed)
   (should (member my/web-lsp-bin-dir exec-path)))
 
+;; A real, confirmed gap: `exec-path' alone is not enough for `compile'/`shell-
+;; command'-style invocations (`my/npm-run-script'/`my/nest-generate' below), which
+;; run through a real shell subprocess doing its OWN PATH lookup from the `PATH'
+;; environment variable --- `nest generate' failed with a plain shell "command not
+;; found" until `setenv' was added alongside `add-to-list' on `exec-path'.
+(ert-deftest wl/node-lsp-bin-dir-is-also-on-the-path-env-var-when-present ()
+  (wl--skip-unless-installed)
+  (should (member my/web-lsp-bin-dir (split-string (getenv "PATH") path-separator))))
+
 (ert-deftest wl/typescript-language-server-is-on-the-resulting-path ()
   (wl--skip-unless-installed)
   (should (file-executable-p (wl--bin "typescript-language-server"))))
@@ -31,6 +40,10 @@
   (wl--skip-unless-installed)
   (should (file-executable-p (wl--bin "vscode-html-language-server")))
   (should (file-executable-p (wl--bin "vscode-css-language-server"))))
+
+(ert-deftest wl/nest-cli-is-on-the-resulting-path ()
+  (wl--skip-unless-installed)
+  (should (file-executable-p (wl--bin "nest"))))
 
 (ert-deftest wl/angular-language-server-is-on-the-resulting-path ()
   (wl--skip-unless-installed)
@@ -132,6 +145,48 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
   (test-with-temp-dir d
     (let ((buffer-file-name (concat d "a.ts")) (default-directory d))
       (should-error (my/npm-run-script) :type 'user-error))))
+
+;;; C-c i n: nest generate
+
+(ert-deftest wl/nest-keys-are-bound ()
+  (should (eq (key-binding (kbd "C-c i n")) #'my/nest-generate)))
+
+(ert-deftest wl/nest-project-root-finds-nest-cli-json ()
+  (test-with-temp-dir d
+    (test-write-file (concat d "nest-cli.json") "{}")
+    (make-directory (concat d "src"))
+    (let ((buffer-file-name (concat d "src/a.ts")) (default-directory (concat d "src/")))
+      (should (equal (expand-file-name (my/nest-project-root)) (expand-file-name d))))))
+
+(ert-deftest wl/nest-generate-errors-clearly-with-no-nest-cli-json ()
+  (test-with-temp-dir d
+    (let ((buffer-file-name (concat d "a.ts")) (default-directory d))
+      (should-error (my/nest-generate) :type 'user-error))))
+
+(ert-deftest wl/nest-generate-creates-the-real-file-in-a-real-nest-project ()
+  ;; A real, confirmed fact about Nest's own CLI, not assumed: `nest generate'
+  ;; needs `nest-cli.json' (checked above) but NOT a full `npm install' of the
+  ;; project's own dependencies to run --- it is pure code generation. Scaffolds a
+  ;; minimal but genuinely real Nest project layout (the parts `nest generate'
+  ;; itself actually reads) rather than a full `nest new', to keep this fast.
+  (wl--skip-unless-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "nest-cli.json") "{\"collection\": \"@nestjs/schematics\", \"sourceRoot\": \"src\"}")
+    (test-write-file (concat d "tsconfig.json") "{}")
+    (make-directory (concat d "src"))
+    (test-write-file (concat d "src/app.module.ts")
+                      "import { Module } from '@nestjs/common';\n\n@Module({})\nexport class AppModule {}\n")
+    (let ((buffer-file-name (concat d "src/app.module.ts")) (default-directory d))
+      (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "service"))
+                ((symbol-function 'read-string) (lambda (&rest _) "cats")))
+        (my/nest-generate))
+      (with-timeout (15 (error "nest generate did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (should (file-exists-p (concat d "src/cats/cats.service.ts")))
+      (should (string-match-p "CatsService" (test-read-file (concat d "src/cats/cats.service.ts"))))
+      ;; the owning module really gets updated, not just the new file created
+      (should (string-match-p "CatsService" (test-read-file (concat d "src/app.module.ts"))))
+      (kill-buffer "*compilation*"))))
 
 ;;; Real server sessions (opt-in: tests/run-all.sh --lsp)
 

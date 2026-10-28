@@ -216,7 +216,13 @@
     ("npm scripts (this config, dev-ui branch)" "C-c i r / C-c i i"
      "(no buffer to close; runs in a real compile buffer, C-c i r/i to run again)"
      (("C-c i r" . "pick one of the current project's package.json scripts and run it")
-      ("C-c i i" . "npm install"))))
+      ("C-c i i" . "npm install")))
+    ;; WHAT/WHY: `dev-ui' branch only --- real NestJS scaffolding, Nest's own CLI
+    ;; (`nest generate'), confirmed for real against an actual scaffolded Nest
+    ;; project to both create the new file AND register it in the owning module.
+    ("Nest CLI (this config, dev-ui branch)" "C-c i n"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i n" . "nest generate: pick a schematic (controller/service/module/...) and a name"))))
   "Packages/features with their own \"world\" once open: how to open, how to close,
 and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
 COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in

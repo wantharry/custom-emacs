@@ -186,8 +186,31 @@ Java project, so separate keys per goal make sense; npm scripts are whatever eac
 own `package.json' happens to define, so picking from the real list beats guessing which
 goal-shaped keys to hardcode.
 
+## Express and NestJS
+
+Both are just TypeScript/JavaScript under a framework, like React/Next.js above --- the
+`typescript-language-server' wiring already covers them, including real decorator/type
+support (`@Controller()'/`@Injectable()'/etc., confirmed directly against real `@nestjs/
+common' types, not assumed: zero diagnostics on a real decorated controller file). Express
+needs nothing beyond that; NestJS additionally gets its own CLI (`@nestjs/cli' plus its real
+dependency `@nestjs/schematics', installed into this branch's own `tools/node-lsp/' the same
+way the language servers are --- not a separate directory, despite the name, since the
+`exec-path'/`PATH' wiring already covers it either way):
+
+`C-c i n': `nest generate', prompting for a schematic (controller/service/module/guard/...,
+Nest's own documented set) and a name --- confirmed for real against an actual scaffolded
+Nest project: it creates the right file AND updates the owning module's `imports'/
+`providers'/`controllers' array automatically, the same as running it from a real terminal.
+
+A real, confirmed gap fixed along the way: `exec-path' alone is not enough for `compile'/
+`shell-command'-style invocations (every command above) --- they run through a real shell
+subprocess, which does its own PATH lookup from the `PATH' environment variable, never
+consulting Emacs's `exec-path'. `nest generate' failed with a plain shell "command not
+found" until `setenv' was added alongside `add-to-list' on `exec-path'.
+
 See `tests/ert/languages-web-lsp.el' for the real checks (wiring, Angular detection and
-dispatch, the npm commands, and two tests --- `./build.sh test --lsp' only --- that start the
+dispatch, the npm/nest commands --- including a real `nest generate' against a real
+scaffolded project --- and two tests --- `./build.sh test --lsp' only --- that start the
 real servers and confirm they answer through Eglot).
 
 ## Known limits
