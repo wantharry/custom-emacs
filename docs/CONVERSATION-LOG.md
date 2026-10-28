@@ -3543,6 +3543,77 @@ symlinking in `config/elpa`, absent by default in a fresh worktree --- six
 unrelated failures from missing packages like `avy`/`embark`/`consult`/`treemacs`
 disappeared once linked), and the same three suites clean on `lsp-java`.
 
+### Follow-up, same session: `projectile' added across all three branches --- a real, confirmed keybinding collision found and fixed on `lsp-java' specifically
+
+User: "Did we add projectile?" --- checked first, not assumed: `grep' found only
+incidental optional-integration code inside `mood-line'/`telephone-line' (they show the
+project name IF `projectile' happens to be loaded), nothing in `tools/install-
+packages.el' or this config's own code. Answered no, then "Should we install?" ---
+answered with the actual tradeoff (`fastfind.el'/`gitfolders.el' already cover instant
+fuzzy file-finding and multi-repo discovery; `projectile' would add is a per-project
+COMMAND menu --- compile/test/run/search-replace --- that neither already has), and the
+user said "Let's add projectile and make sure it's not conflicting."
+
+Added on `utilities' first (`328226f'): installed via `tools/install-packages.el' +
+`./build.sh packages'. Bound under its own prefix, `C-c j', NOT projectile's own
+traditional `C-c p' --- confirmed LIVE via `key-binding', not just grep (the same
+lesson `C-c P'/perspective already learned the hard way earlier this session): `C-c p'
+is this config's password-manager prefix, `C-c P' is `my/toggle-perspective'. `C-c j'
+happens to be one of the only letters in "project" not already claimed elsewhere.
+Kept genuinely lazy --- `startup/no-third-party-features-loaded' (tests/ert/startup-
+perf.el) already asserted `projectile' must never load at startup, confirming the
+lazy requirement rather than introducing it --- via a real, directly-tested Emacs
+mechanism: `(autoload 'projectile-command-map "projectile" nil nil 'keymap)' plus
+`(global-set-key (kbd "C-c j") 'projectile-command-map)'. Pressing into a key under
+that prefix loads the real package on first use (which `fset's the real keymap over
+the placeholder, confirmed in projectile's own source) and turns `projectile-mode' on
+globally via `with-eval-after-load', the same lazy-enable shape `my/toggle-perspective'
+already uses. Verified live with a disposable throwaway script before writing any of
+this into `init.el', not assumed. Documented in `config/shortcuts.el'/`docs/
+KEYBOARD.md' (7 of its ~80 sub-commands, the same selective-highlights approach
+Magit/Treemacs already use), with two new tests (`shortcuts/projectile-facts-are-real',
+`shortcuts/projectile-prefix-reaches-the-command-map') verifying the documented keys
+against the real keymap. One real, caught-and-fixed test-design mistake along the way:
+an early version of the second test asserted `(key-binding (kbd "C-c j"))' was `eq' to
+the bare symbol `projectile-command-map' --- true only BEFORE `projectile-mode' turns
+on; once it does, this config's own global binding and `projectile-mode-map''s own
+separate wiring of the same prefix are both active and get merged by Emacs into one
+composite keymap for lookup purposes, so that assertion silently depends on which
+tests ran first in the same batch Emacs process --- found live, fixed by asserting
+only the full key sequence's resolution instead, which has no such dependency. Full
+regression confirmed via `git stash' comparison (same 18 pre-existing flaky failures
+with or without the change, zero new ones) before committing with `--no-verify' for
+the usual documented stale-dist-bundle exception.
+
+Cherry-picked onto `main' (`1dff549') cleanly, one trivial conflict (a `tests/ert/
+files-dired.el'-style divergence, this time in `keybindings.el''s optional-package
+guard list, resolved by keeping `main''s own content and adding just the new
+`projectile' guard). Cherry-picking onto `lsp-java' surfaced a REAL, confirmed keybinding
+collision this config's own earlier live-keymap check had not caught, because that
+check was run against `utilities''s config, not `lsp-java''s: `lsp-java' already has
+its OWN `C-c j' prefix, for Maven (`C-c j c'/`t'/`p'/`i'/`C'/`g', `my/maven-*'). Tried
+`C-c j' on `lsp-java' anyway first (same as the other two branches) and a live test
+caught real, MUTUAL corruption: binding `C-c j' to projectile's autoloaded keymap
+*symbol*, combined with Maven's own later `(global-set-key (kbd "C-c j p") ...)' calls
+needing a real keymap to descend into at that same prefix, forced the autoload to
+resolve right then --- onto the SAME underlying keymap object once `projectile-command-
+map' was `fset' into existence --- so each letter Maven and projectile both happen to
+use (`c', `p', ...) silently overwrote the other's real binding there. Confirmed
+directly via `lookup-key'/`key-binding' before and after, not assumed. Fixed by giving
+`projectile' a DIFFERENT, branch-specific prefix on `lsp-java' only: `C-c q' (confirmed
+free there), leaving Maven's own `C-c j' completely untouched --- `utilities'/`main'
+keep `C-c j' as before, since neither has this conflict. Committed as `0a516da' after
+re-verifying, live, that Maven and projectile's own command map both stayed fully
+intact (including after `projectile' actually loaded). Separately, during this
+cherry-pick, two `git cherry-pick --abort' calls (while investigating the `lsp-java'
+conflict) left this worktree's local branch pointer 3 commits BEHIND `origin/lsp-java'
+(ORIG_HEAD bookkeeping landing on a stale pre-session commit, not the commit HEAD
+actually was at) --- caught immediately via `git log --oneline -1' not matching
+expectations, confirmed nothing was actually lost (`git merge-base --is-ancestor'
+against `origin/lsp-java'), and fixed with a plain fast-forward merge before
+continuing; worth remembering if `git cherry-pick --abort' is used again on this
+worktree, specifically, mid-investigation.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
