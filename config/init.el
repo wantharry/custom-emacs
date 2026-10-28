@@ -1029,6 +1029,59 @@ docs/PERSPECTIVE.md."
   (message "Perspectives %s" (if (bound-and-true-p persp-mode) "enabled (C-x x for commands)" "disabled")))
 (global-set-key (kbd "C-c P") #'my/toggle-perspective)
 
+;; `projectile': per-project commands --- find a file anywhere in the current
+;; project, project-wide search/replace, switch between projects, run/compile/
+;; test the project, and more, all under one prefix. User request, after being
+;; told `fastfind.el'/`gitfolders.el' already cover instant fuzzy file-finding
+;; and multi-repo discovery, but NOT a per-project command menu (compile, test,
+;; run, project-scoped search/replace) --- that gap is what `projectile' actually
+;; fills here, not a duplicate of either.
+;;
+;; `projectile-keymap-prefix': confirmed directly in the package's own source,
+;; the real default is `nil' --- projectile binds none of its own commands
+;; until explicitly given a prefix, so there is nothing to silently clobber by
+;; just installing it. The traditional `C-c p' (seen in most of projectile's own
+;; docs) is already this config's password-manager prefix (`C-c p f'/`i'/`g'/
+;; `I'); `C-c P' is already `my/toggle-perspective' just above --- both
+;; confirmed against the REAL live keymap with `key-binding', not just a text
+;; search (a real lesson from an earlier session: a prefix that looks free by
+;; grep can actually be wired through a data-driven loop no literal `(kbd "C-c
+;; X")' text match would catch). `C-c j' is free, confirmed the same way, and
+;; happens to be one of the letters IN "project" --- the only one still free,
+;; since p/r/o/e/c/t are all already spoken for elsewhere in this config (pass,
+;; ranger, org-ish stuff, edit-lock, consult/custom-menu, treemacs). Must be set
+;; before `projectile' itself ever loads: the package reads this once, building
+;; `projectile-mode-map' as the file loads, so setting it any later has no
+;; effect --- same ordering rule `persp-mode-prefix-key' above already needed.
+(setq projectile-keymap-prefix (kbd "C-c j"))
+;; Lazy, same "costs nothing until actually wanted" shape as `perspective'
+;; above --- `startup/no-third-party-features-loaded' (tests/ert/startup-
+;; perf.el) asserts `projectile' itself is never a loaded feature right after
+;; startup, so it must not be `require'd here. `C-c j' is bound straight to the
+;; *symbol* `projectile-command-map', autoloaded with TYPE `keymap' --- a real,
+;; directly-tested Emacs mechanism (confirmed live with a throwaway script
+;; before writing this: pressing into a key sequence under an autoloaded-
+;; keymap symbol loads the file on first use, which then `fset's the real
+;; keymap over this placeholder --- confirmed directly in projectile's own
+;; source --- and lookup continues into it correctly, no page of code needed
+;; here to drive that). `projectile-mode' (needed for its mode-line segment,
+;; `doom-modeline''s own `projectile' project-detection, and automatic known-
+;; projects tracking --- plain commands like `projectile-find-file' already
+;; work without it, calling `projectile-project-root' on demand either way) is
+;; turned on globally the moment the real package actually loads, via `with-
+;; eval-after-load' --- the same lazy-enable shape `my/toggle-perspective'
+;; already uses, just triggered by first real use of the prefix instead of an
+;; explicit toggle command.
+(when (locate-library "projectile")
+  (autoload 'projectile-command-map "projectile" nil nil 'keymap)
+  (global-set-key (kbd "C-c j") 'projectile-command-map)
+  (with-eval-after-load 'projectile (projectile-mode 1)))
+(defun my/projectile-missing ()
+  (interactive)
+  (message "projectile is not installed.  Run ./build.sh packages"))
+(unless (locate-library "projectile")
+  (global-set-key (kbd "C-c j") #'my/projectile-missing))
+
 ;;; Languages: tree-sitter grammars and language servers ----------------------
 
 ;; Grammar versions are pinned to ones built with parser ABI 14 or lower, which is

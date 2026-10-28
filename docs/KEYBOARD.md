@@ -334,6 +334,13 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-h D` | `devdocs-lookup` | **this config:** look up a symbol in a real, offline copy of a language/library's own docs (each doc set downloaded on first use with `devdocs-install`) |
 | `C-c W` | `my/disk-usage` | **this config:** a WizTree-style, drill-down disk usage browser, largest first, powered by `dua` ([DISK-USAGE.md](DISK-USAGE.md)) --- `C-c W` inside Dired instead toggles `dired-du-mode` (the same key, a different, locally-scoped binding) |
 | `C-c P` | `my/toggle-perspective` | **this config:** turn named groups of buffers/windows on or off, off by default ([PERSPECTIVE.md](PERSPECTIVE.md)) --- once on, `C-x x` is `perspective`'s own full command prefix |
+| `C-c j f` | `projectile-find-file` | **this config:** find a file anywhere in the current project, by name --- `C-c j` is `projectile`'s own full command prefix (dozens more commands; `C-c j p`/`b`/`s s`/`r`/`c c`/`k` below are only the highlights) |
+| `C-c j p` | `projectile-switch-project` | **this config:** switch to another known project |
+| `C-c j b` | `projectile-switch-to-buffer` | **this config:** switch to a buffer belonging to the current project only |
+| `C-c j s s` | `projectile-search` | **this config:** search (grep) the whole project for text |
+| `C-c j r` | `projectile-replace` | **this config:** project-wide search-and-replace |
+| `C-c j c c` | `projectile-compile-project` | **this config:** compile the project |
+| `C-c j k` | `projectile-kill-buffers` | **this config:** kill every buffer belonging to the current project |
 | `C-c B` | `my/writing` | **this config:** open a new, plain `untitled` buffer for prose; `C-c S` turns on synonym suggestions in it ([SYNONYMS.md](SYNONYMS.md)) |
 | `C-c S` | `my/synonyms-mode` | **this config:** turn synonym suggestions on/off in this buffer --- they then pop up automatically while typing; `F7` looks one up immediately |
 | `C-c X` | `my/typing-game` | **this config:** a graduated typing trainer --- alphabet, then +numbers, +special characters, +real Emacs keybindings ([TYPING-GAME.md](TYPING-GAME.md)) |

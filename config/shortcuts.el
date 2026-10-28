@@ -191,7 +191,23 @@
       (">" . "next year")))
     ("Evil, vi keys" "C-c v turns it on"
      "C-c v again turns it off"
-     nil))
+     nil)
+    ;; WHAT/WHY: user request, "add projectile and make sure it's not conflicting with
+    ;; other commands" --- `C-c j' (not projectile's own traditional `C-c p') since
+    ;; `C-c p'/`C-c P' are already this config's password-manager/perspective prefixes;
+    ;; see init.el's own, much longer comment for how that was confirmed against the
+    ;; real live keymap, not just a text search. Only a handful of its ~80 sub-commands
+    ;; are listed here, the same selective-highlights approach the other entries above
+    ;; already take (Magit/Treemacs don't list every command either).
+    ("Projectile (this config, per-project commands)" "C-c j"
+     "(no buffer to close; each key just prompts/opens what it finds)"
+     (("C-c j f" . "find a file anywhere in the current project")
+      ("C-c j p" . "switch to another known project")
+      ("C-c j b" . "switch to a buffer belonging to the current project")
+      ("C-c j s s" . "search (grep) the whole project for text")
+      ("C-c j r" . "project-wide search-and-replace")
+      ("C-c j c c" . "compile the project")
+      ("C-c j k" . "kill every buffer belonging to the current project"))))
   "Packages/features with their own \"world\" once open: how to open, how to close,
 and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
 COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in
