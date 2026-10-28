@@ -189,6 +189,38 @@
       (should-not (file-exists-p src))
       (should (equal (test-read-file dst) "data")))))
 
+;; User request, explicit: "I was trying to test regex move to another folder in
+;; dired." The real, full workflow (not just marking, and not just a plain same-
+;; directory rename, both already covered separately above): `% m REGEXP' marks
+;; every matching file, then `R' (`dired-do-rename') moves every MARKED file to a
+;; directory you are prompted for --- the move destination is a SEPARATE folder
+;; here, confirmed by using two distinct temp directories, not the same one
+;; `dired-rename-file' already covers. `dired-mark-read-file-name' (confirmed
+;; directly, reading `dired-do-create-files' in `dired-aux.el': this is the exact
+;; function that prompts "Move %s to: ") is mocked to return the target directory
+;; immediately --- the real, correct way to drive an otherwise-interactive Dired
+;; command non-interactively in a test, rather than faking keyboard input.
+(ert-deftest dired/regex-mark-then-move-to-another-folder ()
+  (test-with-temp-dir src
+    (test-with-temp-dir dst
+      (test-write-file (concat src "report1.txt") "one")
+      (test-write-file (concat src "report2.txt") "two")
+      (test-write-file (concat src "notes.el") "(ignored)")
+      (fd--with-dired src
+        (dired-mark-files-regexp "\\`report")
+        (should (= 2 (length (dired-get-marked-files nil 'marked))))
+        (cl-letf (((symbol-function 'dired-mark-read-file-name)
+                   (lambda (&rest _) dst)))
+          (dired-do-rename)))
+      ;; moved: gone from the source, present (with real content) in the target.
+      (should-not (file-exists-p (concat src "report1.txt")))
+      (should-not (file-exists-p (concat src "report2.txt")))
+      (should (equal (test-read-file (concat dst "report1.txt")) "one"))
+      (should (equal (test-read-file (concat dst "report2.txt")) "two"))
+      ;; the regex only matched "report*" --- the unrelated file never moved.
+      (should (file-exists-p (concat src "notes.el")))
+      (should-not (file-exists-p (concat dst "notes.el"))))))
+
 (ert-deftest dired/create-directory-appears-in-listing ()
   (test-with-temp-dir d
     (fd--with-dired d

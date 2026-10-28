@@ -311,7 +311,8 @@ by hand.")
      ("C-c y" my/calendar-year "a real year-at-a-glance calendar, 12 months in a grid"))
     ("Editing lock"
      ("C-c e e" allow-editing "make this buffer editable")
-     ("C-c e l" stop-editing "lock this buffer read-only again"))
+     ("C-c e l" stop-editing "lock this buffer read-only again")
+     ("C-c e a" my/toggle-read-only-lock "toggle: files opened from now on start editable right away, or locked as usual"))
     ("Evil, vi keys"
      ;; WHAT/WHY: a real gap, found by the user, not caught before --- `my/toggle-evil'
      ;; already existed and was already documented in `my/shortcuts-packages' (the
