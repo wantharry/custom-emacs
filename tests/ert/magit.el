@@ -68,11 +68,15 @@
                "/r/.git/config" "/r/.git/HEAD"))
     (should-not (string-match-p my/always-editable-file-regexp f))))
 
-(ert-deftest magit/commit-message-file-opens-editable-but-other-files-stay-locked ()
+(ert-deftest magit/commit-message-file-stays-editable-even-under-the-lock ()
+  ;; The exception is only meaningful to test with the lock actually ON --- files open
+  ;; editable by default now either way, so this turns `my/read-only-lock-enabled' on
+  ;; first to re-create the real contrast: even then, a commit-message file is exempt.
   (mg-with-repo
     (make-directory (concat mg-dir ".git") t)
     (let* ((msg (concat mg-dir ".git/COMMIT_EDITMSG"))
            (other (concat mg-dir "a.txt"))
+           (my/read-only-lock-enabled t)
            (mb (find-file-noselect msg)) (ob (find-file-noselect other)))
       (unwind-protect
           (progn (should-not (buffer-local-value 'buffer-read-only mb))
