@@ -340,6 +340,8 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c j r` | `projectile-replace` | **this config:** project-wide search-and-replace |
 | `C-c j c c` | `projectile-compile-project` | **this config:** compile the project |
 | `C-c j k` | `projectile-kill-buffers` | **this config:** kill every buffer belonging to the current project |
+| `C-c i r` | `my/npm-run-script` | **this config, `dev-ui` branch:** pick one of the current project's `package.json` scripts and run it |
+| `C-c i i` | `my/npm-install` | **this config, `dev-ui` branch:** `npm install` in the nearest `package.json`'s directory |
 | `C-c B` | `my/writing` | **this config:** open a new, plain `untitled` buffer for prose; `C-c S` turns on synonym suggestions in it ([SYNONYMS.md](SYNONYMS.md)) |
 | `C-c S` | `my/synonyms-mode` | **this config:** turn synonym suggestions on/off in this buffer --- they then pop up automatically while typing; `F7` looks one up immediately |
 | `C-c X` | `my/typing-game` | **this config:** a graduated typing trainer --- alphabet, then +numbers, +special characters, +real Emacs keybindings ([TYPING-GAME.md](TYPING-GAME.md)) |

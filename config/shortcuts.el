@@ -207,7 +207,16 @@
       ("C-c j s s" . "search (grep) the whole project for text")
       ("C-c j r" . "project-wide search-and-replace")
       ("C-c j c c" . "compile the project")
-      ("C-c j k" . "kill every buffer belonging to the current project"))))
+      ("C-c j k" . "kill every buffer belonging to the current project")))
+    ;; WHAT/WHY: `dev-ui' branch only --- the npm equivalent of Maven's `C-c j' on
+    ;; `lsp-java', shaped differently on purpose: Maven's goals are standardized
+    ;; across every Java project, npm scripts are whatever each project's own
+    ;; package.json defines, so picking from the real list beats hardcoding goal-
+    ;; shaped keys that would not mean the same thing project to project.
+    ("npm scripts (this config, dev-ui branch)" "C-c i r / C-c i i"
+     "(no buffer to close; runs in a real compile buffer, C-c i r/i to run again)"
+     (("C-c i r" . "pick one of the current project's package.json scripts and run it")
+      ("C-c i i" . "npm install"))))
   "Packages/features with their own \"world\" once open: how to open, how to close,
 and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
 COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in

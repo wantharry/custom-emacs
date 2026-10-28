@@ -116,13 +116,17 @@ with `./build.sh test --lsp` (about 5 seconds for these two; the Java navigation
 seconds to analyze). A separate test **fails** (it does not skip)
 if a grammar is missing, so a broken install cannot hide behind skipped tests.
 
-## HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON: editing only, so far
+## HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
 
 These get accurate, fast tree-sitter highlighting, indentation and imenu the same way Java and
-Rust do --- but **no language server yet** (no autocomplete, no go-to-definition). The servers
-that would provide that (`typescript-language-server`, `vscode-html/css-language-server`) are
-npm packages needing a Node.js runtime, which this project does not bundle; see `git log` for
-the tradeoffs considered. Pending that, this is a real, complete phase on its own:
+Rust do. On most branches that is all they get --- **no language server** (no autocomplete, no
+go-to-definition): the servers that would provide that (`typescript-language-server`,
+`vscode-html/css-language-server`) are npm packages needing a Node.js runtime, which this
+project does not bundle; see `git log` for the tradeoffs considered.
+
+**The `dev-ui` branch is the exception**: real LSP support for all of these, plus Angular, is
+wired in --- see "Real LSP for the web/UI languages (`dev-ui` branch)" below. Everywhere else,
+this is a real, complete phase on its own:
 
 | Piece | Grammar | Mode (needs the grammar) | Remap needed? |
 |---|---|---|---|
@@ -143,6 +147,48 @@ Rust; see `tests/ert/languages-web.el` for real parse/highlight/indent/comment/i
 `tests/gui/gui-tests.el`'s `gui/web-languages-source-is-drawn-in-color` for a real colored
 window. Verified for real on the Windows bundle too (correct mode and real tree-sitter parsers
 for `.js`/`.ts`/`.css`/`.html`), which carries the same grammars, cross-compiled with zig.
+
+## Real LSP for the web/UI languages (`dev-ui` branch)
+
+This branch exists for frontend/web work (JavaScript, TypeScript, React, Next.js, Angular ---
+React and Next.js are not separate language servers, just TS/JS/JSX/TSX under a framework, so
+nothing extra is needed for either). Confirmed directly in Eglot's own `eglot-server-programs'
+(not assumed): it already knows `typescript-language-server' by name for every JS/TS/JSX/TSX
+mode, and `vscode-css-language-server' for CSS --- the only real gap was `mhtml-ts-mode' (this
+config's own HTML remap), missing from Eglot's `html-mode'-only entry, added in `config/
+init.el'.
+
+None of these servers are bundled with Emacs or Node itself --- an npm ecosystem needing a real
+Node.js runtime, the same reason this project does not bundle Java's JDK either. Installed
+locally into `tools/node-lsp/' (its own `package.json', committed; `node_modules/' is not,
+`npm install` there to get them) instead of system-wide, the same "self-contained, not system-
+wide" shape as `config/elpa'/`dist/.venv' elsewhere in this project; `tools/node-lsp/node_modules/
+.bin' is added to `exec-path' so Eglot's own existing lookup-by-name finds them.
+
+**Angular** is the one genuinely separate case: `@angular/language-server' (`ngserver') replaces
+both the TS and HTML servers entirely inside an Angular workspace (confirmed in its own
+documentation), understanding Angular template syntax and component decorators neither plain
+server knows about. `config/init.el''s `my/angular-project-root' detects this via `angular.json'
+(the one reliable marker `ng new' always creates) and dispatches to `ngserver', pointed at the
+PROJECT's own `node_modules' (it needs the project's own `@angular/language-service'/
+`typescript' versions, not this branch's `tools/node-lsp/') --- not verified end to end against
+a real Angular workspace (none was available to test against directly); a known, documented
+inefficiency even when it is right: because Eglot keys a server by its own static list of
+managed major modes, and the TS-family/HTML-family modes are necessarily two separate
+`eglot-server-programs' entries (Eglot's own defaults already split them the same way), an
+Angular project opened with both a `.ts' and a `.html' file runs two separate `ngserver'
+processes instead of one shared one.
+
+`C-c i': runs one of the current project's `package.json' `"scripts"' (`C-c i r', prompts for
+which one) or `npm install' (`C-c i i') --- the npm equivalent of Maven's `C-c j' on the
+`lsp-java' branch, shaped differently on purpose: Maven's goals are standardized across every
+Java project, so separate keys per goal make sense; npm scripts are whatever each project's
+own `package.json' happens to define, so picking from the real list beats guessing which
+goal-shaped keys to hardcode.
+
+See `tests/ert/languages-web-lsp.el' for the real checks (wiring, Angular detection and
+dispatch, the npm commands, and two tests --- `./build.sh test --lsp' only --- that start the
+real servers and confirm they answer through Eglot).
 
 ## Known limits
 

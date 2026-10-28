@@ -3729,6 +3729,74 @@ the full suite, not just the files directly touched. Committed on `utilities',
 cherry-picked onto `main' and `lsp-java', each independently tested before pushing;
 see the next entry for how each cherry-pick actually went.
 
+### Follow-up, same session: a new `dev-ui` branch, for real JS/TS/HTML/CSS/Angular LSP support
+
+User, after confirming everything was tested and pushed across `utilities`/`main`/
+`lsp-java': "After that need to separate branch for UI development." First reading
+assumed "UI" meant this config's OWN visual appearance (themes, mode-line) --- wrong;
+clarified via two short rounds of questions that it meant a frontend-dev branch,
+parallel to what `lsp-java' is for Java (JavaScript/TypeScript/React/Next.js/Angular
+tooling), and that the user wanted the actual LSP wiring done now, not just the
+branch created. Branch `dev-ui' created from `utilities' (matching `lsp-java''s own
+effective lineage), pushed immediately.
+
+docs/LANGUAGES.md already had "editing only, so far" tree-sitter support for HTML/CSS/
+JS/JSX/TS/TSX/JSON (phase 1, already on every branch) with its own stated reason for
+stopping there: the real servers are npm packages needing Node.js, not bundled. Node
+turned out to actually BE installed on this dev machine (v22.22.0) --- just not bundled
+for distribution --- so phase 2 (real LSP) became buildable here, scoped to this one
+branch. Confirmed directly in Eglot's own source before writing anything (`eglot-
+server-programs'): it already knows `typescript-language-server' by name for every
+JS/TS/JSX/TSX mode and `vscode-css-language-server' for CSS --- the only real gap was
+`mhtml-ts-mode' (this config's own HTML remap), missing from Eglot's `html-mode'-only
+entry. The servers (`typescript-language-server', `vscode-langservers-extracted' ---
+bundles HTML+CSS --- and `@angular/language-server') were installed locally into a new
+`tools/node-lsp/' (its own `package.json'/`package-lock.json', committed;
+`node_modules/' gitignored, same shape as `config/elpa') rather than system-wide ---
+`/usr/lib/node_modules' is root-owned, not writable here, confirmed directly rather
+than assumed --- with its `node_modules/.bin' added to `exec-path'. Verified for real,
+not just wired and trusted: a scratch `.ts' file connected through Eglot to the real
+`typescript-language-server' and correctly returned both symbols in it via a live
+`textDocument/documentSymbol' request; same for a scratch `.html' file against
+`vscode-html-language-server'; `npm run build' via the new `C-c i r' actually ran and
+produced real output in a real compile buffer.
+
+Angular needed its own, separate design: `@angular/language-server' (`ngserver')
+replaces BOTH the TS and HTML servers entirely inside an Angular workspace (confirmed
+in its own docs), so `my/angular-project-root' detects one via `angular.json' (the one
+reliable marker `ng new' always creates) and two small dispatch functions
+(`my/web-lsp-ts-or-angular'/`-html-or-angular') return `ngserver', pointed at the
+PROJECT's own `node_modules' (it needs the project's own `@angular/language-service'/
+`typescript' versions, not `tools/node-lsp/''s), falling back to the plain server
+otherwise. Honestly flagged, not hidden: not verified end to end against a real
+Angular workspace (none was available to test against directly), and a known,
+accepted inefficiency even when the detection is right --- Eglot keys a server by its
+own static list of managed major modes, and since the TS-family and HTML-family modes
+are necessarily two separate `eglot-server-programs' entries (Eglot's own defaults
+already split them this way), an Angular project opened with both a `.ts' and a
+`.html' file runs two separate `ngserver' processes instead of VS Code's one shared
+one.
+
+`C-c i': npm's answer to Maven's `C-c j' on `lsp-java', deliberately shaped
+differently --- Maven's goals are standardized across every Java project, so separate
+keys per goal make sense; npm scripts are whatever each project's own package.json
+defines, so `C-c i r' reads the real list and lets you pick, rather than guessing
+which goal-shaped keys to hardcode; `C-c i i' is plain `npm install'.
+
+New test file `tests/ert/languages-web-lsp.el' (19 tests): wiring checks, Angular
+detection/dispatch (using real temp `angular.json' markers, not the real `ngserver'),
+the npm commands (a real temp `package.json', `completing-read' stubbed), and two
+tests --- `./build.sh test --lsp' only, confirmed to pass with it --- that start the
+real `typescript-language-server'/`vscode-html-language-server' and check they answer.
+A real, generically useful test-harness gap found and fixed getting these to run
+instead of perpetually skip: `tests/run-all.sh' already symlinks `config/elpa'/
+`config/tree-sitter' into each test's own isolated temp config directory, but had no
+equivalent for `tools/' --- added one shared `$OUT/tools' symlink (guarded so it is
+only created when `tools/node-lsp/node_modules' actually exists, so branches without
+it are unaffected), race-safe (`ln -sfn') since `run_one' backgrounds every test file
+in parallel. Full regression after all of this: same 18 pre-existing flaky failures,
+zero new ones (1233 tests now, the 19 new ones included).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

@@ -1173,6 +1173,129 @@ docs/PERSPECTIVE.md."
 ;; memory, and most editing does not need it.  Skip logging every protocol message.
 (setq eglot-events-buffer-config '(:size 0))
 
+;; `dev-ui' branch: real LSP support (autocomplete, go-to-definition, diagnostics) for
+;; the web/UI languages above --- JavaScript/JSX/TypeScript/TSX/HTML/CSS, which the
+;; main branches only get tree-sitter EDITING support for (see docs/LANGUAGES.md's own
+;; "editing only, so far"); this covers React and Next.js too, since neither is a
+;; separate language server, just TS/JS/JSX/TSX under a framework --- and Angular,
+;; which genuinely is: see below.
+;;
+;; Confirmed directly in Eglot's own source (`eglot-server-programs', not assumed):
+;; it ALREADY knows `typescript-language-server' by name for every one of
+;; `js-ts-mode'/`tsx-ts-mode'/`typescript-ts-mode' (and the legacy modes), and
+;; `vscode-css-language-server' for `css-ts-mode' --- nothing to add for those two.
+;; The one real gap: Eglot's HTML entry only lists plain `html-mode', never this
+;; config's own `mhtml-ts-mode' remap (above), so it would otherwise never start a
+;; server for a tree-sitter HTML buffer at all --- fixed below.
+;;
+;; None of these servers are bundled with Emacs or Node itself: an npm ecosystem,
+;; needing a real Node.js runtime this project does not bundle (same reason Java
+;; needs its own JDK, not bundled on this branch either --- see the Windows-bundle
+;; comment above, which does not apply here). Installed locally into
+;; `tools/node-lsp/' instead of system-wide (no write access to npm's own global
+;; prefix on this machine, and keeping it self-contained matches `config/elpa'/
+;; `dist/.venv' elsewhere in this project) --- its `node_modules/.bin' is added to
+;; `exec-path' here, the one thing actually needed for Eglot's own existing
+;; lookup-by-name to find `typescript-language-server'/`vscode-css-language-server'
+;; and the two more wired in below.
+(defvar my/web-lsp-bin-dir
+  (expand-file-name "../tools/node-lsp/node_modules/.bin" user-emacs-directory)
+  "Where this branch's own local copies of the JS/TS/HTML/CSS/Angular language
+servers live --- see tools/node-lsp/package.json.")
+(when (file-directory-p my/web-lsp-bin-dir)
+  (add-to-list 'exec-path my/web-lsp-bin-dir))
+
+;; Angular is the one genuinely separate case: its own language server
+;; (`@angular/language-server', the `ngserver' binary) understands Angular
+;; template syntax inside `.html' files and Angular-specific decorators/bindings
+;; inside `.ts' component files, neither of which plain `typescript-language-
+;; server'/`vscode-html-language-server' know anything about --- the same real
+;; distinction VS Code's own Angular extension makes.  `ngserver' REPLACES both
+;; servers entirely inside an Angular workspace (confirmed in its own
+;; documentation), rather than running alongside them, so both functions below
+;; check for `angular.json' (the one reliable, real marker of an Angular
+;; workspace --- `ng new' always creates one) first and fall back to the plain
+;; server when it is not one.
+;;
+;; A real, honest limitation, not fixed here: because Eglot keys a running server
+;; by its own STATIC list of managed major modes (`eglot-server-programs' is an
+;; alist, matched before any project is even looked at), and the TS-family modes
+;; and `mhtml-ts-mode' are necessarily two separate entries in that alist (Eglot's
+;; own defaults already split them the same way), an Angular project opened with
+;; both a `.ts' and a `.html' file ends up running TWO separate `ngserver'
+;; processes instead of VS Code's single shared one --- functionally correct
+;; (each still answers for its own buffers), just not as efficient as it could be.
+;; Not verified end to end against a real Angular workspace (none was available
+;; to test against directly); if `ngserver' needs different flags than the two
+;; below once tried for real, fix here.
+(defun my/angular-project-root ()
+  "The nearest directory above the current file with angular.json, or nil."
+  (locate-dominating-file (or buffer-file-name default-directory) "angular.json"))
+
+(defun my/angular-language-server-command (root)
+  "The ngserver command line, pointed at ROOT's own node_modules --- it needs
+the PROJECT's own @angular/language-service and typescript versions to
+analyze it correctly, not this config's tools/node-lsp/ (the same reason
+`my/bundled-jdtls-command' above gives jdtls a project-specific workspace,
+not a shared one)."
+  (let ((modules (expand-file-name "node_modules" root)))
+    (list "ngserver" "--ngProbeLocations" modules "--tsProbeLocations" modules "--stdio")))
+
+(defun my/web-lsp-ts-or-angular (&rest args)
+  (if-let* ((root (my/angular-project-root)))
+      (my/angular-language-server-command root)
+    (apply (eglot-alternatives '(("typescript-language-server" "--stdio"))) args)))
+
+(defun my/web-lsp-html-or-angular (&rest args)
+  (if-let* ((root (my/angular-project-root)))
+      (my/angular-language-server-command root)
+    (apply (eglot-alternatives '(("vscode-html-language-server" "--stdio"))) args)))
+
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '((js-ts-mode tsx-ts-mode typescript-ts-mode) . my/web-lsp-ts-or-angular))
+  (add-to-list 'eglot-server-programs '(mhtml-ts-mode . my/web-lsp-html-or-angular)))
+
+;; `C-c i': run one of the current project's package.json scripts --- the npm
+;; equivalent of Maven's `C-c j' above, but shaped differently on purpose: Maven's
+;; goals (compile/test/package/install/clean) are standardized across every Java
+;; project, so separate keys for each make sense; npm scripts are whatever each
+;; project's own package.json happens to define (dev/build/start/test/lint/...,
+;; no two projects agreeing), so one command that reads them and lets you pick,
+;; rather than guessing which goal-shaped keys to hardcode, is the right shape
+;; here. Runs in Comint mode (`compile's own second, COMINT argument), the same
+;; reason `my/run-java-file' above does: a dev server you start this way can
+;; still be interrupted or take input, instead of just hanging with no way to
+;; stop it from the compile buffer.
+(defun my/npm-root ()
+  "The nearest directory above the current file with a package.json, or the
+project root if none has one."
+  (or (locate-dominating-file (or buffer-file-name default-directory) "package.json")
+      (and (fboundp 'project-current) (when-let* ((pr (project-current))) (project-root pr)))
+      default-directory))
+
+(defun my/npm-run-script ()
+  "Prompt for one of the current project's package.json \"scripts\" and run
+it with npm."
+  (interactive)
+  (let* ((root (my/npm-root)) (pkg (expand-file-name "package.json" root)))
+    (unless (file-exists-p pkg) (user-error "No package.json found above %s" default-directory))
+    (let* ((scripts (alist-get 'scripts
+                                (with-temp-buffer (insert-file-contents pkg)
+                                                   (json-parse-buffer :object-type 'alist))))
+           (names (mapcar (lambda (s) (symbol-name (car s))) scripts))
+           (name (completing-read "npm run: " names nil t))
+           (default-directory root))
+      (compile (format "npm run %s" (shell-quote-argument name)) t))))
+(global-set-key (kbd "C-c i r") #'my/npm-run-script)
+
+(defun my/npm-install ()
+  "Run `npm install' in the nearest package.json's directory."
+  (interactive)
+  (let ((default-directory (my/npm-root)))
+    (compile "npm install" t)))
+(global-set-key (kbd "C-c i i") #'my/npm-install)
+
 ;;; Clicking through code -------------------------------------------------------
 
 ;; Right-click a symbol in code for "Find Definition" and "Find References" (Emacs

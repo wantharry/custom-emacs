@@ -34,3 +34,7 @@ __pycache__/
 # Scratch local tooling (e.g. puppeteer-core, for real GUI/browser screenshots
 # during development) --- not a tracked project dependency, no package.json here.
 /node_modules/
+
+# tools/node-lsp/package.json (tracked) lists the web/UI language servers this
+# project uses; the packages themselves are not tracked, same as config/elpa.
+/tools/node-lsp/node_modules/

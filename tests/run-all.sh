@@ -55,6 +55,14 @@ run_one() {   # $1 = test file
       cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$ROOT/config/disk-usage.el" "$ROOT/config/synonyms.el" "$ROOT/config/typing-game.el" "$dir/"
       [ "$harness" = config ] && [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$dir/elpa"
       [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$dir/tree-sitter"
+      # `dev-ui' branch only: config/init.el's `my/web-lsp-bin-dir' looks for
+      # tools/node-lsp relative to its own config directory (../tools/node-lsp,
+      # the same real on-disk layout as this repo itself) --- one shared symlink
+      # at $OUT (this test config's own grandparent, not $dir itself) makes that
+      # resolve correctly from every test's own isolated temp config dir at once.
+      # `-fn' (force, no-dereference) keeps this safe if two test files set this
+      # up at the same moment, since `run_one' backgrounds every file in parallel.
+      [ -d "$ROOT/tools/node-lsp/node_modules" ] && ln -sfn "$ROOT/tools" "$OUT/tools" 2>/dev/null
       CONFIG_DIR="$dir" "$EMACS" --batch --init-directory="$dir" \
         -l "$dir/early-init.el" -l "$dir/init.el" -l "$ROOT/tests/ert/helper.el" -l "$f" \
         -f ert-run-tests-batch-and-exit > "$OUT/$name.log" 2>&1 || status=$? ;;
