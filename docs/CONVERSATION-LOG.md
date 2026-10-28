@@ -3614,6 +3614,65 @@ against `origin/lsp-java'), and fixed with a plain fast-forward merge before
 continuing; worth remembering if `git cherry-pick --abort' is used again on this
 worktree, specifically, mid-investigation.
 
+### Follow-up, same session: `emacs-src' updated to the real latest upstream commit --- a genuine parallel-make race found and worked around, NOT a broken commit
+
+User asked a general question ("Why does Emacs still have commits when it be perfect?"),
+then "Can you look at the latest commits" (answered via the GitHub mirror's commit list,
+`git://git.savannah.gnu.org' being unreachable --- blocked, not just slow --- from this
+sandboxed environment, confirmed by a timed-out `git fetch'; `https://github.com/emacs-
+mirror/emacs.git' IS reachable here and was used instead), then "Yes let's update to
+something newer."
+
+**Found and flagged immediately, before doing anything else in `emacs-src/'**: this repo
+has its own `AGENTS.md'/`CLAUDE.md' (the latter just `@AGENTS.md'), a real GNU project
+policy --- no LLM-generated contributions, bug reports, or planning accepted; search and
+analyse instead, and help the user write their own report rather than writing one for
+them. Told the user this up front. Nothing was written to `emacs-src' itself at any
+point (it is untracked/gitignored by this repo anyway, a plain upstream clone, not a
+submodule --- the only place its commit/date is actually recorded in THIS repo is one
+line of prose in README.md's own "Key numbers" table).
+
+Fetched `origin/master' HEAD via the GitHub mirror (`078edfd6', 2026-10-28, "dired-
+rename-file: Don't undo copying if we didn't" --- the exact fix already seen in the
+commit list) and checked it out (detached HEAD; `git remote set-url' was attempted first
+to make the mirror the permanent fetch source but was BLOCKED by the permission
+classifier as a `[Remote Repoint]' --- worked around correctly per that denial's own
+instructions, by fetching from the mirror URL directly without changing `origin', rather
+than trying to bypass the block). `./build.sh all' (configure+make+install+prune) then
+hit a real, reproducible failure: `Makefile:1248: *** multiple target patterns.  Stop.'
+--- genuinely confirmed NOT to be a broken commit (`DOCLANGS' defaults to `default', the
+new doc-translations machinery at that exact Makefile.in location is a complete no-op in
+that case, confirmed by reading the generated Makefile directly) and NOT an environment/
+Make-version issue (GNU Make 4.3, nothing unusual) but a **parallel-make (`-j$(nproc)')
+race condition inside Emacs's own top-level `Makefile.in'** --- its own surrounding
+comment already explicitly warns about exactly this class of problem one line away
+("two sub-makes producing the same outputs race under 'make -j'"), and a plain `make -j1'
+(serial) rebuild of the exact same source, from scratch, completed with zero errors and
+produced a real, working `src/emacs' --- confirmed directly, not assumed, by running
+both ways and comparing. `./build.sh install'/`./build.sh prune' then proceeded
+normally. Full offline regression after the rebuild: **1213 ERT tests, 1168 pass, 18
+fail, 27 skipped --- the EXACT SAME 18 failing files as this session's own earlier
+baseline** (confirmed by diffing the per-file breakdown line by line, not just the
+totals), meaning the new Emacs commit introduces zero new regressions in this config.
+`README.md''s "Key numbers" table updated to `078edfd6455a (master, 2026-10-28)',
+replacing the old `7bc4f49a3686 (2026-09-25)'.
+
+User then said "Yes" to both committing this and rebuilding `main'/`lsp-java' against
+the same newer source. Before doing either: `build.sh' itself got the one lasting fix
+this session's finding actually calls for --- `build()' now tries `make -jN' first
+(fast, the common case) and falls back to a serial `make -j1' retry ONLY if that fails,
+with a WHY comment citing the exact confirmed race and how it was confirmed, so a future
+build (CI included) hitting this same upstream flake never again looks like a broken
+source tree. `README.md'/`build.sh'/this file committed together on `utilities', pushed.
+
+One minor process note for future sessions: two `git cherry-pick --abort' calls earlier
+this same session (the `lsp-java'/projectile work) had already demonstrated that ORIG_
+HEAD bookkeeping on a long-lived worktree branch can land somewhere stale rather than
+where HEAD actually was --- not repeated here, but the `[Remote Repoint]' denial above is
+a second, different example this session of a destructive-looking git action correctly
+getting blocked by the permission layer rather than silently allowed, worth remembering
+as the system working as intended, not an obstacle to route around.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
