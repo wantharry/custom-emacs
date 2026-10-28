@@ -35,40 +35,39 @@ buffer, and a **frame** is what other programs call a window. **Kill** means cut
 | `C-x C-s` | `save-buffer` | Save |
 | `C-/` | `undo` | Undo (repeat to keep undoing) |
 
-## Every file opens read-only
+## An optional lock that keeps a file read-only
 
-This configuration opens **every file read-only**, so a slip while learning shortcuts
-can never type into a file. You will see `Buffer is read-only` in the bottom line if
-you try, and the file on disk is untouched.
+Files open **editable**, the normal Emacs way --- same as `*scratch*`, Dired, ranger and
+Treemacs already behave in this config. A read-only lock exists for whenever you want
+it: lock the current buffer so a slip while learning shortcuts can't type into it, or
+flip the default so every file you open from then on starts locked instead.
 
 | To do this | Type |
 |---|---|
-| **Allow editing** the current buffer | `C-c e e` (or `M-x allow-editing`) |
+| **Lock** the current buffer read-only | `C-c e l` (or `M-x stop-editing`) |
+| **Allow editing** again | `C-c e e` (or `M-x allow-editing`) |
 | Save your changes | `C-x C-s` |
-| **Lock it again** | `C-c e l` (or `M-x stop-editing`) |
-| **Make every file you open from now on start editable**, no `C-c e e` needed each time | `C-c e a` (or `M-x my/toggle-read-only-lock`); press again to go back to the normal one-file-at-a-time lock |
+| **Make every file you open from now on start locked**, the way this config used to by default | `C-c e a` (or `M-x my/toggle-read-only-lock`); press again to go back to editable-on-open |
 
-The shortcuts are deliberate **three-key chords**, so a slipped key cannot unlock a file:
-`C-c e e` to **e**dit, `C-c e l` to **l**ock, `C-c e a` for **a**lways (`C-c` is the
-prefix Emacs reserves for your own keys, and `which-key` lists the choices after `C-c
-e`). The standard single shortcut, `C-x C-q`, only prints a reminder here --- for a
-plain file buffer; see the Dired note below, where it does something real.
+The shortcuts are deliberate **three-key chords**: `C-c e e` to **e**dit, `C-c e l` to
+**l**ock, `C-c e a` for **a**lways (`C-c` is the prefix Emacs reserves for your own
+keys, and `which-key` lists the choices after `C-c e`). `C-x C-q` also works on a plain
+file buffer: it locks an editable one, and on an already-locked one it only prints a
+reminder rather than unlocking it directly, so a slipped key can't accidentally turn
+editing back on --- see the Dired note below for where it does something else entirely.
 Notes:
 
-- It applies to every file you open, including new ones. To **create** a file, open it
-  (`C-x C-f name`), then `C-c e e`.
 - `C-c e a` only changes files opened AFTER you press it --- a buffer already open stays
-  exactly as locked (or unlocked) as it already was.
-- Movement, searching, selecting and copying (`C-SPC`, `M-w`) all still work; only
-  changes are blocked.
+  exactly as locked (or editable) as it already was.
+- Movement, searching, selecting and copying (`C-SPC`, `M-w`) all still work on a locked
+  buffer; only changes are blocked, and you'll see `Buffer is read-only` if you try.
 - `stop-editing` warns if the buffer has unsaved changes.
-- Buffers that are not files (`*scratch*`, the minibuffer) are still editable.
 - In **Dired**, `C-x C-q` still starts wdired (renaming files by editing their names);
   nothing changes on disk until you confirm with `C-c C-c` --- this config's own file lock
   only ever applies to real files, never to Dired, which is its own separate kind of
   read-only, the same in stock Emacs with no config of ours involved.
 - Things that must edit a file for you, such as `M-x eglot-rename` or `eglot-format`, will
-  report `Buffer is read-only` until you `M-x allow-editing`.
+  report `Buffer is read-only` if the buffer happens to be locked; `M-x allow-editing` first.
 
 `M-x` (`execute-extended-command`) runs **any** command by name. If you forget a key,
 `M-x` plus the command name always works.
@@ -277,7 +276,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-x C-v` | `find-alternate-file` | replace this buffer with another file |
 | `C-x C-r` | `find-file-read-only` | open read-only |
 | `C-x i` | `insert-file` | insert a file's contents here |
-| `C-x C-q` | `my/read-only-hint` | **this config:** only reminds you to type `M-x allow-editing` (see below) |
+| `C-x C-q` | `my/read-only-hint` | **this config:** locks an editable file buffer; on an already-locked one, only reminds you to type `M-x allow-editing` rather than unlocking it directly (see below) |
 | `C-x b` | `switch-to-buffer` | switch buffer by name |
 | `C-x k` | `kill-buffer` | close a buffer |
 | `C-x C-b` | `ibuffer` | list buffers (this config uses ibuffer) |
@@ -303,7 +302,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c h` | `my/start` | **this config:** the start screen: last 5 files, folders and projects, each expandable; on any entry, `m`/`d`/`t` open it with Magit/Dired/Treemacs directly ([START-SCREEN.md](START-SCREEN.md)) |
 | `C-c e e` | `allow-editing` | **this config:** make this buffer editable |
 | `C-c e l` | `stop-editing` | **this config:** lock this buffer read-only again |
-| `C-c e a` | `my/toggle-read-only-lock` | **this config:** toggle whether files you open from now on start editable right away, or locked as usual |
+| `C-c e a` | `my/toggle-read-only-lock` | **this config:** toggle whether files you open from now on start locked read-only, or editable right away as usual |
 | `C-c w s` | `my/session-save` | **this config:** save the session (open buffers, window layout) right now ([SESSION.md](SESSION.md)) |
 | `C-c w r` | `my/session-reset` | **this config:** discard the saved session: back to the plain start screen next time |
 | `C-c w l` | `my/session-list` | **this config:** list every buffer currently part of the session |

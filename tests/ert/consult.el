@@ -212,16 +212,19 @@ to / (on Windows `fd' prints native separators; the fast finder asks ripgrep for
       (should (= 1 (length hits)))
       (should (string-suffix-p "src/main/java/demo/Circle.java" (car hits))))))
 
-;;; The read-only lock: files these commands open must stay locked
+;;; The read-only lock: these commands must not bypass it, whatever its default is
 
-(ert-deftest consult/a-file-opened-through-fd-and-find-file-is-read-only ()
+(ert-deftest consult/a-file-opened-through-fd-and-find-file-goes-through-the-normal-open-path ()
   ;; consult-fd hands the chosen path to `find-file' once you pick it (RET); simulate that step
   ;; directly, since driving the async minibuffer end to end is what the GUI test does.
+  ;; The lock's own default is turned on here explicitly, since this is testing that the
+  ;; command does not bypass the lock hook, not what the hook's default happens to be.
   (cs-need)
   (skip-unless (executable-find "fd"))
-  (cs-with-project root
-    (let* ((hits (cs--fd-hits root "Geometry")) (b (find-file-noselect (car hits))))
-      (unwind-protect (should (buffer-local-value 'buffer-read-only b))
-        (kill-buffer b)))))
+  (let ((my/read-only-lock-enabled t))
+    (cs-with-project root
+      (let* ((hits (cs--fd-hits root "Geometry")) (b (find-file-noselect (car hits))))
+        (unwind-protect (should (buffer-local-value 'buffer-read-only b))
+          (kill-buffer b))))))
 
 ;;; consult.el ends here

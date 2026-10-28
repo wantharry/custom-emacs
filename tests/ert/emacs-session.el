@@ -204,7 +204,7 @@ non-nil one."
 ;;; needed for this --- confirmed separately, by hand, that the same thing holds with a
 ;;; real window split and a real `kill -9'; this is the fast, always-run version of that.
 
-(ert-deftest emacs-session/restore-round-trip-reopens-files-and-reapplies-the-read-only-lock ()
+(ert-deftest emacs-session/restore-round-trip-reopens-files-and-reapplies-the-default-lock-state ()
   (test-with-temp-dir dir
     (let* ((desktop-dirname dir) (desktop-path (list dir)) (desktop-save t)
            (a (concat dir "a.txt")) (b (concat dir "b.txt")))
@@ -212,11 +212,11 @@ non-nil one."
       (with-temp-file b (insert "file b\n"))
       (unwind-protect
           (progn
-            ;; open both (my/make-file-buffer-read-only locks them, same as any find-file)
+            ;; open both (editable by default, same as any find-file)
             (find-file a)
             (find-file b)
-            (allow-editing)                          ; deliberately unlock b, like a real edit session
-            (should-not (buffer-local-value 'buffer-read-only (get-buffer "b.txt")))
+            (stop-editing)                           ; deliberately lock b, like a real edit session
+            (should (buffer-local-value 'buffer-read-only (get-buffer "b.txt")))
             (desktop-save dir)
             ;; simulate a fresh Emacs: the buffers are gone, only the files on disk remain
             (kill-buffer "a.txt") (kill-buffer "b.txt")
@@ -240,10 +240,17 @@ non-nil one."
             (let ((noninteractive nil)) (desktop-read dir))
             (should (get-buffer "a.txt"))
             (should (get-buffer "b.txt"))
-            (should (buffer-local-value 'buffer-read-only (get-buffer "a.txt")))
-            ;; the important one: b was left UNLOCKED before saving, but restoring it goes
-            ;; through find-file-noselect again, which reapplies the lock from scratch ---
-            ;; a session restore never silently hands back an already-unlocked buffer
+            (should-not (buffer-local-value 'buffer-read-only (get-buffer "a.txt")))
+            ;; the important one, and a real, confirmed fact about `desktop.el' itself, not
+            ;; this config: it saves `buffer-read-only' as `desktop-buffer-read-only' and, on
+            ;; restore, forces the buffer locked again whenever that SAVED value was truthy
+            ;; (`(when desktop-buffer-read-only (setq buffer-read-only desktop-buffer-read-
+            ;; only))', confirmed directly in its own source) --- regardless of what this
+            ;; config's own lock default currently is.  b was explicitly locked before
+            ;; saving, so it comes back locked even though files now open editable by
+            ;; default: a deliberate per-file lock is not silently discarded by a session
+            ;; restore, the same way it already isn't by anything else (see readonly.el's
+            ;; own "nothing-else-can-make-it-writable-again-when-the-lock-is-on").
             (should (buffer-local-value 'buffer-read-only (get-buffer "b.txt"))))
         (dolist (name '("a.txt" "b.txt"))
           (when (get-buffer name) (kill-buffer name)))

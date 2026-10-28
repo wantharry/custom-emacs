@@ -3673,6 +3673,62 @@ a second, different example this session of a destructive-looking git action cor
 getting blocked by the permission layer rather than silently allowed, worth remembering
 as the system working as intended, not an obstacle to route around.
 
+### Follow-up, same session: the read-only lock's shipped DEFAULT reversed --- "keep the default eMacs buffers as edit unlocked now for all the apps"
+
+A genuine reversal of this config's own signature safety feature, by explicit user
+request, not a bug fix: `my/read-only-lock-enabled' now defaults to `nil' instead of
+`t' --- files open editable right away, the normal Emacs way, the same as every other
+buffer/app (Dired, ranger, Treemacs, `*scratch*') already behaved in this config all
+along. The lock itself is unchanged and still fully works --- `C-c e l'/`stop-editing'
+locks the current buffer, `C-c e a' flips the DEFAULT for every file opened from then
+on --- only which state ships as the default is different now. `C-x C-q' got a real
+logic fix to match: it used to unconditionally show the "files open read-only" hint;
+now it checks `buffer-read-only' first and LOCKS an editable buffer directly (no risk
+in a stray key making something read-only, matching this config's own established
+asymmetric-risk philosophy) and only falls back to the hint (never unlocking directly)
+on a buffer that IS already locked.
+
+`tests/ert/readonly.el' was rewritten comprehensively (its ~44 tests were built
+entirely around the old default) rather than patched piecemeal, restructured into
+"the new default: files open editable" / "the optional lock, when turned on" /
+"slips of the fingers must not unlock a buffer that IS locked" sections. One test
+(`nothing-else-can-make-it-writable-again') was accidentally dropped during the first
+pass of the rewrite and caught/restored before this was reported done, adapted to turn
+the lock on explicitly first (its own point only being meaningful when the lock
+actually applies).
+
+**A real, confirmed fact about `desktop.el' itself surfaced fixing the fallout** in
+five OTHER test files that had independently baked in the old default as a side-
+assumption (`consult', `emacs-session', `fastfind', `magit', `treemacs' --- found by
+running the full suite and diffing against this session's own established 18-failure
+baseline, not assumed clean): `desktop.el' saves `buffer-read-only' as `desktop-buffer-
+read-only' and, on restore, force-relocks the buffer whenever that SAVED value was
+truthy (confirmed directly in its own source: `(when desktop-buffer-read-only (setq
+buffer-read-only desktop-buffer-read-only))') --- regardless of this config's own
+current lock default --- but does NOT force an unlock back when the saved value was
+nil; that case just reflects whatever the hook's CURRENT default produces fresh. The
+other four files' own assertions about "this command opens a file through the normal,
+lockable path" were each wrapped in an explicit `(let ((my/read-only-lock-enabled t))
+...)' to stay meaningful regardless of which way the shipped default is set, rather
+than just flipping `should'/`should-not'.
+
+Along the way, two genuinely STUCK (not just slow) processes were found and killed,
+unrelated to any of this session's own code --- both confirmed via `ps' showing 0% CPU
+over multiple hours before being terminated, not assumed: one a forgotten `(while t
+(forward-sexp))' parenthesis-balance check from much earlier in this same session,
+abandoned in the background after its own 20s timeout; the other a hung ranger/
+Treemacs cross-navigation test on `main' specifically (unrelated to anything edited
+this session), which had been silently corrupting `main''s own full-suite test runs
+(`gitfolders'/`treemacs' both CRASHED, exit 255/143) by starving the machine --- both
+files rerun cleanly once the stuck processes were gone, confirming neither crash was a
+real regression.
+
+Full regression after all the fixes: same 18 pre-existing flaky failures (now 1214
+tests total, the one extra from the restored test), zero new ones --- confirmed via
+the full suite, not just the files directly touched. Committed on `utilities',
+cherry-picked onto `main' and `lsp-java', each independently tested before pushing;
+see the next entry for how each cherry-pick actually went.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
