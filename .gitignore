@@ -46,3 +46,8 @@ __pycache__/
 # lsp-java branch) avoided needing root to upgrade the real system Node, which
 # other things on this machine may depend on staying as it is.
 /tools/node/
+
+# tools/node-lsp/angular-fixture/package.json (tracked) is a real, minimal
+# Angular workspace for tests/ert/languages-web-lsp.el's --lsp-gated ngserver
+# test only --- the packages themselves are not tracked, same as config/elpa.
+/tools/node-lsp/angular-fixture/node_modules/

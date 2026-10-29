@@ -3902,6 +3902,47 @@ dependency tree installed to run, the same as `nest generate' --- only needs
 `angular.json' itself, since its schematics ship as part of `@angular/cli'). Full
 regression: same 18 pre-existing flaky failures, zero new ones (1246 tests now).
 
+### Follow-up, same session: the Angular LSP connection itself now actually verified, closing a gap the last two entries had left open on purpose
+
+User: "So we have everything now?" --- prompted actually going and closing the one
+honestly-flagged gap from the last two entries (the Angular LSP dispatch logic was
+confirmed correct, but the real `ngserver' CONNECTION itself was never tried against
+a real Angular workspace, since none existed yet). Now that a real scaffolded Angular
+project and a working local Node both exist from the entry above, there was no reason
+to leave this unverified any longer.
+
+First attempt failed outright: `ngserver' exited with status 1. Root-caused by running
+it directly (not through Eglot) to see its own real error, not guessed: `Failed to
+resolve 'typescript/lib/tsserverlibrary' with minimum version '5.0'' --- a real,
+confirmed fact about the current TypeScript ecosystem, not a bug in anything here:
+TypeScript 7.x removed `tsserverlibrary' entirely (confirmed directly: nothing
+matching `*server*' exists anywhere in a real TS 7.0.2 install's `lib/'), and
+`@angular/language-server' 22.x still expects it. Pinning the TEST PROJECT's own
+`typescript' to `^6.0.3' (matching what `tools/node-lsp/' itself already uses, for the
+same reason) got past that, straight into a SECOND real resolution error: `Failed to
+resolve '@angular/language-service' with minimum version '15.0'' --- fixed by adding
+that as a real dependency too. Both are ordinary dependencies any real `ng new'
+project already has; neither is a new requirement this branch's own tooling adds.
+Once both were present, the real connection succeeded: `ngserver' answered a live
+`textDocument/documentSymbol' request correctly for both a `.ts' component file and
+its `.html' template, each showing the right managed-mode group in Eglot's own
+connection message.
+
+Rather than leave this as a one-off manual check, built a small, real, committed
+fixture (`tools/node-lsp/angular-fixture/' --- its own `package.json' pinning exactly
+the two dependencies above plus `@angular/core', `angular.json', `tsconfig.json', and
+a real `fixture.component.ts'; `node_modules/' gitignored like every other local tool
+in this project, `npm install' there to get it) and a new `--lsp'-gated test,
+`wl/angular-language-server-answers-through-eglot', so this stays a real, repeatable
+check instead of tribal knowledge. `docs/LANGUAGES.md''s own "not verified end to end"
+caveat from the last two entries updated to state this as confirmed, with the two real
+project-dependency facts spelled out for anyone setting up a real Angular project on
+this branch. The OTHER caveat (two separate `ngserver' processes instead of one
+shared one, an Eglot architectural limit) is unchanged --- still real, still accepted.
+
+33 tests now in `tests/ert/languages-web-lsp.el' (1 more). Full regression: same 18
+pre-existing flaky failures, zero new ones (1247 tests now).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

@@ -1,0 +1,10 @@
+{
+  "name": "angular-fixture",
+  "private": true,
+  "description": "A real, minimal Angular workspace for tests/ert/languages-web-lsp.el's --lsp-gated ngserver test only -- not part of this branch's own dev tooling. Angular's language server needs these as real project dependencies to resolve, not just typescript-language-server's own: `typescript` pinned below 7.0.0 (7.x removed tsserverlibrary entirely, which @angular/language-server still expects -- confirmed directly, not assumed), and @angular/language-service itself.",
+  "dependencies": {
+    "typescript": "^6.0.3",
+    "@angular/core": "^22.0.0",
+    "@angular/language-service": "^22.0.0"
+  }
+}

@@ -171,9 +171,18 @@ documentation), understanding Angular template syntax and component decorators n
 server knows about. `config/init.el''s `my/angular-project-root' detects this via `angular.json'
 (the one reliable marker `ng new' always creates) and dispatches to `ngserver', pointed at the
 PROJECT's own `node_modules' (it needs the project's own `@angular/language-service'/
-`typescript' versions, not this branch's `tools/node-lsp/') --- not verified end to end against
-a real Angular workspace (none was available to test against directly); a known, documented
-inefficiency even when it is right: because Eglot keys a server by its own static list of
+`typescript' versions, not this branch's `tools/node-lsp/') --- now verified end to end
+against a real Angular workspace (`tools/node-lsp/angular-fixture/', a real minimal project
+`tests/ert/languages-web-lsp.el''s `--lsp'-only `ngserver'-answers-through-Eglot test uses).
+Getting that connection to actually succeed surfaced two real, genuine project-level
+dependencies of `@angular/language-server' beyond what `tools/node-lsp/' itself provides:
+the PROJECT's own `typescript' must be below 7.0.0 (TypeScript 7 removed `tsserverlibrary'
+entirely, which `@angular/language-server' 22.x still expects --- confirmed directly, not
+guessed, by running `ngserver' by hand and reading its own resolution error) and the project
+needs `@angular/language-service' itself as a real dependency --- neither is a new
+requirement this config adds; both are ordinary dependencies any real `ng new' project
+already has. A known, documented inefficiency even when the connection is right: because
+Eglot keys a server by its own static list of
 managed major modes, and the TS-family/HTML-family modes are necessarily two separate
 `eglot-server-programs' entries (Eglot's own defaults already split them the same way), an
 Angular project opened with both a `.ts' and a `.html' file runs two separate `ngserver'

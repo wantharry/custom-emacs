@@ -294,4 +294,32 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
               (eglot-shutdown server)))
         (kill-buffer buf)))))
 
+;; `angular-fixture/' (its own package.json/angular.json/tsconfig.json, committed;
+;; `node_modules/' gitignored, `npm install' there to get it) is a REAL, minimal
+;; Angular workspace --- `ngserver' needs real project dependencies to resolve,
+;; confirmed directly getting this test working at all: `typescript' pinned below
+;; 7.0.0 (7.x removed `tsserverlibrary' entirely, which `@angular/language-server'
+;; still expects --- a first attempt with plain `typescript-language-server''s own
+;; dependency, 7.x, failed with exactly that resolution error) and
+;; `@angular/language-service' itself (a second, separate resolution error without
+;; it). Any real Angular project already has both as ordinary dependencies
+;; (`ng new' adds them), so this is not a special requirement THIS config adds.
+(ert-deftest wl/angular-language-server-answers-through-eglot ()
+  (wl--skip-unless-lsp) (wl--skip-unless-installed)
+  (wl--skip-unless-node-installed)
+  (let* ((fixture (expand-file-name "../../angular-fixture" my/web-lsp-bin-dir)))
+    (skip-unless (file-directory-p (expand-file-name "node_modules" fixture)))
+    (let ((buf (find-file-noselect (expand-file-name "src/fixture.component.ts" fixture)))
+          (eglot-sync-connect t) (eglot-connect-timeout 30))
+      (unwind-protect
+          (with-current-buffer buf
+            (should (equal (car (my/web-lsp-ts-or-angular)) "ngserver"))
+            (call-interactively #'eglot)
+            (let ((server (eglot-current-server)))
+              (should server)
+              (should (equal (process-command (jsonrpc--process server)) (my/web-lsp-ts-or-angular)))
+              (should (cl-some (lambda (s) (equal "FixtureComponent" (plist-get s :name))) (wl--symbols server)))
+              (eglot-shutdown server)))
+        (kill-buffer buf)))))
+
 ;;; languages-web-lsp.el ends here
