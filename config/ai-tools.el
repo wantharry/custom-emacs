@@ -37,14 +37,22 @@
   (define-key copilot-completion-map (kbd "C-n") #'copilot-next-completion)
   (define-key copilot-completion-map (kbd "C-p") #'copilot-previous-completion))
 
-;; `wingman-prefix-key' must be set before `wingman' loads --- same ordering rule
-;; `persp-mode-prefix-key'/`projectile-keymap-prefix' already need in config/init.el,
-;; confirmed the same way: it is read once, building `wingman-mode-prefix-map' as the
-;; package loads.  `C-c w' (the package's own documented default) is already this
-;; config's session-management prefix (`C-c w s'/`w r'/etc, config/emacs-session.el)
-;; --- confirmed live via `key-binding', not just grep, the same lesson learned
-;; earlier this session with `C-c P'/`C-c j'.  `C-c z' is free.
-(setq wingman-prefix-key (kbd "C-c z"))
+;; `wingman-prefix-key' (`C-c z') is set in config/init.el, NOT here --- it must be
+;; set before `wingman' loads (it builds `wingman-mode-prefix-map' once, at load
+;; time), and this file itself is only reached via `with-eval-after-load 'wingman',
+;; i.e. after that has already happened.  See config/init.el's own comment on this,
+;; right above its `(setq wingman-prefix-key ...)' --- a real bug, first missed by a
+;; test that only checked the variable's value rather than the real live keymap.
+
+;; `wingman' only binds its Emulated FIM command to the literal `S-TAB' key form,
+;; which is NOT the same key as `<backtab>' --- confirmed directly, `(kbd "S-TAB")'
+;; and `(kbd "<backtab>")' are genuinely different key sequences in Emacs, and most
+;; real keyboards/terminals/window systems (GUI frames included) report Shift+Tab
+;; as `<backtab>', not `S-TAB'.  Without this, `C-c z S-TAB' (the key wingman's own
+;; menu/doc advertises) is unreachable from an actual physical Shift+Tab press on
+;; most setups --- `C-c z <backtab>' bound to the same command here closes that gap.
+(with-eval-after-load 'wingman
+  (define-key wingman-mode-prefix-map (kbd "<backtab>") #'wingman-fim-emulated))
 
 ;;; Project-wide agentic editing
 

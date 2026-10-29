@@ -100,12 +100,47 @@
 
 (ert-deftest at/wingman-prefix-key-is-not-the-conflicting-c-c-w-default ()
   (skip-unless (locate-library "wingman"))
-  ;; `C-c w' is already this config's session-management prefix, a real keymap
-  ;; (`C-c w s'/`w r'/etc, config/emacs-session.el) --- confirmed live via
-  ;; `key-binding', not just grep, before `wingman-prefix-key' was set to `C-c z'
-  ;; instead.
+  (require 'wingman)
+  ;; Checks the REAL live keymap, in a real buffer with `wingman-mode' actually
+  ;; on --- not just the variable's value, which is what a first version of this
+  ;; test did, and which missed a real bug: `wingman-prefix-key' was being set
+  ;; too late (inside `with-eval-after-load 'wingman', which fires AFTER
+  ;; `wingman-mode-prefix-map' is already built from whatever the variable held
+  ;; at load time), so `C-c z' was never actually bound and `C-c w' --- already
+  ;; this config's session-management prefix (`C-c w s'/`w r'/etc, config/emacs-
+  ;; session.el) --- silently stayed wingman's real prefix instead. Fixed in
+  ;; config/init.el: see its own comment on why `wingman-prefix-key' needs its
+  ;; own top-level `setq', same ordering rule `persp-mode-prefix-key'/
+  ;; `projectile-keymap-prefix' already need.
   (should (equal wingman-prefix-key (kbd "C-c z")))
+  (test-with-temp-dir d
+    (let ((buf (find-file-noselect (test-write-file (concat d "wk.py") "x = 1\n"))))
+      (unwind-protect
+          (with-current-buffer buf
+            (wingman-mode 1)
+            (should (eq (key-binding (kbd "C-c z S-TAB")) #'wingman-fim-emulated))
+            ;; wingman-mode must not have clobbered the session-management prefix
+            (should (eq (key-binding (kbd "C-c w s")) 'my/session-save)))
+        (kill-buffer buf))))
   (should (eq (key-binding (kbd "C-c w s")) 'my/session-save)))
+
+;; `(kbd "S-TAB")' and `(kbd "<backtab>")' are genuinely different key sequences in
+;; Emacs --- confirmed directly, not assumed --- and most real Shift+Tab presses
+;; (GUI frames included) are reported as `<backtab>', not `S-TAB'. `wingman' itself
+;; only binds the latter, so without this, a real physical Shift+Tab press can
+;; never reach `wingman-fim-emulated' at all; `C-c z S-TAB' only ever "works" when
+;; something synthesizes the exact `S-TAB' key form, e.g. `kbd' in a test or an
+;; `--eval'.
+(ert-deftest at/wingman-c-c-z-backtab-also-triggers-emulated-fim ()
+  (skip-unless (locate-library "wingman"))
+  (require 'wingman)
+  (test-with-temp-dir d
+    (let ((buf (find-file-noselect (test-write-file (concat d "wk.py") "x = 1\n"))))
+      (unwind-protect
+          (with-current-buffer buf
+            (wingman-mode 1)
+            (should (eq (key-binding (kbd "C-c z <backtab>")) #'wingman-fim-emulated)))
+        (kill-buffer buf)))))
 
 ;; A real, confirmed request/response round trip against the actual Ollama server
 ;; already running on this machine --- not a mock, and not gated behind

@@ -63,7 +63,7 @@ remaining="$(otool -L "$STAGE/Emacs.app/Contents/MacOS/Emacs" | grep -c '/opt/ho
 [ "$remaining" = 0 ] || { echo "still $remaining Homebrew paths left in the Emacs binary" >&2; exit 1; }
 
 echo "== settings, packages, grammars (no personal history)"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el} "$STAGE/config/"
 cp -a "$ROOT/config/elpa" "$STAGE/config/elpa"
 rm -rf "$STAGE/config/elpa/archives" "$STAGE/config/elpa/gnupg"
 # same real bug as the Linux/Windows dist scripts guard against: a native module/helper

@@ -143,7 +143,7 @@ unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
 # PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
 # layout as the git repository, so no code needs to know it is running from a bundle
 cp "$ROOT/README.md" "$STAGE/README.md"

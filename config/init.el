@@ -2648,11 +2648,24 @@ page if TOPIC is blank, in your default browser."
 ;; Four tools, installed together so none of them has to be taken on faith --- see
 ;; config/ai-tools.el's own header for the full WHAT/WHY and docs/AI-TOOLS.md for
 ;; the comparison notes. Each entry here follows the SAME pattern `gptel' above
-;; already uses, for the SAME reason: `with-eval-after-load' on the real package
-;; name, registered unconditionally at this top level, so config/ai-tools.el's own
-;; setup (Ollama for Aider, the `wingman' prefix key, ...) is guaranteed to run
-;; before the package can ever actually load, however it gets reached --- a key
-;; press here, or `M-x' directly, or one of these loading another as a dependency.
+;; already uses: `with-eval-after-load' on the real package name, registered
+;; unconditionally at this top level, so config/ai-tools.el's own setup (Ollama
+;; for Aider, copilot's completion-map keys, ...) is guaranteed to run right after
+;; the package actually loads, however it gets reached --- a key press here, or
+;; `M-x' directly, or one of these loading another as a dependency.
+;;
+;; `wingman-prefix-key' is the one exception, and needs its OWN, separate, top-
+;; level `setq' below, not something inside `with-eval-after-load' --- a real bug
+;; found by testing the actual live keybinding, not just the variable's value
+;; (the same "verify the real keymap" lesson `projectile-keymap-prefix'/
+;; `persp-mode-prefix-key' above already teach): `wingman-mode-prefix-map' is
+;; built once, AS `wingman' LOADS, by reading `wingman-prefix-key' at that exact
+;; moment --- `with-eval-after-load 'wingman' only runs AFTER that has already
+;; happened, so setting it there is always one step too late, same as those two
+;; packages above. `C-c w' (the package's own documented default) is already this
+;; config's session-management prefix (`C-c w s'/`w r'/etc, config/emacs-
+;; session.el) --- confirmed live via `key-binding', not just grep. `C-c z' is free.
+(setq wingman-prefix-key (kbd "C-c z"))
 (when (locate-library "copilot")
   (autoload 'copilot-mode "copilot" nil t)
   (autoload 'copilot-menu "copilot" nil t)
