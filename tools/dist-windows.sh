@@ -177,8 +177,16 @@ unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
 # the language server: only the Windows part (it is started with whatever `java' the user has on
 # PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
-mkdir -p "$STAGE/tools/node-windows" "$STAGE/tools/node-lsp/bin-windows"
-unzip -q -j "$CACHE/$NODE_ZIP" "*/node.exe" -d "$STAGE/tools/node-windows"
+mkdir -p "$STAGE/tools/node-lsp/bin-windows"
+# The WHOLE official distribution, not just `node.exe' --- `npm'/`npx' (and the real `npm'
+# package implementing them, under `node_modules/npm/') need to come along too: `ng new'/
+# `create-vite'/`create-react-app' and any other on-demand scaffolding a user actually runs
+# themselves goes through `npm'/`npx', not just the pre-installed CLIs below, which only cover
+# generating files INSIDE an already-scaffolded project (`C-c i a'/`C-c i n'). This is already a
+# genuine Windows-native build (unzipped as-is, not cross-installed like the packages below), so
+# nothing to verify beyond the checksum already checked above.
+unzip -q "$CACHE/$NODE_ZIP" -d "$STAGE/tools"
+mv "$STAGE/tools/node-v$NODE_VERSION-win-x64" "$STAGE/tools/node-windows"
 cp -a "$NODE_LSP_WIN/node_modules" "$STAGE/tools/node-lsp/node_modules"
 # Every `.bin/' in the tree just copied --- the top-level one and each nested package's own --- is
 # POSIX symlinks only: npm generates them for whatever OS IT is running on when it creates them,
