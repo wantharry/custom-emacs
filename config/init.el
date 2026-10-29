@@ -2643,6 +2643,43 @@ page if TOPIC is blank, in your default browser."
 ;; this check happens here, once, before the key is even bound.
 (global-set-key (kbd "C-c a c") (if (locate-library "gptel") #'my/llm-council #'my/llm-missing))
 
+;;; AI coding-assistant tools, compared side by side (dev-ui-ai branch) -------------
+
+;; Four tools, installed together so none of them has to be taken on faith --- see
+;; config/ai-tools.el's own header for the full WHAT/WHY and docs/AI-TOOLS.md for
+;; the comparison notes. Each entry here follows the SAME pattern `gptel' above
+;; already uses, for the SAME reason: `with-eval-after-load' on the real package
+;; name, registered unconditionally at this top level, so config/ai-tools.el's own
+;; setup (Ollama for Aider, the `wingman' prefix key, ...) is guaranteed to run
+;; before the package can ever actually load, however it gets reached --- a key
+;; press here, or `M-x' directly, or one of these loading another as a dependency.
+(when (locate-library "copilot")
+  (autoload 'copilot-mode "copilot" nil t)
+  (autoload 'copilot-menu "copilot" nil t)
+  (with-eval-after-load 'copilot
+    (require 'ai-tools (expand-file-name "ai-tools" user-emacs-directory))))
+(when (locate-library "wingman")
+  (autoload 'wingman-mode "wingman" nil t)
+  (with-eval-after-load 'wingman
+    (require 'ai-tools (expand-file-name "ai-tools" user-emacs-directory))))
+(when (locate-library "aidermacs")
+  (autoload 'aidermacs-transient-menu "aidermacs" nil t)
+  (with-eval-after-load 'aidermacs
+    (require 'ai-tools (expand-file-name "ai-tools" user-emacs-directory))))
+(when (locate-library "claude-code-ide")
+  (autoload 'claude-code-ide-menu "claude-code-ide" nil t)
+  ;; Exposes real Emacs commands (xref, tree-sitter, project info) as MCP tools
+  ;; Claude can call --- the package's own README recommends this explicitly; it
+  ;; is not a default, so left off without this line.
+  (with-eval-after-load 'claude-code-ide
+    (claude-code-ide-emacs-tools-setup)))
+(defun my/ai-tool-missing ()
+  (interactive)
+  (message "That AI tool is not installed.  Run ./build.sh packages"))
+(global-set-key (kbd "C-c b") (if (locate-library "copilot") #'copilot-menu #'my/ai-tool-missing))
+(global-set-key (kbd "C-c A") (if (locate-library "aidermacs") #'aidermacs-transient-menu #'my/ai-tool-missing))
+(global-set-key (kbd "C-c C-'") (if (locate-library "claude-code-ide") #'claude-code-ide-menu #'my/ai-tool-missing))
+
 ;;; Themes ------------------------------------------------------------------------
 
 ;; `C-c c' then a character picks a color theme --- `C-c c 1' for the first, `C-c c 2'

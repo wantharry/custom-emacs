@@ -228,7 +228,25 @@
     ;; for real against an actual scaffolded Angular project.
     ("Angular CLI (this config, dev-ui branch)" "C-c i a"
      "(no buffer to close; runs in a real compile buffer)"
-     (("C-c i a" . "ng generate: pick a schematic (component/service/module/...) and a name"))))
+     (("C-c i a" . "ng generate: pick a schematic (component/service/module/...) and a name")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- four AI coding-assistant tools,
+    ;; installed side by side to compare (two ghost-text completion, two project-
+    ;; wide agentic editing); see docs/AI-TOOLS.md for the full comparison and
+    ;; what was/was not verified. Only ONE ghost-text tool at a time per buffer
+    ;; --- `M-x copilot-mode'/`M-x wingman-mode' directly, no switcher command.
+    ("Copilot (this config, dev-ui-ai branch)" "C-c b (menu); M-x copilot-mode to enable"
+     "C-c b again, or M-x copilot-mode to disable"
+     (("C-c b" . "copilot-menu: chat, diagnose, install/login, NES, ...")))
+    ("Wingman (this config, dev-ui-ai branch)" "C-c z (prefix); M-x wingman-mode to enable"
+     "M-x wingman-mode to disable"
+     (("C-c z TAB" . "request a completion (Native FIM, needs a real llama.cpp server)")
+      ("C-c z S-TAB" . "request a completion (Emulated FIM, via gptel/Ollama)")))
+    ("Aidermacs (this config, dev-ui-ai branch)" "C-c A"
+     "x (exit session) from the transient menu"
+     (("C-c A" . "aidermacs-transient-menu: start a session, pick a mode, add files")))
+    ("Claude Code IDE (this config, dev-ui-ai branch)" "C-c C-'"
+     "q from the menu, or kill the session's terminal buffer"
+     (("C-c C-'" . "claude-code-ide-menu: start/resume a session for the current project"))))
   "Packages/features with their own \"world\" once open: how to open, how to close,
 and a few important commands once inside.  Each entry is (NAME OPEN CLOSE COMMANDS),
 COMMANDS a list of (KEY . DESCRIPTION).  The underlying facts are verified for real in

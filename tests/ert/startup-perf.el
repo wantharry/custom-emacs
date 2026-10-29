@@ -40,7 +40,8 @@
   (should-not (featurep 'jsonrpc)))
 
 (ert-deftest startup/no-third-party-features-loaded ()
-  (dolist (f '(magit treemacs consult doom-themes doom-modeline company lsp-mode projectile))
+  (dolist (f '(magit treemacs consult doom-themes doom-modeline company lsp-mode projectile
+               copilot wingman aidermacs claude-code-ide))
     (should-not (featurep f))))
 
 (ert-deftest startup/load-path-does-not-contain-the-config-directory ()

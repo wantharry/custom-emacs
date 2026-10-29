@@ -344,6 +344,9 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c i i` | `my/npm-install` | **this config, `dev-ui` branch:** `npm install` in the nearest `package.json`'s directory |
 | `C-c i n` | `my/nest-generate` | **this config, `dev-ui` branch:** `nest generate` --- pick a schematic (controller/service/module/...) and a name |
 | `C-c i a` | `my/ng-generate` | **this config, `dev-ui` branch:** `ng generate` --- pick a schematic (component/service/module/...) and a name |
+| `C-c b` | `copilot-menu` | **this config, `dev-ui-ai` branch:** GitHub Copilot's own menu (chat, diagnose, install/login, NES) --- see docs/AI-TOOLS.md |
+| `C-c A` | `aidermacs-transient-menu` | **this config, `dev-ui-ai` branch:** Aidermacs --- start/manage a session with the real `aider` CLI |
+| `C-c C-'` | `claude-code-ide-menu` | **this config, `dev-ui-ai` branch:** start/resume a Claude Code session for the current project |
 | `C-c B` | `my/writing` | **this config:** open a new, plain `untitled` buffer for prose; `C-c S` turns on synonym suggestions in it ([SYNONYMS.md](SYNONYMS.md)) |
 | `C-c S` | `my/synonyms-mode` | **this config:** turn synonym suggestions on/off in this buffer --- they then pop up automatically while typing; `F7` looks one up immediately |
 | `C-c X` | `my/typing-game` | **this config:** a graduated typing trainer --- alphabet, then +numbers, +special characters, +real Emacs keybindings ([TYPING-GAME.md](TYPING-GAME.md)) |

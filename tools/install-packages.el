@@ -27,7 +27,8 @@
                         move-text
                         doom-modeline nerd-icons
                         perspective
-                        projectile)
+                        projectile
+                        copilot aidermacs)
   "Packages this configuration uses.  Everything else is built in.
 `avy'/`ace-window' were already on disk as Treemacs's own dependencies before they were
 first bound to a key here --- listed explicitly now that they are actually used, so
@@ -112,7 +113,20 @@ tools/fonts/ --- this config's own DEFAULT font, see init.el's font-selection
 comment), so nothing new needs installing on a machine already running this config's
 own default setup. See init.el's own comment on `my/doom-modeline-maybe-enable' for
 how the icons are gated off cleanly on a machine where that font is not actually
-installed.")
+installed.
+`dev-ui-ai' branch only: AI coding-assistant tools, installed side by side for a real
+comparison, user request after being told what exists (\"let's figure out which is
+good, install all so we can test it\"). `copilot' is the official GitHub Copilot
+client (ghost-text completions, chat, Next Edit Suggestions) --- its own declared
+dependencies `editorconfig'/`track-changes' are not listed here, same reasoning as
+`compat' above: `package-install' already resolves and installs a package's own
+dependencies automatically, nothing to duplicate. `aidermacs' is an Emacs frontend
+for Aider (a separate, real Python CLI tool --- see `tools/aider/' --- not an Emacs
+package at all, so not listed here); its own dependency `markdown-mode' is likewise
+left to auto-resolve. Two more tools in this same comparison, `wingman'/`claude-code-
+ide', are NOT on any package archive at all (confirmed directly, not assumed: neither
+shows up in `package-archive-contents' after a real `package-refresh-contents') ---
+see `my/vc-packages' below for those instead.")
 
 ;; `package-refresh-contents' (one network fetch of every archive's index) only runs
 ;; when something is actually missing --- re-running this script on an already-complete
@@ -182,7 +196,12 @@ installed.")
 (defconst my/vc-packages
   '((seti-theme . "https://github.com/caisah/seti-theme.git")
     (xcode-theme . "https://github.com/juniorxxue/xcode-theme.git")
-    (ember-theme . "https://github.com/ember-theme/emacs.git"))
+    (ember-theme . "https://github.com/ember-theme/emacs.git")
+    ;; `dev-ui-ai' branch only: the other two tools in the AI-assistant comparison
+    ;; above (`copilot'/`aidermacs' are on MELPA/NonGNU, so they live in `my/packages'
+    ;; instead) --- neither is on any archive, confirmed directly, not assumed.
+    (wingman . "https://github.com/mjrusso/wingman.git")
+    (claude-code-ide . "https://github.com/manzaltu/claude-code-ide.el.git"))
   "Packages not on any configured archive, installed directly from their own git
 repository with `package-vc-install'.  Each entry is (NAME . URL).")
 (dolist (entry my/vc-packages)

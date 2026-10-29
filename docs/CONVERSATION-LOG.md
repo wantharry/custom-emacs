@@ -3943,6 +3943,92 @@ shared one, an Eglot architectural limit) is unchanged --- still real, still acc
 33 tests now in `tests/ert/languages-web-lsp.el' (1 more). Full regression: same 18
 pre-existing flaky failures, zero new ones (1247 tests now).
 
+### Follow-up, same session: a new `dev-ui-ai` branch, comparing four real AI
+coding-assistant tools for Emacs (ghost-text completion AND Cursor-style agentic
+whole-project editing)
+
+User, after the Angular LSP work above: asked whether Emacs has anything like
+IntelliJ/Copilot's automatic inline-completion-as-you-type, or like Cursor/VS
+Code's agentic "go read the project and fix the performance issue" whole-codebase
+editing --- and asked to research real GitHub projects first, not guess. Researched
+both categories; four real candidates came back: `copilot.el` (official GitHub
+Copilot client), `wingman.el` (ghost-text completion via any `gptel` backend,
+including Ollama), `aidermacs` (Emacs frontend for the separate `aider` CLI, a real
+agentic whole-project editor), `claude-code-ide.el` (bridges the real `claude` CLI
+into Emacs via MCP). User's explicit instruction: "create a branch and test it
+thoroughly before we merge into this [dev-ui]" --- and, asked which tool, said to
+install **all four** rather than pick one, to compare them directly. New branch
+`dev-ui-ai`, branched from `dev-ui` (not `main` --- this is a UI/JS-tooling-adjacent
+comparison, not a core-config change).
+
+All four installed: `copilot`/`aidermacs` added to `my/packages` (both on
+MELPA/NonGNU); `wingman`/`claude-code-ide` added to `my/vc-packages` (neither is on
+any archive, confirmed by a real `package-refresh-contents`), pulled straight from
+their GitHub repos. `aider` itself (a separate Python CLI, not an Emacs package) got
+its own self-contained venv, `tools/aider/.venv/` (gitignored, like `tools/node/`).
+New `config/ai-tools.el` wires all four, following the exact same
+`with-eval-after-load` pattern this config already uses for `gptel`: `C-c b`
+(copilot menu), `C-c A` (aidermacs), `C-c C-'` (claude-code-ide, its own documented
+default), `C-c z` for wingman (its own documented default, `C-c w`, was already
+taken by this config's session-management prefix --- confirmed live via
+`key-binding`, not assumed, before picking the replacement).
+
+Three real bugs found and fixed along the way, same "confirmed directly" ethos as
+the rest of this project: (1) the same `exec-path`-vs-`PATH` gap the node-lsp tools
+hit earlier (`### Follow-up` entry above) recurred for `aider`'s venv --- caught
+proactively this time, by reasoning from precedent, then double-checked; (2) a
+missing `(provide 'ai-tools)` in the new file, caught by a real "failed to provide
+feature" error, not by inspection; (3) `wingman-fim-emulated` is purely interactive
+(always opens a blocking `transient-setup` menu, hangs forever in `--batch`) ---
+found the real non-interactive entry point, `wingman--gptel-fim-request`, by reading
+the package source, and drove a REAL end-to-end test through it: a live Ollama
+completion request, a real overlay appearing in a real buffer, not mocked.
+
+What was deliberately verified for real, and what could not be, each stated
+honestly in the new `docs/AI-TOOLS.md`: `copilot-install-server` actually run (a
+real working `copilot-language-server` binary downloaded and confirmed, v1.562.0);
+`copilot-login` needs a real interactive GitHub OAuth device flow with an active
+Copilot subscription --- cannot be done on the user's behalf, left for them.
+`aidermacs`/`claude-code-ide`'s wiring (exec-path, model string, MCP tool
+registration) verified directly; actually DRIVING either one through a real edit
+was NOT done, and not worked around: running `aider --yes-always --message "..."`
+directly was denied outright by the Claude Code auto-mode safety classifier
+("[Create Unsafe Agents]" --- an unsupervised autonomous coding agent, correctly
+flagged), and the same reasoning was extended on purpose to NOT manually drive a
+live `aidermacs`/`claude-code-ide` session from inside Emacs either, since typing an
+instruction into one from here is the identical unsupervised-agent pattern through
+a different front door. Both left for the user to try themselves.
+
+Two real test-authoring bugs found and fixed while writing the new
+`tests/ert/ai-tools.el` (12 tests): a `skip-unless` form swallowing a real
+`(void-variable my/aider-bin-dir)` error as a silent SKIP instead of a FAIL, because
+`(locate-library "aidermacs")` only checks the file exists on disk, it does not
+load the package (and this config's own variable is only defined once the package
+actually loads) --- took running the single test directly via
+`ert-run-tests-batch`, outside the normal harness, to surface the real error; fixed
+by having the `skip-unless` helper itself `require` the package first. And a
+same-file test-ordering pollution: a "nothing loads at startup" assertion failed
+because ANOTHER test earlier in the same file had already `require`d `copilot` ---
+ERT does not run a file's tests in strict definition order. Fixed by moving that
+check into the existing, dedicated `startup/no-third-party-features-loaded` test in
+`tests/ert/startup-perf.el` (a file with no other feature-loading tests, so no
+self-pollution risk), rather than duplicating it in the new file.
+
+`docs/AI-TOOLS.md` (new), `README.md`'s doc-index table, `config/shortcuts.el`,
+`docs/KEYBOARD.md`, and `tests/ert/keybindings.el`'s optional-package guard list all
+updated to match, the same way every other optional package in this project is
+documented and guarded. Full regression confirmed back at the established baseline
+(18 pre-existing ERT failures, same as before this branch; the one genuinely new
+Python-suite item, `docs/AI-TOOLS.md` not yet being in the prebuilt dist zips, is
+the same already-documented stale-dist-bundle category as `init.el`/`shortcuts.el`/
+etc. above, not a new bug --- the dist zips are deliberately not rebuilt after every
+single feature, per this file's own standing rule at the top).
+
+Committed and pushed to `origin/dev-ui-ai`. **Not merged into `dev-ui`** --- this was
+explicit in the user's own framing ("test it thoroughly before we merge into this")
+and remains an open comparison branch, not a decided direction, until the user says
+otherwise.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

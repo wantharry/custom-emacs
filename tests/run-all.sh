@@ -52,7 +52,7 @@ run_one() {   # $1 = test file
         -f ert-run-tests-batch-and-exit > "$OUT/$name.log" 2>&1 || status=$? ;;
     config|noelpa)
       local dir="$OUT/init-$name"; mkdir -p "$dir"
-      cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$ROOT/config/disk-usage.el" "$ROOT/config/synonyms.el" "$ROOT/config/typing-game.el" "$dir/"
+      cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$ROOT/config/disk-usage.el" "$ROOT/config/synonyms.el" "$ROOT/config/typing-game.el" "$ROOT/config/ai-tools.el" "$dir/"
       [ "$harness" = config ] && [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$dir/elpa"
       [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$dir/tree-sitter"
       # `dev-ui' branch only: config/init.el's `my/web-lsp-bin-dir' looks for
@@ -117,7 +117,7 @@ if [ "$GUI" = 1 ]; then
     echo "GUI (real window): SKIPPED, no display in this session"
   else
     gdir="$OUT/init-gui"; mkdir -p "$gdir"
-    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$ROOT/config/disk-usage.el" "$ROOT/config/synonyms.el" "$ROOT/config/typing-game.el" "$gdir/"
+    cp "$ROOT/config/early-init.el" "$ROOT/config/init.el" "$ROOT/config/fastfind.el" "$ROOT/config/startpage.el" "$ROOT/config/docsbuffer.el" "$ROOT/config/gitfolders.el" "$ROOT/config/llm.el" "$ROOT/config/llm-council.el" "$ROOT/config/shortcuts.el" "$ROOT/config/dictate.el" "$ROOT/config/emacs-session.el" "$ROOT/config/calendar-year.el" "$ROOT/config/mode-reference.el" "$ROOT/config/disk-usage.el" "$ROOT/config/synonyms.el" "$ROOT/config/typing-game.el" "$ROOT/config/ai-tools.el" "$gdir/"
     [ -d "$ROOT/config/elpa" ] && ln -s "$ROOT/config/elpa" "$gdir/elpa"
     [ -d "$ROOT/config/tree-sitter" ] && ln -s "$ROOT/config/tree-sitter" "$gdir/tree-sitter"
     gt0=$(date +%s.%N)

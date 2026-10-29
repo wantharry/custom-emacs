@@ -30,6 +30,7 @@ __pycache__/
 !/config/disk-usage.el
 !/config/synonyms.el
 !/config/typing-game.el
+!/config/ai-tools.el
 
 # Scratch local tooling (e.g. puppeteer-core, for real GUI/browser screenshots
 # during development) --- not a tracked project dependency, no package.json here.
@@ -51,3 +52,8 @@ __pycache__/
 # Angular workspace for tests/ert/languages-web-lsp.el's --lsp-gated ngserver
 # test only --- the packages themselves are not tracked, same as config/elpa.
 /tools/node-lsp/angular-fixture/node_modules/
+
+# A real, local Python venv for the `aider' CLI (a separate tool from the Emacs
+# package `aidermacs', which drives it) --- same self-contained shape as
+# tools/node-lsp/ and tools/node/ above.
+/tools/aider/.venv/
