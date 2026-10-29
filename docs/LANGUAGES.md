@@ -158,12 +158,32 @@ mode, and `vscode-css-language-server' for CSS --- the only real gap was `mhtml-
 config's own HTML remap), missing from Eglot's `html-mode'-only entry, added in `config/
 init.el'.
 
-None of these servers are bundled with Emacs or Node itself --- an npm ecosystem needing a real
-Node.js runtime, the same reason this project does not bundle Java's JDK either. Installed
-locally into `tools/node-lsp/' (its own `package.json', committed; `node_modules/' is not,
-`npm install` there to get them) instead of system-wide, the same "self-contained, not system-
-wide" shape as `config/elpa'/`dist/.venv' elsewhere in this project; `tools/node-lsp/node_modules/
-.bin' is added to `exec-path' so Eglot's own existing lookup-by-name finds them.
+None of these servers are bundled with Emacs or Node itself (on WSL/Linux) --- an npm ecosystem
+needing a real Node.js runtime, the same reason this project does not bundle Java's JDK either.
+Installed locally into `tools/node-lsp/' (its own `package.json', committed; `node_modules/' is
+not, `npm install` there to get them) instead of system-wide, the same "self-contained, not
+system-wide" shape as `config/elpa'/`dist/.venv' elsewhere in this project; `tools/node-lsp/
+node_modules/.bin' is added to `exec-path' so Eglot's own existing lookup-by-name finds them.
+
+**The Windows bundle is the one real exception: it DOES bundle all of this**, unlike Java's JDK
+--- a real, genuine Windows-native Node.js runtime (`tools/node-windows/node.exe', downloaded
+from nodejs.org, checksum-verified, same pinned version as the WSL side) and the same language-
+server packages, rebuilt specifically for Windows. Two real, found-the-hard-way problems solved
+to get there, both in `tools/dist-windows.sh': (1) the WSL-side `node_modules' has at least one
+Linux-only native binary baked into it (`@oxc-parser/binding-linux-x64-gnu', confirmed directly,
+a transitive dependency's prebuilt parser) that would silently fail at runtime if copied as-is
+--- fixed by building a SEPARATE install with `npm install --os=win32 --cpu=x64', which npm
+(>=9) supports from right here on Linux, no actual Windows machine needed; and (2) npm's own
+`node_modules/.bin/' entries are POSIX symlinks regardless of that `--os' target (npm generates
+them for whatever OS it is itself running on), so they do not work unzipped on Windows at all
+--- fixed with small, hand-written `.cmd' wrapper files (`tools/node-lsp/bin-windows/' in the
+bundle) that forward to the bundled `node.exe' with an explicit path to each server's real entry
+script, confirmed against Emacs's own `exec-suffixes' default on `windows-nt' (`".cmd"' is in
+that list, so a bare name like `"ngserver"' still resolves correctly). `config/init.el' adds
+both bundled directories to `exec-path'/`PATH' only inside the actual Windows bundle
+(`CUSTOM_EMACS_HOME', the same mechanism `my/bundled-jdtls-command' already uses for Java), so
+none of this touches WSL/Linux, which already has its own real local install from the paragraph
+above.
 
 **Angular** is the one genuinely separate case: `@angular/language-server' (`ngserver') replaces
 both the TS and HTML servers entirely inside an Angular workspace (confirmed in its own

@@ -107,9 +107,35 @@ class WindowsBundle(unittest.TestCase):
                   "tools/fonts/DejaVuSansMono.ttf", "tools/fonts/licenses/DejaVuSansMono-LICENSE.txt",
                   "tools/pdf-tools/README.md", "tools/pdf-tools/epdfinfo.exe",
                   "tools/pdf-tools/libpoppler-glib-8.dll", "tools/pdf-tools/libcairo-2.dll",
-                  "tools/pdf-tools/licenses/poppler/COPYING", "tools/pdf-tools/licenses/emacs-pdf-tools-server/COPYING"]:
+                  "tools/pdf-tools/licenses/poppler/COPYING", "tools/pdf-tools/licenses/emacs-pdf-tools-server/COPYING",
+                  "tools/node-windows/node.exe",
+                  "tools/node-lsp/node_modules/typescript-language-server/lib/cli.mjs",
+                  "tools/node-lsp/node_modules/vscode-langservers-extracted/bin/vscode-html-language-server",
+                  "tools/node-lsp/node_modules/@angular/language-server/bin/ngserver",
+                  "tools/node-lsp/node_modules/@angular/cli/bin/ng.js",
+                  "tools/node-lsp/node_modules/@nestjs/cli/bin/nest.js",
+                  "tools/node-lsp/bin-windows/typescript-language-server.cmd",
+                  "tools/node-lsp/bin-windows/vscode-css-language-server.cmd",
+                  "tools/node-lsp/bin-windows/vscode-html-language-server.cmd",
+                  "tools/node-lsp/bin-windows/vscode-json-language-server.cmd",
+                  "tools/node-lsp/bin-windows/vscode-eslint-language-server.cmd",
+                  "tools/node-lsp/bin-windows/vscode-markdown-language-server.cmd",
+                  "tools/node-lsp/bin-windows/ngserver.cmd", "tools/node-lsp/bin-windows/ng.cmd",
+                  "tools/node-lsp/bin-windows/nest.cmd"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
+
+    def test_node_lsp_has_no_linux_native_bindings_and_no_posix_bin_symlinks(self):
+        # The two real, found-the-hard-way bugs this guards against: tools/node-lsp/node_modules
+        # (WSL-side) has `@oxc-parser/binding-linux-x64-gnu' baked in, which would silently fail
+        # at runtime on real Windows if ever copied in as-is instead of the Windows-targeted
+        # install tools/dist-windows.sh actually builds; and npm's own `.bin/' entries are POSIX
+        # symlinks that do not survive a zip onto Windows at all --- see that script's own
+        # comment on both. Neither should ever end up in the Windows bundle.
+        self.assertFalse([n for n in self.names if "/node-lsp/node_modules/@oxc-parser/binding-linux" in n],
+                          "a Linux-only native binding leaked into the Windows bundle")
+        self.assertFalse([n for n in self.names if "/node-lsp/node_modules/.bin/" in n],
+                          "a POSIX .bin/ symlink entry leaked into the Windows bundle")
 
     def test_settings_are_exactly_the_repo_settings(self):
         for f in CONFIG_FILES:

@@ -1228,6 +1228,28 @@ servers live --- see tools/node-lsp/package.json.")
   (add-to-list 'exec-path my/web-lsp-bin-dir)
   (setenv "PATH" (concat my/web-lsp-bin-dir path-separator (getenv "PATH"))))
 
+;; The Windows bundle: the SAME servers/CLIs above, genuinely bundled for real (not merely
+;; "install your own Node," the way Java's jdtls needs its own JDK) --- a real Windows-native
+;; Node.js runtime (`tools/node-windows/node.exe', downloaded from nodejs.org and checksum-
+;; verified the same way `tools/node/' above is) plus a SEPARATE, Windows-targeted install of
+;; the same packages (`tools/node-lsp/node_modules' above has Linux-only native bindings baked
+;; in, confirmed directly --- see tools/dist-windows.sh's own comment on `@oxc-parser'), built
+;; with `npm install --os=win32 --cpu=x64' and shipped as its own `tools/node-lsp/bin-windows/'
+;; of small, hand-written `.cmd' files (npm's own `.bin/' shims are POSIX symlinks that do not
+;; survive a zip onto Windows at all --- also explained in that same script).  Both only exist
+;; inside the actual Windows bundle (`CUSTOM_EMACS_HOME', same mechanism `my/dua-command'/
+;; `my/bundled-jdtls-command' above already use), so this never fires in WSL/Linux, where the
+;; two blocks just above already cover the exact same tools from their own real local install.
+(when-let* ((home (and (eq system-type 'windows-nt) (getenv "CUSTOM_EMACS_HOME"))))
+  (let ((node-dir (expand-file-name "tools/node-windows" home))
+        (bin-dir (expand-file-name "tools/node-lsp/bin-windows" home)))
+    (when (file-directory-p node-dir)
+      (add-to-list 'exec-path node-dir)
+      (setenv "PATH" (concat node-dir path-separator (getenv "PATH"))))
+    (when (file-directory-p bin-dir)
+      (add-to-list 'exec-path bin-dir)
+      (setenv "PATH" (concat bin-dir path-separator (getenv "PATH"))))))
+
 ;; Angular is the one genuinely separate case: its own language server
 ;; (`@angular/language-server', the `ngserver' binary) understands Angular
 ;; template syntax inside `.html' files and Angular-specific decorators/bindings

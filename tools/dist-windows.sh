@@ -6,7 +6,9 @@
 #
 # What goes in the zip: Emacs.exe (a launcher), the official GNU Emacs 31 for Windows (with all its
 # libraries), your settings (config/), Evil and Magit compiled for that Emacs, tree-sitter grammars
-# for Java and Rust, ripgrep, fd, delta, dua, and a portable Git (MinGit).  See docs/DISTRIBUTION.md.
+# for Java and Rust, ripgrep, fd, delta, dua, a portable Git (MinGit), a real Windows-native Node.js
+# runtime, and the JS/TS/HTML/CSS/Angular language servers plus the Angular/Nest CLIs built to run
+# under it (dev-ui-ai branch only).  See docs/DISTRIBUTION.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"; CACHE="$DIST/cache"
@@ -20,6 +22,12 @@ DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
 DUA_VERSION="${DUA_VERSION:-2.45.1}"   # my/disk-usage's own backend, config/disk-usage.el
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
                                                 # (needs a JDK 21+ on PATH or JAVA_HOME; none is bundled)
+NODE_VERSION="${NODE_VERSION:-26.13.0}"        # same pinned version as tools/node/ (WSL-side); UNLIKE
+                                                # jdtls above, this one genuinely gets bundled --- a real
+                                                # portable Windows Node.js zip exists, so there is no
+                                                # reason to make Windows users install their own, the
+                                                # dev-ui-ai branch's JS/TS/HTML/CSS/Angular language
+                                                # servers and the Angular/Nest CLIs below need it to run
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
 ZIG=("${ZIG_PYTHON:-$DIST/.venv/bin/python}" -m ziglang)
 [ -x "${ZIG[0]}" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
@@ -94,6 +102,33 @@ else
   echo "   (could not fetch a published checksum for dua-win.zip; proceeding without one)"
 fi
 
+echo "== Node.js (Windows-native, for the JS/TS/HTML/CSS/Angular language servers and Angular/Nest CLIs below)"
+NODE_ZIP="node-v$NODE_VERSION-win-x64.zip"
+fetch "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt" "node-sums-$NODE_VERSION.txt"
+fetch "https://nodejs.org/dist/v$NODE_VERSION/$NODE_ZIP" "$NODE_ZIP"
+want="$(grep "  $NODE_ZIP\$" "$CACHE/node-sums-$NODE_VERSION.txt" | cut -d' ' -f1)"
+got="$(sha256sum "$CACHE/$NODE_ZIP" | cut -d' ' -f1)"
+[ -n "$want" ] && [ "$want" = "$got" ] || { echo "CHECKSUM MISMATCH for $NODE_ZIP" >&2; exit 1; }
+echo "   $NODE_ZIP matches the checksum published by nodejs.org"
+
+echo "== JS/TS/HTML/CSS/Angular language servers, built for Windows (own native bindings, not Linux's)"
+# tools/node-lsp/node_modules (built earlier, for WSL, by ./build.sh packages) has LINUX-ONLY
+# native bindings baked into it --- confirmed directly, `@oxc-parser/binding-linux-x64-gnu' (a
+# transitive dependency's prebuilt parser) --- so copying it as-is into the Windows bundle would
+# look fine and then fail at runtime on a real Windows machine. npm (>=9) can target a DIFFERENT
+# platform's own optional native dependencies with `--os'/`--cpu', run right here on Linux, with
+# no actual Windows machine needed --- confirmed directly: the result below has `@oxc-parser/
+# binding-win32-x64-msvc' instead, and nothing Linux-specific left in it. Cached like the
+# downloads above (same `tools/node-lsp/package-lock.json', so always the same real versions);
+# `--ignore-scripts' because any native postinstall build step could only ever target THIS
+# machine (Linux), never Windows, and none of these packages need one to merely be used, not built.
+NODE_LSP_WIN="$CACHE/node-lsp-win32"
+if [ ! -d "$NODE_LSP_WIN/node_modules" ]; then
+  rm -rf "$NODE_LSP_WIN"; mkdir -p "$NODE_LSP_WIN"
+  cp "$ROOT/tools/node-lsp/package.json" "$ROOT/tools/node-lsp/package-lock.json" "$NODE_LSP_WIN/"
+  ( cd "$NODE_LSP_WIN" && "$ROOT/tools/node/bin/npm" install --os=win32 --cpu=x64 --ignore-scripts --no-audit --no-fund )
+fi
+
 echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
 JDTLS_FILE="$(curl --connect-timeout 30 --max-time 60 -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
@@ -142,6 +177,33 @@ unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
 # the language server: only the Windows part (it is started with whatever `java' the user has on
 # PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
+mkdir -p "$STAGE/tools/node-windows" "$STAGE/tools/node-lsp/bin-windows"
+unzip -q -j "$CACHE/$NODE_ZIP" "*/node.exe" -d "$STAGE/tools/node-windows"
+cp -a "$NODE_LSP_WIN/node_modules" "$STAGE/tools/node-lsp/node_modules"
+# Every `.bin/' in the tree just copied --- the top-level one and each nested package's own --- is
+# POSIX symlinks only: npm generates them for whatever OS IT is running on when it creates them,
+# never the `--os' TARGET, so none of them work unzipped on Windows at all (confirmed directly).
+# Small, hand-written `.cmd' wrappers below stand in instead, each just forwarding to the bundled
+# `node.exe' with an explicit path to the real entry script --- the same "construct the real
+# command line directly, do not trust a PATH-based shim" lesson `my/bundled-jdtls-command'
+# (config/init.el) already needed for Java, just solved here with one small `.cmd' file per tool
+# instead of bespoke Lisp. Forward slashes throughout (not `\'): `node.exe' and `cmd.exe' both
+# accept them in a file path, and it sidesteps a bash/heredoc backslash-escaping mess for no
+# real benefit.
+find "$STAGE/tools/node-lsp/node_modules" -type d -name '.bin' -exec rm -rf {} +
+write_cmd_shim() {   # write_cmd_shim NAME RELATIVE-ENTRY-SCRIPT-UNDER-node_modules
+  printf '@echo off\r\n"%%~dp0../../node-windows/node.exe" "%%~dp0../node_modules/%s" %%*\r\n' "$2" \
+    > "$STAGE/tools/node-lsp/bin-windows/$1.cmd"
+}
+write_cmd_shim typescript-language-server typescript-language-server/lib/cli.mjs
+write_cmd_shim vscode-css-language-server vscode-langservers-extracted/bin/vscode-css-language-server
+write_cmd_shim vscode-html-language-server vscode-langservers-extracted/bin/vscode-html-language-server
+write_cmd_shim vscode-json-language-server vscode-langservers-extracted/bin/vscode-json-language-server
+write_cmd_shim vscode-eslint-language-server vscode-langservers-extracted/bin/vscode-eslint-language-server
+write_cmd_shim vscode-markdown-language-server vscode-langservers-extracted/bin/vscode-markdown-language-server
+write_cmd_shim ngserver @angular/language-server/bin/ngserver
+write_cmd_shim ng @angular/cli/bin/ng.js
+write_cmd_shim nest @nestjs/cli/bin/nest.js
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
@@ -219,8 +281,9 @@ Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
   config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
   tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
-            Git (for Magit), and the Java language server (needs your own JDK 17+ on PATH or
-            JAVA_HOME; not bundled)
+            Git (for Magit), the Java language server (needs your own JDK 17+ on PATH or
+            JAVA_HOME; not bundled), and a real Node.js runtime plus the JS/TS/HTML/CSS/Angular
+            language servers and the Angular/Nest CLIs (fully bundled, nothing to install)
   docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
@@ -230,6 +293,9 @@ native compilation (the official Windows build ships without it), so it runs byt
 Java: the language server (jdtls) is included, but not a JDK --- install one yourself (17+), so
 "java" is on PATH or JAVA_HOME, then M-x eglot in a Java project (definitions, references, etc.).
 Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK.
+JavaScript/JSX/TypeScript/TSX/HTML/CSS/Angular: fully bundled (a real Node.js runtime and the
+language servers themselves), nothing to install --- M-x eglot in a .js/.ts/.tsx/.html/.css file.
+Angular/Nest scaffolding (C-c i a / C-c i n) also work out of the box, same reason.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
 Magit diffs are rendered with delta (bundled) via magit-delta-mode, on by default.
 C-c W browses real disk usage (biggest first) using the bundled dua.
