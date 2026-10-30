@@ -215,6 +215,16 @@ Java project, so separate keys per goal make sense; npm scripts are whatever eac
 own `package.json' happens to define, so picking from the real list beats guessing which
 goal-shaped keys to hardcode.
 
+`C-c J': type-check (`tsc --noEmit', for real, clickable errors) and run (`node', which runs a
+`.ts'/`.tsx' file directly --- the bundled Node here, v26.13.0, natively strips TypeScript's
+own type annotations, confirmed directly, no `ts-node'/`tsx' package needed) the CURRENT
+BUFFER's single file --- same key, and the same "Comint mode so a program reading stdin
+doesn't just hang" reasoning, as `my/run-java-file' on this project's separate `java' branch
+(not an ancestor of this one; not shared code, mirrored here on request). This is for one
+standalone file, not a whole project --- `C-c i r' above is the equivalent for running an
+actual project's own `"dev"'/`"build"'/`"start"' scripts (a Next.js/Angular/Nest app, which
+has no single file to just run).
+
 ## Express and NestJS
 
 Both are just TypeScript/JavaScript under a framework, like React/Next.js above --- the

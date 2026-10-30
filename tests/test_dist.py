@@ -122,7 +122,7 @@ class WindowsBundle(unittest.TestCase):
                   "tools/node-lsp/bin-windows/vscode-eslint-language-server.cmd",
                   "tools/node-lsp/bin-windows/vscode-markdown-language-server.cmd",
                   "tools/node-lsp/bin-windows/ngserver.cmd", "tools/node-lsp/bin-windows/ng.cmd",
-                  "tools/node-lsp/bin-windows/nest.cmd"]:
+                  "tools/node-lsp/bin-windows/nest.cmd", "tools/node-lsp/bin-windows/tsc.cmd"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
 

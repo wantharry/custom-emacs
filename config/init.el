@@ -1410,6 +1410,44 @@ it with npm."
                 t))))
 (global-set-key (kbd "C-c i a") #'my/ng-generate)
 
+;; `C-c J': type-check and run the current buffer's `.ts'/`.tsx' file --- user request,
+;; after asking how to run a TypeScript program and being told the honest answer this
+;; branch had no dedicated command for it, only `M-x compile'/`M-x vterm' by hand. Same
+;; key and the same "Comint, not plain compilation-mode" reasoning as `my/run-java-file'
+;; on this project's separate `java' branch (not an ancestor of this one, so nothing to
+;; literally share --- mirrored here on request): plain `compile' with no COMINT
+;; argument has no way to SEND input to the running process, so a program reading from
+;; stdin would hang with no way to type into it.
+;;
+;; Two real steps, chained like `javac' then `java' there: `tsc --noEmit' first, for
+;; real, clickable type errors (confirmed directly: Node's own native TypeScript
+;; support, used for the actual run below, only ERASES type annotations --- it does not
+;; type-check, so `let n: number = "oops"' would run with no complaint at all without
+;; this step) --- then `node' itself, which runs a `.ts'/`.tsx' file directly with zero
+;; separate compile step (confirmed directly against the real bundled Node, v26.13.0:
+;; native TypeScript stripping, no `ts-node'/`tsx' package needed). Both resolve via
+;; `executable-find', which already walks the exec-path/PATH wiring set up above for
+;; both WSL (`tools/node-lsp/node_modules/.bin') and the Windows bundle (`tools/node-lsp/
+;; bin-windows/tsc.cmd', `tools/node-windows/node.exe') --- no separate bundled-path
+;; function needed here, unlike Java's jdtls/JDK case, since that wiring already covers
+;; both environments generically.
+(defun my/run-ts-file ()
+  "Type-check (`tsc --noEmit') then run (`node') the current buffer's `.ts'/`.tsx'
+file, in `*compilation*', Comint mode (so stdin works, same reasoning as the
+`java' branch's own `my/run-java-file')."
+  (interactive)
+  (unless (and buffer-file-name (string-match-p "\\.tsx?\\'" buffer-file-name))
+    (user-error "Not a .ts or .tsx file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (default-directory (file-name-directory buffer-file-name))
+         (tsc (or (executable-find "tsc") "tsc"))
+         (node (or (executable-find "node") "node"))
+         (compile-command (format "%s --noEmit %s && %s %s"
+                                   (shell-quote-argument tsc) (shell-quote-argument file)
+                                   (shell-quote-argument node) (shell-quote-argument file))))
+    (compile compile-command t)))
+(global-set-key (kbd "C-c J") #'my/run-ts-file)
+
 ;;; Clicking through code -------------------------------------------------------
 
 ;; Right-click a symbol in code for "Find Definition" and "Find References" (Emacs

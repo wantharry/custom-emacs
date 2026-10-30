@@ -212,6 +212,7 @@ write_cmd_shim vscode-markdown-language-server vscode-langservers-extracted/bin/
 write_cmd_shim ngserver @angular/language-server/bin/ngserver
 write_cmd_shim ng @angular/cli/bin/ng.js
 write_cmd_shim nest @nestjs/cli/bin/nest.js
+write_cmd_shim tsc typescript/bin/tsc   # my/run-ts-file's own type-check step (config/init.el)
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative

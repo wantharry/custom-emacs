@@ -322,4 +322,44 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
               (eglot-shutdown server)))
         (kill-buffer buf)))))
 
+;;; C-c J: type-check and run the current .ts/.tsx file
+
+(ert-deftest wl/run-ts-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c J")) #'my/run-ts-file)))
+
+(ert-deftest wl/run-ts-file-errors-clearly-on-a-non-ts-buffer ()
+  (test-with-temp-dir d
+    (let ((buffer-file-name (concat d "a.py")))
+      (should-error (my/run-ts-file) :type 'user-error))))
+
+(ert-deftest wl/run-ts-file-really-type-checks-and-runs-a-real-ts-file ()
+  ;; A real, confirmed round trip: `tsc --noEmit' catches a genuine type error with no
+  ;; separate project/tsconfig.json needed (tsc's own default behaviour on a single
+  ;; file), and a real, type-correct file actually runs via `node' and prints its own
+  ;; real output --- not mocked, not assumed.
+  (wl--skip-unless-installed) (wl--skip-unless-node-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "ok.ts") "const n: number = 2 + 3;\nconsole.log(n);\n")
+    (let ((buffer-file-name (concat d "ok.ts")) (default-directory d))
+      (my/run-ts-file)
+      (with-timeout (20 (error "tsc/node did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (should (string-match-p "^5$" (with-current-buffer "*compilation*" (buffer-string))))
+      (kill-buffer "*compilation*"))))
+
+(ert-deftest wl/run-ts-file-reports-a-real-type-error-with-a-clickable-location ()
+  (wl--skip-unless-installed) (wl--skip-unless-node-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "bad.ts") "const n: number = \"oops\";\n")
+    (let ((buffer-file-name (concat d "bad.ts")) (default-directory d))
+      (my/run-ts-file)
+      (with-timeout (20 (error "tsc did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (let ((out (with-current-buffer "*compilation*" (buffer-string))))
+        ;; TS2322: the real, specific error tsc reports for this exact mismatch, not
+        ;; just any failure
+        (should (string-match-p "TS2322" out))
+        (should (string-match-p "bad\\.ts" out)))
+      (kill-buffer "*compilation*"))))
+
 ;;; languages-web-lsp.el ends here
