@@ -1410,14 +1410,16 @@ it with npm."
                 t))))
 (global-set-key (kbd "C-c i a") #'my/ng-generate)
 
-;; `C-c J': type-check and run the current buffer's `.ts'/`.tsx' file --- user request,
+;; `C-c i t': type-check and run the current buffer's `.ts'/`.tsx' file --- user request,
 ;; after asking how to run a TypeScript program and being told the honest answer this
 ;; branch had no dedicated command for it, only `M-x compile'/`M-x vterm' by hand. Same
-;; key and the same "Comint, not plain compilation-mode" reasoning as `my/run-java-file'
-;; on this project's separate `java' branch (not an ancestor of this one, so nothing to
-;; literally share --- mirrored here on request): plain `compile' with no COMINT
-;; argument has no way to SEND input to the running process, so a program reading from
-;; stdin would hang with no way to type into it.
+;; "Comint, not plain compilation-mode" reasoning as `my/run-java-file' on this project's
+;; separate `java' branch (not an ancestor of this one, so nothing to literally share
+;; --- mirrored here on request): plain `compile' with no COMINT argument has no way to
+;; SEND input to the running process, so a program reading from stdin would hang with no
+;; way to type into it. Under the `C-c i' prefix (not Java's bare `C-c J', at the user's
+;; own request) since it belongs with the other npm-ecosystem commands right above it
+;; (`C-c i r'/`i i'/`i n'/`i a'), confirmed free live via `key-binding', not just grep.
 ;;
 ;; Two real steps, chained like `javac' then `java' there: `tsc --noEmit' first, for
 ;; real, clickable type errors (confirmed directly: Node's own native TypeScript
@@ -1446,7 +1448,7 @@ file, in `*compilation*', Comint mode (so stdin works, same reasoning as the
                                    (shell-quote-argument tsc) (shell-quote-argument file)
                                    (shell-quote-argument node) (shell-quote-argument file))))
     (compile compile-command t)))
-(global-set-key (kbd "C-c J") #'my/run-ts-file)
+(global-set-key (kbd "C-c i t") #'my/run-ts-file)
 
 ;;; Clicking through code -------------------------------------------------------
 

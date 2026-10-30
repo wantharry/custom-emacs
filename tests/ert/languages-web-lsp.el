@@ -322,10 +322,10 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
               (eglot-shutdown server)))
         (kill-buffer buf)))))
 
-;;; C-c J: type-check and run the current .ts/.tsx file
+;;; C-c i t: type-check and run the current .ts/.tsx file
 
 (ert-deftest wl/run-ts-key-is-bound ()
-  (should (eq (key-binding (kbd "C-c J")) #'my/run-ts-file)))
+  (should (eq (key-binding (kbd "C-c i t")) #'my/run-ts-file)))
 
 (ert-deftest wl/run-ts-file-errors-clearly-on-a-non-ts-buffer ()
   (test-with-temp-dir d
