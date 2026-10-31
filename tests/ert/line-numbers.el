@@ -1,10 +1,13 @@
 ;;; line-numbers.el --- dual line-number columns, and the %p position indicator  -*- lexical-binding: t; -*-
 ;; harness: config
 
-(ert-deftest line-numbers/relative-type-is-the-default ()
-  ;; User request, after the same setting turned up in another Emacs user's own
-  ;; config: the native column shows DISTANCE from point, not absolute position.
-  (should (eq (default-value 'display-line-numbers-type) 'relative)))
+(ert-deftest line-numbers/plain-absolute-type-is-the-default ()
+  ;; Relative numbers (each line's DISTANCE from point, not its own line number) were
+  ;; the default for a while, after the same setting turned up in another Emacs
+  ;; user's own config --- reverted to Emacs's own stock default (`t', plain/absolute)
+  ;; on a later, direct user request; relative is switched to by hand when wanted
+  ;; (see config/init.el's own comment on this setting for the exact command).
+  (should (eq (default-value 'display-line-numbers-type) t)))
 
 (ert-deftest line-numbers/current-line-still-shows-its-real-absolute-number ()
   ;; A real, built-in Emacs feature (`display-line-numbers-current-absolute',

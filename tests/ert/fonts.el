@@ -89,14 +89,15 @@ font family strings) as present, nothing else."
         (my/cycle-font))
       (should (string-match-p "No fonts in my/fonts are actually installed" captured)))))
 
-(ert-deftest fonts/relative-line-numbers-is-on ()
-  ;; User request, directly: `display-line-numbers-type' set to `relative' so each
-  ;; line shows its distance from point, not its own absolute number.
-  (should (eq display-line-numbers-type 'relative))
+(ert-deftest fonts/plain-absolute-line-numbers-is-on ()
+  ;; Reverted from `relative' back to Emacs's own stock default (`t', plain/absolute)
+  ;; on a later, direct user request --- see config/init.el's own comment on this
+  ;; setting for how to switch to relative by hand.
+  (should (eq display-line-numbers-type t))
   (with-temp-buffer
     (text-mode)
     (insert "a\nb\nc\n")
     (display-line-numbers-mode 1)
-    (should (eq display-line-numbers 'relative))))
+    (should (eq display-line-numbers t))))
 
 ;;; fonts.el ends here

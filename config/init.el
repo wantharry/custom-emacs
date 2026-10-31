@@ -32,13 +32,15 @@
 ;; request, while asking about line numbers.
 (size-indication-mode 1)
 (global-display-line-numbers-mode 1)
-;; Relative, not absolute --- each line shows its DISTANCE from point, not its own
-;; line number, so a numeric-prefix jump (`M-5 C-n' moves down exactly 5 lines, `12dd'
-;; in Evil deletes exactly 12 lines) is a glance at the number already on screen
-;; instead of subtracting two absolute numbers by hand. User request, after the same
-;; setting turned up directly in another Emacs user's own config during a side
-;; conversation about speed --- a real, one-line win, not specific to that setup.
-(setq-default display-line-numbers-type 'relative)
+;; Plain/absolute (Emacs's own stock default, `t') --- NOT relative any more. User
+;; request: relative numbers (each line showing its DISTANCE from point, not its own
+;; line number) were tried for a while, but the user wants plain absolute numbers as
+;; the default again, with relative switched to by hand later when actually wanted:
+;;   M-: (setq-default display-line-numbers-type 'relative)
+;; then revert any already-open buffer's own display-line-numbers-mode (toggle it off
+;; and back on, or `M-x normal-mode') to pick up the new type --- it is read once when
+;; the minor mode turns on, not re-read live.
+(setq-default display-line-numbers-type t)
 
 ;; A SECOND column, right next to the native one above, showing each line's real
 ;; ABSOLUTE number --- user request, after `display-line-numbers-type' above already
