@@ -91,6 +91,27 @@ it edit files" test of the two agentic tools:
    interactively, and judge for yourself which of the two actually does what you
    want on a real task.
 
+## Two real bugs found by actually testing on the user's own Windows/WSL machine
+
+Both fixed; mentioned here because they were real, silent failures that automated
+wiring checks alone didn't catch --- a lesson for anything else built the same way.
+
+- **`C-c z` did nothing at all the first time it was actually tried.**
+  `wingman-prefix-key` was being set inside `with-eval-after-load 'wingman'`, which
+  fires AFTER `wingman.el` already builds `wingman-mode-prefix-map` from whatever
+  the variable held at LOAD time (the package's own default, `C-c w` --- already
+  this config's session-management prefix). Fixed by moving the `setq` to
+  `config/init.el`, unconditional and before the package can ever load, the same
+  ordering rule `persp-mode-prefix-key`/`projectile-keymap-prefix` already need
+  there. The original test only checked the *variable's* value, which was always
+  correct --- it never checked the real live keymap, which is what actually hid
+  this.
+- **`C-c z S-TAB` was unreachable from a real physical Shift+Tab press.** Confirmed
+  directly: `(kbd "S-TAB")` and `(kbd "<backtab>")` are different key sequences in
+  Emacs, and most real Shift+Tab presses (GUI frames included) are reported as
+  `<backtab>`, not `S-TAB` --- `wingman` only binds the latter. Fixed with one more
+  `define-key` in `config/ai-tools.el` binding `<backtab>` to the same command.
+
 ## Known rough edges (observed, not fixed)
 
 - `wingman`'s Emulated FIM run above also logged `[error] request--callback:

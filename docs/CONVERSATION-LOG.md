@@ -4029,6 +4029,104 @@ explicit in the user's own framing ("test it thoroughly before we merge into thi
 and remains an open comparison branch, not a decided direction, until the user says
 otherwise.
 
+### Follow-up, same session: real live testing on the user's own Windows machine ---
+two real wingman bugs found and fixed, the Windows build given real zero-install
+JS/TS/Angular LSP support (it had none at all before this), a new `.ts' run command,
+and the user's own keyboard turned out to be the real cause of a separate scare
+
+User actually ran the `dev-ui-ai` branch's Windows zip for the first time this
+session (previous entries only built and structurally verified it) --- real,
+live testing surfaced real bugs, not hypothetical ones:
+
+1. **`wingman-prefix-key` never actually took effect.** `config/ai-tools.el` set it
+   inside `with-eval-after-load 'wingman'`, which fires AFTER `wingman.el` has
+   already built `wingman-mode-prefix-map' from whatever the variable held at
+   LOAD time (the default, `C-c w' --- already this config's session-management
+   prefix). Found because `C-c z' genuinely did nothing on the user's own machine,
+   not assumed. Fixed by moving the `setq' to `config/init.el', unconditional and
+   before the package can ever load --- the exact same ordering rule
+   `persp-mode-prefix-key'/`projectile-keymap-prefix' already needed elsewhere in
+   this file, which the original `ai-tools.el' comment claimed to follow but
+   didn't. The test that should have caught this only checked the VARIABLE's
+   value, not the real live keymap --- strengthened to actually enable
+   `wingman-mode' in a real buffer and check `key-binding'.
+2. **`S-TAB' and `<backtab>' are different key sequences in Emacs** (confirmed
+   directly, not assumed) --- `wingman' only binds the former, but most real
+   Shift+Tab presses, GUI frames included, are reported as `<backtab>'. Without
+   also binding that, wingman's own documented `C-c z S-TAB' was unreachable from
+   an actual physical keypress on the user's machine. Fixed with one more
+   `define-key' in `ai-tools.el'; a real test added for the `<backtab>' binding
+   too, not just `S-TAB'.
+3. **The Windows build had ZERO LSP support for the web languages** --- `tools/
+   node-lsp'/`tools/node/' are WSL-local, gitignored, never bundled, so `M-x
+   eglot' in a `.js'/`.ts' file on Windows fell straight to Eglot's own
+   "couldn't guess" prompt. Fixed for real, not just documented as a gap: a
+   genuine Windows-native Node.js runtime (`tools/node-windows/', downloaded
+   from nodejs.org, checksum-verified, same pinned version as the WSL side) plus
+   a SEPARATE install of the language-server packages built specifically for
+   Windows (`npm install --os=win32 --cpu=x64', confirmed directly that npm
+   >=9 supports targeting another platform's native deps from right here on
+   Linux --- the WSL-side install has at least one Linux-only native binary
+   baked in, `@oxc-parser/binding-linux-x64-gnu', that would have silently
+   failed at runtime if just copied over). npm's own `node_modules/.bin/' shims
+   are POSIX symlinks regardless of the `--os' target (npm generates them for
+   whatever OS it is itself running on), so they don't survive a zip onto
+   Windows at all --- fixed with small, hand-written `.cmd' wrapper files
+   (`tools/node-lsp/bin-windows/') instead, each forwarding to the bundled
+   `node.exe' with an explicit path to the real entry script, confirmed against
+   Emacs's own `exec-suffixes' default on `windows-nt' (`.cmd' is in that
+   list). `config/init.el' adds both bundled directories to `exec-path'/`PATH'
+   only inside the real Windows bundle (`CUSTOM_EMACS_HOME', the same mechanism
+   `my/bundled-jdtls-command' already uses for Java), so none of this touches
+   WSL/Linux. First attempt only bundled bare `node.exe', missing `npm'/`npx'
+   themselves (found by walking through what "zero installs" for a brand-new
+   Angular/React/Nest project actually needs, not just the pre-installed CLIs)
+   --- fixed in a second commit by unzipping the whole official Node
+   distribution instead of just the one binary.
+4. **A new `C-c i t': type-check (`tsc --noEmit') and run (`node') the current
+   `.ts'/`.tsx' file**, user request after asking how to run a TypeScript
+   program. Mirrors `my/run-java-file' on this project's separate `java' branch
+   (not an ancestor of this one, so nothing to literally share, same idea/
+   Comint-for-stdin reasoning on request) --- confirmed directly that the
+   bundled Node (v26.13.0) runs `.ts' files with zero separate compile step
+   (native type-stripping), no `ts-node'/`tsx' package needed; `tsc --noEmit'
+   first still catches a real type error with a clickable location, confirmed
+   with a real mismatched-type test file, not assumed. First bound to `C-c J'
+   (mirroring Java's own key), then rebound to `C-c i t' at the user's own
+   request, since `C-c J' belongs to a branch this one isn't descended from and
+   `C-c i t' fits alongside the other npm-ecosystem commands already there.
+5. **Line numbers reverted from relative back to Emacs's own stock default**
+   (`display-line-numbers-type' `t', plain/absolute), user request --- relative
+   was tried for a while (an earlier entry) but didn't stick; the exact command
+   to switch back by hand is in `config/init.el''s own comment on the setting.
+   Confirmed directly in Emacs's own source, not assumed: `display-line-numbers'
+   is only copied from `display-line-numbers-type' once, when the minor mode
+   turns ON, not re-read live --- noted for whoever flips it back.
+
+All five committed and pushed individually to `origin/dev-ui-ai' (`16a23c0',
+`0af4a26', `79e0360', `c277162'/`fd9a49c', `01f5b70'), each verified against the
+established 18-failure ERT baseline first (confirmed via a real `git stash'
+comparison at one point, when the count briefly looked higher than expected and
+turned out to be ordinary run-to-run flakiness, not a regression --- the project's
+own "confirmed directly" habit paying off again). The Windows zip was rebuilt and
+re-copied to the user's Downloads after every single one of these, since the user
+was actively testing each change live on Windows in real time this session, not
+batching per the usual standing rule.
+
+**A separate, real, non-trivial detour, not a config bug at all**: partway through
+this testing, the user's own physical keyboard started sending the wrong modifier
+keys SYSTEM-WIDE --- confirmed outside Emacs entirely (reproduced in Notepad++ too:
+`Ctrl+N' opened its Encoding menu, i.e. acted as `Alt+N'), and confirmed to be the
+physical keyboard itself, not a Windows setting (the on-screen keyboard's own right
+Ctrl worked correctly). Root cause, found from a photo of the keyboard and a web
+search since it's an unbranded OEM unit (sold as "ULSOU Wireless Keyboard and Mouse
+Combo," made by Shenzhen Deying, model MK399): a `Fn+W' Mac-layout toggle had been
+pressed by accident, remapping the right Ctrl/Alt cluster to macOS semantics
+(Option/Command) at the keyboard's own firmware level --- `Fn+Q' switches it back
+to the Windows layout. User confirmed fixed. Worth remembering if "Meta/Control
+acting weird" comes up again on this user's machine: ask about the keyboard model
+and this exact fix before assuming it's an Emacs config issue.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
@@ -4349,3 +4447,31 @@ otherwise.
   race-tolerant (`gh release create ... || gh release upload ... --clobber`) since either job
   can finish first. Gatekeeper note documented honestly in the bundle's own `README.txt`:
   `Emacs.app` here is only ad-hoc signed, same as any Homebrew build, not notarized.
+- **`dev-ui-ai` branch, real live testing on the user's own Windows/WSL machine** (full
+  account in the `### Follow-up` entry just above this section): two real wingman bugs
+  found and fixed (`wingman-prefix-key` ordering, `<backtab>` vs `S-TAB`), the Windows
+  bundle given real zero-install JS/TS/HTML/CSS/Angular LSP support plus `npm`/`npx`
+  themselves (it had none of this before --- two commits, the second fixing a gap the
+  first one left: `npm`/`npx` weren't actually bundled, only bare `node.exe` was), a new
+  `C-c i t` (type-check and run the current `.ts`/`.tsx` file, rebound from an initial
+  `C-c J` at the user's own request), and line numbers reverted from relative back to
+  Emacs's own stock plain/absolute default (also user request). All individually
+  committed and pushed to `origin/dev-ui-ai` (`16a23c0`, `0af4a26`, `79e0360`, `c277162`/
+  `fd9a49c`, `01f5b70`), each verified against the established 18-failure ERT baseline,
+  and the Windows zip rebuilt and re-copied to the user's own Downloads after every one
+  of them (the user was actively testing each change live on Windows this session, not
+  batching). **Still uncommitted at the end of this session**: this very
+  `CONVERSATION-LOG.md` entry, a short addition to `docs/AI-TOOLS.md` documenting the
+  two wingman bugs, and two untracked scratch files the user created themselves
+  (`test.el`, `test.js`, left alone throughout --- not part of any commit). **Not yet
+  rebuilt into the Windows zip**: the `docs/AI-TOOLS.md` addition (prose-only, no
+  behavior change, so low priority to rebuild for).
+- **A real, separate, non-config detour, not a bug in this project at all**: partway
+  through that live testing, the user's own physical keyboard (an unbranded Shenzhen-
+  made "ULSOU Wireless Keyboard and Mouse Combo," model MK399) had its Windows/Mac
+  layout toggle flipped by accident (`Fn+W`), making Control/Alt act wrong
+  SYSTEM-WIDE (confirmed outside Emacs too, in Notepad++) --- `Fn+Q` switches it back;
+  user confirmed fixed. Not a config change, nothing to commit, but worth knowing if
+  "Meta/Control acting weird" ever comes up again with this user: ask about the
+  keyboard model and this exact fix first, before assuming an Emacs config issue.
+  (Saved to this assistant's own cross-session memory too, not just here.)
