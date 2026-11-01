@@ -1145,9 +1145,23 @@ docs/PERSPECTIVE.md."
 (defvar my/python-lsp-bin-dir
   (expand-file-name "../tools/python-lsp/.venv/bin" user-emacs-directory)
   "Where this branch's own local `pylsp' (python-lsp-server) lives.")
+;; APPENDED (the `t' arg), not prepended --- a real, found-by-testing bug: this venv
+;; holds ONLY `pylsp' and its own narrow dependencies, nothing like the FULL, pinned
+;; Node runtime `my/node-bin-dir' above is (which is deliberately prepended, so
+;; every JS/TS tool consistently uses one known-good version instead of an older
+;; system one). Prepending this one too, copied from that pattern without noticing
+;; the difference, meant `C-c i p' (`my/run-python-file') silently ran the user's
+;; own scripts through this ISOLATED, pylsp-only Python instead of their real one
+;; --- any package the user actually `pip install'ed themselves would be invisible,
+;; a `ModuleNotFoundError' with no obvious cause. Confirmed directly: `python3 -c
+;; "import X"' inside this venv cannot see `~/.local/lib/python3.12/site-packages',
+;; where a real user package would actually be installed. Appending instead means
+;; the REAL system/user Python (already earlier on `PATH') is what `python3'/
+;; `python' resolve to everywhere else in this config, while `pylsp' --- which
+;; exists NOWHERE else --- is still found here as a fallback, costing nothing.
 (when (file-directory-p my/python-lsp-bin-dir)
-  (add-to-list 'exec-path my/python-lsp-bin-dir)
-  (setenv "PATH" (concat my/python-lsp-bin-dir path-separator (getenv "PATH"))))
+  (add-to-list 'exec-path my/python-lsp-bin-dir t)
+  (setenv "PATH" (concat (getenv "PATH") path-separator my/python-lsp-bin-dir)))
 
 ;; The Windows bundle: the same idea as the Node.js/web-LSP case further below, just for
 ;; Python --- a real Windows-native Python runtime (`tools/python-windows/python.exe', the

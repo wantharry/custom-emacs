@@ -63,9 +63,18 @@
 ;; why `exec-path' alone is not enough for `compile'/shell-subprocess tools).
 (defvar my/aider-bin-dir (expand-file-name "../tools/aider/.venv/bin" user-emacs-directory)
   "Where this branch's own locally-installed `aider' CLI lives --- see tools/aider/.")
+;; APPENDED (the `t' arg), not prepended --- a real, found-by-testing bug (the same
+;; one `my/python-lsp-bin-dir' in config/init.el had, found first, fixed here once
+;; checking for the same pattern elsewhere): this venv holds ONLY `aider' and its own
+;; dependencies, including its own `python'/`python3' symlinks, which WOULD otherwise
+;; silently shadow the user's real Python for everything else in the session ---
+;; including `C-c i p' (`my/run-python-file') --- the moment this file loads, which
+;; happens as soon as ANY of the four AI tools is used, not just `aidermacs' itself
+;; (`wingman-mode'/`copilot-mode' alone would trigger it too, confirmed directly by
+;; tracing `config/init.el''s own `with-eval-after-load' wiring for all four).
 (when (file-directory-p my/aider-bin-dir)
-  (add-to-list 'exec-path my/aider-bin-dir)
-  (setenv "PATH" (concat my/aider-bin-dir path-separator (getenv "PATH"))))
+  (add-to-list 'exec-path my/aider-bin-dir t)
+  (setenv "PATH" (concat (getenv "PATH") path-separator my/aider-bin-dir)))
 (with-eval-after-load 'aidermacs
   (when (file-directory-p my/aider-bin-dir)
     (setq aidermacs-program (expand-file-name "aider" my/aider-bin-dir)))

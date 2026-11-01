@@ -85,6 +85,19 @@
   (require 'aidermacs)
   (should (equal aidermacs-program (expand-file-name "aider" my/aider-bin-dir))))
 
+(ert-deftest at/loading-ai-tools-does-not-silently-hijack-system-python3 ()
+  ;; A real, found-by-testing bug, not assumed: `tools/aider/.venv/' has its own
+  ;; `python'/`python3' symlinks (any venv does), and `my/aider-bin-dir' being
+  ;; PREPENDED (the same mistake `my/python-lsp-bin-dir' in config/init.el had,
+  ;; found first) meant `python3' resolved to aider's own narrow venv instead of
+  ;; the user's real one, the moment THIS FILE loads --- which happens as soon as
+  ;; any of the four AI tools is used, not just `aidermacs' (`wingman-mode'/
+  ;; `copilot-mode' alone trigger it too) --- breaking `C-c i p'
+  ;; (`my/run-python-file') for the rest of that session.
+  (skip-unless (locate-library "aidermacs"))
+  (at--skip-unless-aider-installed)
+  (should-not (equal (executable-find "python3") (expand-file-name "python3" my/aider-bin-dir))))
+
 (ert-deftest at/aidermacs-defaults-to-the-existing-ollama-setup ()
   ;; Reuses config/llm.el's own `my/llm-ollama-host' rather than a second,
   ;; separately-maintained host string --- checked directly, not just that SOME

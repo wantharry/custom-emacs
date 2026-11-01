@@ -74,6 +74,25 @@
   (should (member my/python-lsp-bin-dir exec-path))
   (should (string-match-p (regexp-quote my/python-lsp-bin-dir) (getenv "PATH"))))
 
+(ert-deftest py/running-python3-does-not-silently-use-the-isolated-pylsp-venv ()
+  ;; A real, found-by-testing bug, not assumed: `my/python-lsp-bin-dir' must be
+  ;; APPENDED to `exec-path'/`PATH', not prepended --- that venv holds ONLY `pylsp'
+  ;; and its own narrow dependencies, nothing like the FULL Node runtime
+  ;; `my/node-bin-dir' is (which IS deliberately prepended). Prepending this one
+  ;; too meant `C-c i p' (`my/run-python-file') silently ran the user's own
+  ;; scripts through this isolated, pylsp-only Python instead of their real one
+  ;; --- any package the user actually `pip install'ed would be invisible.
+  (py--skip-unless-pylsp-installed)
+  ;; `python3' specifically, not bare `python': `my/run-python-file' checks `python3'
+  ;; FIRST (`or' short-circuits), and on this machine (Debian/Ubuntu-based WSL) no
+  ;; bare `python' exists system-wide at all --- confirmed directly, so the venv's
+  ;; own `python' symlink being the only match for THAT name is not a bug, just the
+  ;; only real candidate; asserting against it here would fail for a reason that has
+  ;; nothing to do with the real fix, which is specifically about `python3'.
+  (should-not (equal (executable-find "python3") (expand-file-name "python3" my/python-lsp-bin-dir)))
+  ;; `pylsp' itself exists nowhere else, so it must still resolve correctly
+  (should (equal (executable-find "pylsp") (expand-file-name "pylsp" my/python-lsp-bin-dir))))
+
 (ert-deftest py/eglot-already-knows-pylsp-by-default-for-python ()
   ;; Confirmed directly in Eglot's own source, not assumed: it already has a
   ;; built-in entry for `(python-mode python-ts-mode)' that tries `pylsp' first

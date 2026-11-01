@@ -327,7 +327,20 @@ config does not assume).
 **Real LSP support too**: `pylsp` (`python-lsp-server`), installed self-contained into
 `tools/python-lsp/.venv/` (same "not system-wide" shape as `tools/node-lsp/`/`tools/aider/`
 --- `python3 -m venv tools/python-lsp/.venv`, `tools/python-lsp/.venv/bin/pip install
-python-lsp-server`), its `bin/` added to `exec-path`/`PATH`. Confirmed directly in Eglot's
+python-lsp-server`), its `bin/` added to `exec-path`/`PATH` --- APPENDED, not prepended. A
+real, found-by-the-user bug, not assumed: this venv has its own `python`/`python3`
+symlinks too (any venv does), and prepending it (copied from `my/node-bin-dir`'s own
+pattern without noticing the difference: that one IS a full, general-purpose pinned
+runtime, deliberately prepended for version consistency, not a narrow single-tool venv
+like this one) meant `C-c i p` (`my/run-python-file`) silently ran the user's own scripts
+through this isolated, pylsp-only Python instead of their real one --- any package they
+had actually `pip install`ed would be invisible. The SAME bug, found by checking for the
+same pattern elsewhere once this one surfaced, also existed in `tools/aider/.venv/`
+(`config/ai-tools.el`) --- worse there, since it loads as soon as ANY of the four AI
+tools is used, not just `aidermacs` itself. Both fixed the same way: `(add-to-list
+'exec-path DIR t)` (append) instead of `(add-to-list 'exec-path DIR)` (prepend),
+confirmed with real regression tests in both `tests/ert/languages-python.el` and
+`tests/ert/ai-tools.el`. Confirmed directly in Eglot's
 own source, not assumed: it already has a built-in default entry for `(python-mode
 python-ts-mode)` that tries `pylsp` first among several candidates (`pyls`,
 `basedpyright-langserver`/`pyright-langserver`, `jedi-language-server`, `ruff`/`ruff-lsp`)

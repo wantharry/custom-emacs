@@ -4294,6 +4294,93 @@ before and after. `docs/DISTRIBUTION.md' (the Python row, previously
 "not bundled," corrected; the tree diagram) and `docs/LANGUAGES.md' (a
 new paragraph) updated to match. Committed and pushed to `origin/dev-ui-ai'.
 
+### Follow-up, same session: two real bugs the user actually hit live, both fixed,
+plus an honest conversation about WHY synthetic tests alone missed them
+
+User ran `C-c i t' for real against the `coding-languages' repo's own
+`typescript/' project (built earlier this session) and hit `error TS5112:
+tsconfig.json is present but will not be loaded if files are specified on
+commandline' --- `my/run-ts-file' always passed a single file to `tsc',
+which modern `tsc' refuses to do silently once a real `tsconfig.json'
+exists next to it. Fixed by switching to `tsc -p DIR --noEmit' (the WHOLE
+project, under its own real settings) whenever a `tsconfig.json' exists
+above the file, confirmed directly against that exact failing file and
+project. `--ignoreConfig' would have been the wrong fix, not just a
+different one: this project's own `tsconfig.json' deliberately uses strict
+mode, so ignoring it would type-check under the wrong rules entirely. A
+SECOND real bug found fixing the first: `locate-dominating-file' can
+return a `~'-abbreviated path, which `shell-quote-argument' then correctly
+escapes as a LITERAL tilde character, not a shell expansion --- `tsc' then
+failed with "the specified path does not exist" on a path that very much
+does exist, just not spelled that way; fixed with `expand-file-name'
+before quoting. New test (`wl/run-ts-file-respects-a-real-nearby-tsconfig-
+json-instead-of-erroring') proves the real tsconfig is genuinely being
+used, not just that TS5112 goes away.
+
+User then asked, pointedly, why bugs keep surfacing only once they
+actually use something --- a fair question, answered honestly: this
+session's own tests for `my/run-ts-file' only ever used bare standalone
+files in empty temp dirs, never a real project with its own config, even
+though that's the NORMAL case for any real codebase, not an edge case.
+Said so directly rather than deflecting, and drafted this as feedback
+(queued locally, not sent) since it's a real, concrete pattern worth
+tracking: verification scope stayed narrow to the original use case and
+was never widened once a real project existed to test against.
+
+Asked to "make sure its fixed for all languages" --- rather than assume
+TS was the only one affected, actually went and tested `C-c i p' against
+the real `coding-languages/python/' project too (including its trickiest
+file, the multiprocessing demo) and found a SEPARATE, same-class bug while
+doing so: `my/python-lsp-bin-dir' (`tools/python-lsp/.venv/', wired up
+two follow-ups ago) was PREPENDED to `exec-path'/`PATH', copied from
+`my/node-bin-dir''s own prepend pattern without noticing the difference
+--- that one is a full, general-purpose pinned Node runtime, deliberately
+prepended for version consistency; `tools/python-lsp/.venv/' is a narrow,
+single-tool venv with ONLY `pylsp''s own dependencies, nothing general-
+purpose in it at all. Prepending it meant `python3'/`python' resolved to
+this isolated venv EVERYWHERE in the session, not just for `pylsp' itself
+--- so `C-c i p' silently ran the user's own scripts through a Python that
+cannot see any package they had actually `pip install'ed, a confusing
+"module not found" with no obvious cause. Confirmed directly:
+`tools/python-lsp/.venv/bin/python3 -c "import X"' cannot see
+`~/.local/lib/python3.12/site-packages', where a real user package would
+actually live.
+
+Checking for the SAME pattern elsewhere (not just patching the one
+instance found) turned up a second, worse case: `tools/aider/.venv/'
+(`config/ai-tools.el') has the identical bug --- worse, since that file
+loads the moment ANY of the four AI tools is used (confirmed by tracing
+`config/init.el''s own `with-eval-after-load' wiring for all four), not
+just `aidermacs' itself, so merely trying `wingman-mode' could silently
+break `C-c i p' for the rest of that session. Both fixed the same way:
+`(add-to-list 'exec-path DIR t)' (append, not prepend) and appending to
+the `PATH' string too --- confirmed directly afterward that `python3'
+still resolves to the real system Python even once `ai-tools.el' fully
+loads, while `pylsp'/`aider' themselves still resolve correctly (since
+neither exists anywhere else on `PATH'). New regression tests in both
+`tests/ert/languages-python.el' and `tests/ert/ai-tools.el'. One test-
+authoring note worth keeping: an initial version of the Python test also
+asserted bare `"python"' (not just `"python3"') does not resolve to the
+venv --- genuinely failed on this machine, not because the fix was wrong,
+but because this Debian/Ubuntu-based WSL has NO system-wide bare `python'
+at all (only `python3'), so the venv's own `python' symlink was the only
+real candidate for that name, not a case of it winning over something
+better. Narrowed the test to `python3' specifically, which is what
+`my/run-python-file' actually checks first and is the one with a real,
+confirmed-better alternative to compare against.
+
+Swept the rest of the config for the same `.venv' pattern afterward
+(`grep -rn "\.venv" config/*.el') to confirm nothing else was missed ---
+only those two instances exist; `dist/.venv' is a separate, build-script-
+only venv never loaded by the running Emacs config, not affected.
+
+Full regression suite confirmed clean at the established 18-failure
+baseline after both fixes. `docs/LANGUAGES.md' (both the `C-c i t'/
+tsconfig section and the `pylsp' PATH-ordering note), `docs/AI-TOOLS.md'
+(the `aider' PATH-ordering note) and `docs/MY-NOTES.md' (a new gotcha
+entry, general enough to apply to any future narrow single-tool venv
+added the same way) updated to match.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

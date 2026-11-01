@@ -45,7 +45,13 @@ tools/aider/.venv/bin/pip install aider-chat
 Its `bin/` is added to both `exec-path` and `PATH` (see config/ai-tools.el, and
 config/init.el's own comment on why `exec-path' alone is not enough for `compile'-
 style invocations --- the same real gap found and fixed on `dev-ui` for the npm/Nest/
-Angular CLI commands).
+Angular CLI commands) --- APPENDED, not prepended. A real, found-by-testing bug: this
+venv has its own `python`/`python3` symlinks too (any venv does), and prepending it
+silently hijacked `python3`/`python` for the whole Emacs session the moment this file
+loaded --- which happens as soon as ANY of the four AI tools is used, not just
+`aidermacs` --- breaking `C-c i p' (`my/run-python-file', `dev-ui-ai' branch) and any
+other use of the user's real Python for the rest of that session. See `docs/MY-NOTES.md`
+for the full account (the same bug, found first in `tools/python-lsp/.venv/`).
 
 ## What was actually verified, and how
 
