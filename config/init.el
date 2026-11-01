@@ -1487,9 +1487,19 @@ it with npm."
 ;; function needed here, unlike Java's jdtls/JDK case, since that wiring already covers
 ;; both environments generically.
 (defun my/run-ts-file ()
-  "Type-check (`tsc --noEmit') then run (`node') the current buffer's `.ts'/`.tsx'
-file, in `*compilation*', Comint mode (so stdin works, same reasoning as the
-`java' branch's own `my/run-java-file')."
+  "Type-check then run (`node') the current buffer's `.ts'/`.tsx' file, in
+`*compilation*', Comint mode (so stdin works, same reasoning as the `java'
+branch's own `my/run-java-file').
+
+Type-checks against the nearest real `tsconfig.json' (`tsc -p DIR --noEmit',
+the WHOLE project, not just this file) when one exists above the file, else
+falls back to a plain single-file `tsc --noEmit FILE'.  Not optional: a real
+project's `tsconfig.json' can turn on strict mode and other settings that
+change whether code is even valid --- and modern `tsc' itself REFUSES to
+silently ignore a `tsconfig.json' sitting right next to a file passed on its
+command line (`error TS5112: tsconfig.json is present but will not be
+loaded if files are specified on commandline'), confirmed directly, not
+assumed, against a real project with a real strict `tsconfig.json'."
   (interactive)
   (unless (and buffer-file-name (string-match-p "\\.tsx?\\'" buffer-file-name))
     (user-error "Not a .ts or .tsx file"))
@@ -1497,8 +1507,18 @@ file, in `*compilation*', Comint mode (so stdin works, same reasoning as the
          (default-directory (file-name-directory buffer-file-name))
          (tsc (or (executable-find "tsc") "tsc"))
          (node (or (executable-find "node") "node"))
-         (compile-command (format "%s --noEmit %s && %s %s"
-                                   (shell-quote-argument tsc) (shell-quote-argument file)
+         ;; `expand-file-name' here is not decorative: `locate-dominating-file' can
+         ;; return a `~'-abbreviated path, which `shell-quote-argument' then correctly
+         ;; escapes as a LITERAL tilde character (`\~'), not a shell expansion --- `tsc'
+         ;; then fails with "the specified path does not exist" on a path that very much
+         ;; does exist, just not spelled that way. Confirmed directly, not assumed.
+         (tsconfig-dir (when-let* ((d (locate-dominating-file default-directory "tsconfig.json")))
+                         (expand-file-name d)))
+         (type-check-command
+          (if tsconfig-dir
+              (format "%s -p %s --noEmit" (shell-quote-argument tsc) (shell-quote-argument tsconfig-dir))
+            (format "%s --noEmit %s" (shell-quote-argument tsc) (shell-quote-argument file))))
+         (compile-command (format "%s && %s %s" type-check-command
                                    (shell-quote-argument node) (shell-quote-argument file))))
     (compile compile-command t)))
 (global-set-key (kbd "C-c i t") #'my/run-ts-file)

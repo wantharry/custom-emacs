@@ -362,4 +362,28 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
         (should (string-match-p "bad\\.ts" out)))
       (kill-buffer "*compilation*"))))
 
+(ert-deftest wl/run-ts-file-respects-a-real-nearby-tsconfig-json-instead-of-erroring ()
+  ;; A real, found-by-a-real-user bug, not assumed: modern `tsc' REFUSES to silently
+  ;; ignore a `tsconfig.json' sitting next to a file passed on its own command line
+  ;; (`error TS5112: tsconfig.json is present but will not be loaded if files are
+  ;; specified on commandline'), confirmed directly against a real strict-mode
+  ;; project. Fixed by switching to `tsc -p DIR --noEmit' (project mode) whenever a
+  ;; `tsconfig.json' exists above the file --- confirmed here with a real tsconfig
+  ;; that would reject the file under plain (non-strict) defaults, proving the real
+  ;; project config is genuinely being used, not just avoiding the TS5112 error.
+  (wl--skip-unless-installed) (wl--skip-unless-node-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "tsconfig.json")
+                      "{\"compilerOptions\": {\"strict\": true, \"noImplicitAny\": true}}")
+    (test-write-file (concat d "ok.ts") "function add(a: number, b: number): number {\n  return a + b;\n}\nconsole.log(add(2, 3));\n")
+    (let ((buffer-file-name (concat d "ok.ts")) (default-directory d))
+      (my/run-ts-file)
+      (with-timeout (20 (error "tsc/node did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (let ((out (with-current-buffer "*compilation*" (buffer-string))))
+        (should-not (string-match-p "TS5112" out))
+        (should (string-match-p "-p " out))
+        (should (string-match-p "^5$" out)))
+      (kill-buffer "*compilation*"))))
+
 ;;; languages-web-lsp.el ends here

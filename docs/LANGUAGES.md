@@ -226,6 +226,21 @@ commands just above it. This is for one standalone file, not a whole project ---
 above is the equivalent for running an actual project's own `"dev"'/`"build"'/`"start"'
 scripts (a Next.js/Angular/Nest app, which has no single file to just run).
 
+**Respects a real nearby `tsconfig.json`, not just a bare file** --- a real, found-by-a-real-
+user bug, not assumed: modern `tsc` REFUSES to silently ignore a `tsconfig.json` sitting next
+to a file passed on its own command line (`error TS5112: tsconfig.json is present but will
+not be loaded if files are specified on commandline`), confirmed directly against a real
+strict-mode project. When a `tsconfig.json` exists above the file (`locate-dominating-file`),
+`C-c i t` type-checks the WHOLE project under its own real settings (`tsc -p DIR --noEmit`)
+instead of just the one file, THEN still only runs the current file with `node` --- correct,
+not a cheap workaround: a project's `tsconfig.json` can turn on strict mode and other settings
+that change whether code is even valid, so ignoring it (`--ignoreConfig`) would silently
+type-check under the wrong rules. A second real bug found fixing the first one: the
+directory `locate-dominating-file` returns can come back `~`-abbreviated, which
+`shell-quote-argument` then correctly escapes as a LITERAL tilde character, not a shell
+expansion --- `tsc` then fails with "the specified path does not exist" on a path that very
+much does exist, just not spelled that way; fixed with `expand-file-name` before quoting.
+
 ## Express and NestJS
 
 Both are just TypeScript/JavaScript under a framework, like React/Next.js above --- the
