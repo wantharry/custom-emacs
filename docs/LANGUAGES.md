@@ -283,3 +283,35 @@ real servers and confirm they answer through Eglot).
 - Grammars and servers are per platform. This page's own measurements are Linux/WSL only; the
   Windows bundle carries the same grammars (cross-compiled) and `jdtls`, verified separately
   (see [DISTRIBUTION.md](DISTRIBUTION.md)). Nothing here has been tried on macOS.
+
+## Python (`dev-ui-ai` branch)
+
+`.py` files get real tree-sitter editing support (`python-ts-mode`) and `C-c i p` to actually
+run the current file. A real, found-by-testing gap, not assumed: merely installing the
+grammar is not enough to make `.py` open in `python-ts-mode` --- unlike Rust (which has no
+legacy mode at all, so `auto-mode-alist` already points straight at `rust-ts-mode`), Python
+has a real legacy `python-mode` that `auto-mode-alist` still maps `.py` to by default.
+`python.el` itself registers `(python-mode . python-ts-mode)` in
+`treesit-major-mode-remap-alist`, but that variable is only a catalog --- it is copied into
+`major-mode-remap-alist` (what `set-auto-mode` actually consults) by the
+`treesit-enabled-modes` defcustom's own `:set` function, and `treesit-enabled-modes` defaults
+to nil. Confirmed directly by opening a real `.py` buffer and checking `major-mode` (it came
+back plain `python-mode` until the explicit remap was added) --- an earlier draft of this
+config's own comment assumed Python behaved like Rust and was simply wrong. Fixed the same
+way Java/JS/CSS/HTML already are: `(add-to-list 'major-mode-remap-alist '(python-mode .
+python-ts-mode))`, gated on the grammar being installed.
+
+`C-c i p` (`my/run-python-file`) runs the current buffer's `.py` file with `python3 -u`
+(unbuffered, so output shows up immediately) in Comint mode, same "stdin needs to actually
+work" reasoning as `C-c i t` above --- a program using `input()` would otherwise hang with no
+way to type into it. No separate type-check step the way TypeScript's `C-c i t` has `tsc
+--noEmit`: Python has no universally-installed static checker the way TypeScript always
+ships `tsc` alongside itself (`mypy` is a real, popular choice, but an extra install this
+config does not assume).
+
+No language server wired up yet for Python (no Eglot entry, no `pylsp`/`pyright` installed)
+--- editing support is tree-sitter only for now, the same honest gap the main branches have
+for the web/UI languages before `dev-ui` added real LSP for those. See
+`tests/ert/languages-python.el` for the real checks, including two tests that actually run
+`python3` against a real file and read its real output (a successful run, and a real
+`ZeroDivisionError` traceback).

@@ -57,7 +57,7 @@ custom-emacs-windows-x64/
 ├── emacs/             GNU Emacs 31.1 for Windows, the official unmodified build, with all its libraries
 ├── config/            your settings: early-init.el, init.el, fastfind.el, startpage.el, docsbuffer.el, gitfolders.el
 │   ├── elpa/          Evil, Magit, Treemacs and Consult (and their helpers), compiled by the Windows Emacs
-│   └── tree-sitter/   grammars for Windows: Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON
+│   └── tree-sitter/   grammars for Windows: Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON, Python
 ├── tools/
 │   ├── git/           MinGit 2.55: Git for Magit, with its own small shell
 │   ├── rg/            ripgrep: the fast finder, project text search, and Consult
@@ -105,8 +105,9 @@ right there in that folder) for how each one was sourced and its real license.
 | Whole-disk file index | the whole `/`, minus system folders | the drive of your home folder (normally `C:\`), minus `Windows`, `Program Files`, `ProgramData` and a few noisy `AppData` folders |
 | Java | install a JDK and `jdtls` yourself | `jdtls` **included**; install your own JDK (17+) so `java` is on PATH/JAVA_HOME ([EGLOT.md](EGLOT.md)) |
 | Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain), same as Java's JDK |
-| HTML/CSS/JS/TS/JSX/JSON editing (tree-sitter) | install grammars yourself | **included**: fast highlighting/indent/imenu (see [LANGUAGES.md](LANGUAGES.md)) |
+| HTML/CSS/JS/TS/JSX/JSON/Python editing (tree-sitter) | install grammars yourself | **included**: fast highlighting/indent/imenu (see [LANGUAGES.md](LANGUAGES.md)) |
 | JS/TS/HTML/CSS/Angular language server (`dev-ui-ai` branch) | `tools/node-lsp/`: `npm install` yourself, needs its own Node.js too | **included**: a real Windows-native Node.js runtime plus the language servers, nothing to install ([LANGUAGES.md](LANGUAGES.md)) |
+| Python (`dev-ui-ai` branch) | `python3` already on most systems; `C-c i p` runs the file | **not bundled**: install your own Python 3 so `python3`/`python` is on PATH, same as Java's JDK --- editing (tree-sitter) works either way |
 | `fd` (for Consult's `C-c s f`) | download yourself (no `apt`/`sudo` route; see [SEARCH-OPTIONS.md](SEARCH-OPTIONS.md#9-setting-up-rg-and-fd-again)) | **included** |
 | `pdf-tools` (real searchable/selectable PDFs, replacing `doc-view-mode`) | needs `sudo apt-get install libpoppler-glib-dev` yourself, then restart Emacs | **included**: `epdfinfo.exe` + every DLL it needs, prebuilt --- see [tools/pdf-tools/README.md](../tools/pdf-tools/README.md) |
 
@@ -221,7 +222,7 @@ custom-emacs-linux-x86_64/
 │   │                       gitfolders.el, llm.el, llm-council.el, shortcuts.el, dictate.el
 │   ├── elpa/               Evil, Magit, Treemacs and Consult (and their helpers) -- copied as-is: this is
 │   │                       the exact Emacs that compiled them, unlike the Windows bundle, which must recompile
-│   └── tree-sitter/        grammars: Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON
+│   └── tree-sitter/        grammars: Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON, Python
 ├── tools/
 │   ├── rg                  ripgrep: the fast finder, project text search, and Consult
 │   └── find-repos.sh       finding every git repository (`C-c f p`); falls back from `fd` to plain `find`

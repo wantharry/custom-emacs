@@ -1109,13 +1109,28 @@ docs/PERSPECTIVE.md."
         (jsdoc "https://github.com/tree-sitter/tree-sitter-jsdoc" "v0.23.2")
         (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "typescript/src")
         (tsx "https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "tsx/src")
-        (json "https://github.com/tree-sitter/tree-sitter-json" "v0.23.0")))
+        (json "https://github.com/tree-sitter/tree-sitter-json" "v0.23.0")
+        (python "https://github.com/tree-sitter/tree-sitter-python" "v0.23.6")))
 
-;; Rust: Emacs 32 already opens .rs files in `rust-ts-mode' when its grammar exists.
+;; Rust: Emacs 32 already opens .rs files in `rust-ts-mode' when its grammar exists
+;; --- confirmed directly: Rust has no legacy mode at all, so `auto-mode-alist'
+;; points `.rs' straight at `rust-ts-mode' from the start, nothing to remap.
 ;; Java: .java opens in the older `java-mode' unless remapped, so remap it, but only
 ;; when the grammar is installed (otherwise keep the working classic mode).
 (when (treesit-language-available-p 'java)
   (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode)))
+;; Python: the SAME real gap Java has, not Rust's --- `python.el' unconditionally
+;; maps `.py' to the legacy `python-mode' in `auto-mode-alist', and merely
+;; registering `(python-mode . python-ts-mode)' in `treesit-major-mode-remap-alist'
+;; (which `python.el' already does on its own) does NOT do anything by itself: that
+;; variable is only a CATALOG, copied into the var `set-auto-mode' actually consults
+;; (`major-mode-remap-alist') by the `treesit-enabled-modes' defcustom's own `:set'
+;; function --- and `treesit-enabled-modes' defaults to nil, confirmed directly (a
+;; real, found-by-testing gap: an earlier version of this comment assumed Python
+;; behaved like Rust and was simply wrong, caught by actually opening a `.py' buffer
+;; and checking `major-mode' rather than trusting the plausible-looking assumption).
+(when (treesit-language-available-p 'python)
+  (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode)))
 
 ;; Web/UI languages: same idea as Java.  .ts/.tsx already open in `typescript-ts-mode'/
 ;; `tsx-ts-mode' automatically (core Emacs has no legacy TypeScript mode to fall back to,
@@ -1451,6 +1466,29 @@ file, in `*compilation*', Comint mode (so stdin works, same reasoning as the
                                    (shell-quote-argument node) (shell-quote-argument file))))
     (compile compile-command t)))
 (global-set-key (kbd "C-c i t") #'my/run-ts-file)
+
+;; `C-c i p': run the current buffer's `.py' file --- same request, same Comint-for-
+;; stdin reasoning as `C-c i t' above (a program reading from `input()' would
+;; otherwise hang with no way to type into it). No type-check step the way
+;; TypeScript's `tsc --noEmit' is: Python has no separate, universally-installed
+;; static checker the way TS always ships `tsc' alongside itself (mypy is a real,
+;; popular choice, but an EXTRA install this config does not assume) --- just runs
+;; it directly with `python3', the one interpreter confirmed present everywhere this
+;; config has been tested (WSL's own system Python 3.12). `-u' (unbuffered stdout)
+;; so prints show up in the compile buffer immediately rather than only at exit,
+;; the same real gap buffered output causes in other languages' REPLs/runners.
+(defun my/run-python-file ()
+  "Run the current buffer's `.py' file with `python3', in `*compilation*',
+Comint mode (so stdin via `input()' works)."
+  (interactive)
+  (unless (and buffer-file-name (string-suffix-p ".py" buffer-file-name))
+    (user-error "Not a .py file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (default-directory (file-name-directory buffer-file-name))
+         (python (or (executable-find "python3") (executable-find "python") "python3"))
+         (compile-command (format "%s -u %s" (shell-quote-argument python) (shell-quote-argument file))))
+    (compile compile-command t)))
+(global-set-key (kbd "C-c i p") #'my/run-python-file)
 
 ;;; Clicking through code -------------------------------------------------------
 

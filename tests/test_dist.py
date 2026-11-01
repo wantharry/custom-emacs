@@ -98,7 +98,7 @@ class WindowsBundle(unittest.TestCase):
                   "config/tree-sitter/libtree-sitter-html.dll", "config/tree-sitter/libtree-sitter-css.dll",
                   "config/tree-sitter/libtree-sitter-javascript.dll", "config/tree-sitter/libtree-sitter-jsdoc.dll",
                   "config/tree-sitter/libtree-sitter-typescript.dll", "config/tree-sitter/libtree-sitter-tsx.dll",
-                  "config/tree-sitter/libtree-sitter-json.dll",
+                  "config/tree-sitter/libtree-sitter-json.dll", "config/tree-sitter/libtree-sitter-python.dll",
                   "tools/fonts/README.md", "tools/fonts/IBMPlexMono.ttf", "tools/fonts/licenses/IBMPlexMono-OFL.txt",
                   "tools/fonts/UbuntuMono.ttf", "tools/fonts/licenses/UbuntuMono-UFL.txt",
                   "tools/fonts/Iosevka.ttc", "tools/fonts/licenses/Iosevka-OFL.md",

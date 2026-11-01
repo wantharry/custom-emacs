@@ -229,6 +229,21 @@
     ("Angular CLI (this config, dev-ui branch)" "C-c i a"
      "(no buffer to close; runs in a real compile buffer)"
      (("C-c i a" . "ng generate: pick a schematic (component/service/module/...) and a name")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- type-check and run the current .ts/.tsx
+    ;; file, mirroring the `java' branch's own `C-c J'/`my/run-java-file' (not an
+    ;; ancestor of this branch, so nothing shared, same idea on request); under the
+    ;; `C-c i' prefix rather than a bare letter, at the user's own request, since it
+    ;; belongs with the other npm-ecosystem commands above it. Comint mode (not plain
+    ;; compilation-mode) so stdin actually works, same reasoning as `C-c J' there.
+    ("Run current .ts/.tsx file (this config, dev-ui-ai branch)" "C-c i t"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i t" . "tsc --noEmit then node: type-check and run the current TypeScript file")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- same idea as `C-c i t' above, for Python;
+    ;; no separate type-check step, since Python has no universally-installed static
+    ;; checker the way TypeScript always ships `tsc' alongside itself.
+    ("Run current .py file (this config, dev-ui-ai branch)" "C-c i p"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i p" . "python3 -u: run the current Python file")))
     ;; WHAT/WHY: `dev-ui-ai' branch only --- four AI coding-assistant tools,
     ;; installed side by side to compare (two ghost-text completion, two project-
     ;; wide agentic editing); see docs/AI-TOOLS.md for the full comparison and

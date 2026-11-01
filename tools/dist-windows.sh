@@ -161,6 +161,7 @@ build_grammar jsdoc v0.23.2
 build_grammar typescript v0.23.2 typescript/src tree-sitter-typescript
 build_grammar tsx v0.23.2 tsx/src tree-sitter-typescript
 build_grammar json v0.23.0
+build_grammar python v0.23.6
 
 echo "== launcher (Emacs.exe)"
 "${ZIG[@]}" cc -target x86_64-windows-gnu -municode -O2 -s -Wl,--subsystem,windows \
