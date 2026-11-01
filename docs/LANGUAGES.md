@@ -335,3 +335,22 @@ See `tests/ert/languages-python.el` for the real checks: wiring, two tests that 
 `python3` against a real file and read its real output (a successful run, and a real
 `ZeroDivisionError` traceback), and `--lsp`-only tests that start the real `pylsp` and confirm
 it answers through Eglot.
+
+**The Windows bundle has all of this too**, same reasoning as the Node.js/web-LSP case above:
+a real, genuine Windows-native Python runtime (`tools/python-windows/python.exe`, the OFFICIAL
+"embeddable package" python.org itself publishes for exactly this kind of bundling, MD5-
+verified --- python.org only publishes MD5, not SHA256, for this particular release; stated
+honestly rather than pretended otherwise, HTTPS transport already rules out in-flight
+tampering) plus `pylsp` and its real dependencies (some genuinely compiled: `ujson`, `black`)
+cross-installed for Windows with `pip install --platform win_amd64 --python-version 312
+--implementation cp --abi cp312 --only-binary=:all:`, the same cross-install idea `npm install
+--os=win32 --cpu=x64` already uses for the Node packages --- confirmed directly, every one of
+`pylsp`'s dependencies, including the compiled ones, has a real `win_amd64`/`cp312` wheel on
+PyPI. Two real, found-the-hard-way fixes needed to actually make this work: (1) the embeddable
+package ships with site-packages lookup OFF by default (its own `._pth` file literally says
+"Uncomment to run site.main() automatically") --- fixed by uncommenting `import site` and
+adding `Lib\site-packages` as an explicit search path in that file; (2) cross-installing with
+`--target` (not a real Windows pip run) never generates the small `.exe` launcher pip normally
+builds for a console-script entry point like `pylsp` --- a one-line `pylsp.cmd` (`python.exe -m
+pylsp`) stands in, the same `.cmd`-shim idea the Node-based language servers above already
+needed and for the same underlying reason.

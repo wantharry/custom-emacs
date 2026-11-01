@@ -8,7 +8,8 @@
 # libraries), your settings (config/), Evil and Magit compiled for that Emacs, tree-sitter grammars
 # for Java and Rust, ripgrep, fd, delta, dua, a portable Git (MinGit), a real Windows-native Node.js
 # runtime, and the JS/TS/HTML/CSS/Angular language servers plus the Angular/Nest CLIs built to run
-# under it (dev-ui-ai branch only).  See docs/DISTRIBUTION.md.
+# under it, and a real Windows-native Python embeddable runtime plus pylsp (dev-ui-ai branch only).
+# See docs/DISTRIBUTION.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"; CACHE="$DIST/cache"
@@ -29,6 +30,11 @@ NODE_VERSION="${NODE_VERSION:-26.13.0}"        # same pinned version as tools/no
                                                 # dev-ui-ai branch's JS/TS/HTML/CSS/Angular language
                                                 # servers and the Angular/Nest CLIs below need it to run
 MINGIT_URL="${MINGIT_URL:-https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.12.3}"     # same version as this machine's own system python3 (WSL
+                                                # side), for consistency. The official "embeddable
+                                                # package" --- a real, genuinely portable Windows Python
+                                                # python.org itself publishes specifically for bundling
+                                                # into other applications, not a repackaging done here.
 ZIG=("${ZIG_PYTHON:-$DIST/.venv/bin/python}" -m ziglang)
 [ -x "${ZIG[0]}" ] || { echo "no dist/.venv: run  python3 -m venv dist/.venv && dist/.venv/bin/pip install ziglang patchelf" >&2; exit 1; }
 command -v 7z >/dev/null || { echo "7z is needed to make the zip (sudo apt-get install p7zip-full)" >&2; exit 1; }
@@ -129,6 +135,37 @@ if [ ! -d "$NODE_LSP_WIN/node_modules" ]; then
   ( cd "$NODE_LSP_WIN" && "$ROOT/tools/node/bin/npm" install --os=win32 --cpu=x64 --ignore-scripts --no-audit --no-fund )
 fi
 
+echo "== Python (Windows-native embeddable runtime, for pylsp below)"
+PYTHON_ZIP="python-$PYTHON_VERSION-embed-amd64.zip"
+fetch "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYTHON_ZIP" "$PYTHON_ZIP"
+# python.org publishes MD5 for this file on its own release page, not SHA256 (confirmed directly,
+# not assumed --- newer releases moved to sigstore/GPG signing instead of a SHA256 column, but this
+# one still has the legacy MD5 shown) --- weaker than the SHA256 checks above, stated honestly
+# rather than pretended otherwise; HTTPS transport already rules out in-flight tampering.
+PYTHON_MD5="${PYTHON_MD5:-38cce2bf5b4de76db19a31f46a0720de}"
+[ "$(md5sum "$CACHE/$PYTHON_ZIP" | cut -d' ' -f1)" = "$PYTHON_MD5" ] || { echo "CHECKSUM MISMATCH for $PYTHON_ZIP" >&2; exit 1; }
+echo "   $PYTHON_ZIP matches the MD5 published by python.org"
+
+echo "== pylsp (python-lsp-server), built for Windows (same cross-install idea as the Node packages above)"
+# The embeddable package above has no pip, and (by design) no site-packages lookup until its own
+# `._pth' file is edited --- fixed during assembly, below. Getting `pylsp' and its real dependencies
+# (some genuinely compiled: `ujson', `black') onto Windows works the same way the Node packages
+# above do: pip (>=20ish) can target ANOTHER platform/Python version/ABI's wheels with `--platform'/
+# `--python-version'/`--implementation'/`--abi', combined with `--only-binary=:all:' (refuse to fall
+# back to a source build, which could only ever target THIS machine) --- confirmed directly, every
+# one of pylsp's dependencies, including the compiled ones, has a real `win_amd64'/`cp312' wheel on
+# PyPI. `--target' (not a venv) because the result is copied straight into the embeddable package's
+# own `Lib\site-packages' at assembly time, not installed in place here.
+PYLSP_WIN="$CACHE/pylsp-win32"
+if [ ! -d "$PYLSP_WIN/pylsp" ]; then
+  rm -rf "$PYLSP_WIN"; mkdir -p "$PYLSP_WIN"
+  "$ROOT/tools/python-lsp/.venv/bin/pip" install \
+    --target "$PYLSP_WIN" --platform win_amd64 --python-version 312 --implementation cp --abi cp312 \
+    --only-binary=:all: --no-deps --no-compile \
+    python-lsp-server python-lsp-jsonrpc jedi parso ujson black click mypy_extensions pathspec \
+    packaging platformdirs pluggy docstring-to-markdown typing_extensions importlib_metadata zipp pytokens
+fi
+
 echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
 JDTLS_FILE="$(curl --connect-timeout 30 --max-time 60 -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
@@ -214,6 +251,24 @@ write_cmd_shim ngserver @angular/language-server/bin/ngserver
 write_cmd_shim ng @angular/cli/bin/ng.js
 write_cmd_shim nest @nestjs/cli/bin/nest.js
 write_cmd_shim tsc typescript/bin/tsc   # my/run-ts-file's own type-check step (config/init.el)
+mkdir -p "$STAGE/tools/python-windows"
+unzip -q "$CACHE/$PYTHON_ZIP" -d "$STAGE/tools/python-windows"
+# The embeddable package ships with site-packages lookup OFF by default (its own `._pth' comment:
+# "Uncomment to run site.main() automatically") --- turned on here, plus `Lib\site-packages' added
+# as a real search path, since that is where the cross-installed `pylsp' below actually goes.
+PTH="$STAGE/tools/python-windows/python312._pth"
+{ cat "$PTH"; echo 'Lib\site-packages'; } > "$PTH.new"
+sed -i 's/^#import site/import site/' "$PTH.new"
+mv "$PTH.new" "$PTH"
+mkdir -p "$STAGE/tools/python-windows/Lib/site-packages"
+cp -a "$PYLSP_WIN/." "$STAGE/tools/python-windows/Lib/site-packages/"
+# No `.cmd' shim indirection needed here the way the Node-based servers above need one: `pylsp'
+# is a real console-script entry point, but cross-installing with `--target' (not a real Windows
+# pip run) never generates the little `.exe' launcher pip normally builds for one --- so a single
+# one-line `.cmd' invoking `python.exe -m pylsp' stands in, the module form Eglot's own default
+# `pylsp' lookup already resolves to on PATH via `exec-suffixes' (confirmed earlier this session:
+# `.cmd' is in the Windows default list).
+printf '@echo off\r\n"%%~dp0python.exe" -m pylsp %%*\r\n' > "$STAGE/tools/python-windows/pylsp.cmd"
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
 cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
@@ -292,8 +347,9 @@ Nothing to install, nothing to download. Everything is in this folder:
   config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON and Python
   tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
             Git (for Magit), the Java language server (needs your own JDK 17+ on PATH or
-            JAVA_HOME; not bundled), and a real Node.js runtime plus the JS/TS/HTML/CSS/Angular
-            language servers and the Angular/Nest CLIs (fully bundled, nothing to install)
+            JAVA_HOME; not bundled), a real Node.js runtime plus the JS/TS/HTML/CSS/Angular
+            language servers and the Angular/Nest CLIs, and a real Python runtime plus pylsp
+            (all fully bundled, nothing to install)
   docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
@@ -306,6 +362,8 @@ Rust's rust-analyzer is a separate program and is not included, the same as Java
 JavaScript/JSX/TypeScript/TSX/HTML/CSS/Angular: fully bundled (a real Node.js runtime and the
 language servers themselves), nothing to install --- M-x eglot in a .js/.ts/.tsx/.html/.css file.
 Angular/Nest scaffolding (C-c i a / C-c i n) also work out of the box, same reason.
+Python: fully bundled too (a real Python runtime and pylsp), nothing to install --- M-x eglot
+in a .py file, or C-c i p to run the current file directly.
 Consult (C-c s l/g/f/b) is included and works out of the box: it uses the bundled rg and fd.
 Magit diffs are rendered with delta (bundled) via magit-delta-mode, on by default.
 C-c W browses real disk usage (biggest first) using the bundled dua.

@@ -4250,6 +4250,50 @@ starts the real `pylsp', connects through Eglot, and confirms a genuine
 `docs/LANGUAGES.md''s Python section and `docs/MY-NOTES.md' (both gotchas
 above) updated to match. Committed and pushed to `origin/dev-ui-ai'.
 
+### Follow-up, same session: `pylsp' bundled for Windows too, the same scale of
+real work as the Node.js/web-LSP case
+
+User asked, after Python's WSL-side `pylsp' was confirmed working, to do the
+same for Windows (matching how Node/TS got bundled earlier). A genuine,
+real Windows-native Python runtime: the OFFICIAL "embeddable package"
+python.org itself publishes for exactly this (`tools/python-windows/
+python.exe', version-matched to this machine's own system Python, 3.12.3),
+MD5-verified against python.org's own published checksum --- confirmed
+directly that this particular release page only publishes MD5, not SHA256
+(newer releases moved to sigstore/GPG signing instead); stated honestly in
+both the script and the docs rather than silently treated as equivalent to
+the SHA256 checks everywhere else. `pylsp' and its real dependencies
+(including genuinely compiled ones, `ujson' and `black') cross-installed
+for Windows with `pip install --platform win_amd64 --python-version 312
+--implementation cp --abi cp312 --only-binary=:all:' --- confirmed
+directly, every one of them has a real `win_amd64'/`cp312' wheel on PyPI,
+the same cross-install idea `npm install --os=win32 --cpu=x64' already
+uses for the Node packages.
+
+Two real, found-the-hard-way fixes needed to actually make this work, not
+just "download and ship": (1) the embeddable package ships with
+site-packages lookup OFF by default (its own `._pth' file literally says
+"Uncomment to run site.main() automatically") --- fixed by uncommenting
+`import site' and adding `Lib\site-packages' as an explicit path in that
+file, confirmed with a new, real content-check test
+(`test_python_pth_file_actually_enables_site_packages'); (2) cross-
+installing with `--target' (not a real Windows pip run) never generates
+the small `.exe' launcher pip normally builds for a console-script entry
+point like `pylsp' --- a one-line `pylsp.cmd' (`python.exe -m pylsp')
+stands in, the same `.cmd'-shim idea the Node-based language servers
+already needed. `config/init.el' wires `tools/python-windows' onto
+`exec-path'/`PATH' only inside the real Windows bundle
+(`CUSTOM_EMACS_HOME'), mirroring the Node.js case exactly; nothing needed
+in `eglot-server-programs' itself, since Eglot's own default Python entry
+already looks for `pylsp' by name.
+
+Verified for real: every new file confirmed present in the actual built
+zip with correct content (not just "the build didn't error"), full
+regression suite confirmed at the established 18-failure baseline both
+before and after. `docs/DISTRIBUTION.md' (the Python row, previously
+"not bundled," corrected; the tree diagram) and `docs/LANGUAGES.md' (a
+new paragraph) updated to match. Committed and pushed to `origin/dev-ui-ai'.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

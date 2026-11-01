@@ -1149,6 +1149,25 @@ docs/PERSPECTIVE.md."
   (add-to-list 'exec-path my/python-lsp-bin-dir)
   (setenv "PATH" (concat my/python-lsp-bin-dir path-separator (getenv "PATH"))))
 
+;; The Windows bundle: the same idea as the Node.js/web-LSP case further below, just for
+;; Python --- a real Windows-native Python runtime (`tools/python-windows/python.exe', the
+;; OFFICIAL "embeddable package" python.org itself publishes for exactly this, MD5-verified
+;; the same way the other downloads here are checksum-verified, see tools/dist-windows.sh's
+;; own comment on why MD5 not SHA256 for this one file specifically) plus a SEPARATE,
+;; Windows-targeted install of `pylsp' and its real dependencies (some genuinely compiled:
+;; `ujson', `black') into that runtime's own `Lib\site-packages', built with `pip install
+;; --platform win_amd64 --python-version 312 ...' the same cross-install idea `npm install
+;; --os=win32 --cpu=x64' already uses for the Node packages. `pylsp.cmd' (one line,
+;; `python.exe -m pylsp') stands in for the real console-script `.exe' launcher a normal
+;; Windows pip install would generate but this cross-install cannot. Only exists inside the
+;; actual Windows bundle (`CUSTOM_EMACS_HOME', same mechanism as the Node.js case), so this
+;; never fires in WSL/Linux, where the block just above already covers it.
+(when-let* ((home (and (eq system-type 'windows-nt) (getenv "CUSTOM_EMACS_HOME"))))
+  (let ((python-dir (expand-file-name "tools/python-windows" home)))
+    (when (file-directory-p python-dir)
+      (add-to-list 'exec-path python-dir)
+      (setenv "PATH" (concat python-dir path-separator (getenv "PATH"))))))
+
 ;; Web/UI languages: same idea as Java.  .ts/.tsx already open in `typescript-ts-mode'/
 ;; `tsx-ts-mode' automatically (core Emacs has no legacy TypeScript mode to fall back to,
 ;; so those two fall back to plain `fundamental-mode', not highlighted, until their

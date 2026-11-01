@@ -122,7 +122,10 @@ class WindowsBundle(unittest.TestCase):
                   "tools/node-lsp/bin-windows/vscode-eslint-language-server.cmd",
                   "tools/node-lsp/bin-windows/vscode-markdown-language-server.cmd",
                   "tools/node-lsp/bin-windows/ngserver.cmd", "tools/node-lsp/bin-windows/ng.cmd",
-                  "tools/node-lsp/bin-windows/nest.cmd", "tools/node-lsp/bin-windows/tsc.cmd"]:
+                  "tools/node-lsp/bin-windows/nest.cmd", "tools/node-lsp/bin-windows/tsc.cmd",
+                  "tools/python-windows/python.exe", "tools/python-windows/pylsp.cmd",
+                  "tools/python-windows/python312._pth",
+                  "tools/python-windows/Lib/site-packages/pylsp/__main__.py"]:
             with self.subTest(file=f):
                 self.assertIn(TOP + f, self.names)
 
@@ -137,6 +140,17 @@ class WindowsBundle(unittest.TestCase):
                           "a Linux-only native binding leaked into the Windows bundle")
         self.assertFalse([n for n in self.names if "/node-lsp/node_modules/.bin/" in n],
                           "a POSIX .bin/ symlink entry leaked into the Windows bundle")
+
+    def test_python_pth_file_actually_enables_site_packages(self):
+        # The embeddable package ships with site-packages lookup OFF by default (its own
+        # `._pth' file literally says "Uncomment to run site.main() automatically") ---
+        # without fixing this, `pylsp' would be unreachable even though its files are right
+        # there in `Lib\site-packages'. Guards against tools/dist-windows.sh's own fix for
+        # this regressing silently.
+        pth = self.z.read(TOP + "tools/python-windows/python312._pth").decode()
+        self.assertIn("import site", pth)
+        self.assertNotIn("#import site", pth)
+        self.assertIn("Lib\\site-packages", pth)
 
     def test_settings_are_exactly_the_repo_settings(self):
         for f in CONFIG_FILES:
