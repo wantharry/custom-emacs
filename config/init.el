@@ -1132,6 +1132,23 @@ docs/PERSPECTIVE.md."
 (when (treesit-language-available-p 'python)
   (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode)))
 
+;; Python's real language server, `pylsp' (`python-lsp-server') --- confirmed
+;; directly in Eglot's own source: it ALREADY has a built-in default entry for
+;; `(python-mode python-ts-mode)' that tries `pylsp' first among several
+;; candidates (`pyls', `pyright', `jedi-language-server', `ruff', ...), so
+;; nothing needs registering in `eglot-server-programs' here, unlike the web/UI
+;; languages below --- only getting a real `pylsp' onto `exec-path'/`PATH'.
+;; Installed self-contained into `tools/python-lsp/.venv/' (same "not system-
+;; wide" shape as `tools/node-lsp/'/`tools/aider/' above/below):
+;;   python3 -m venv tools/python-lsp/.venv
+;;   tools/python-lsp/.venv/bin/pip install python-lsp-server
+(defvar my/python-lsp-bin-dir
+  (expand-file-name "../tools/python-lsp/.venv/bin" user-emacs-directory)
+  "Where this branch's own local `pylsp' (python-lsp-server) lives.")
+(when (file-directory-p my/python-lsp-bin-dir)
+  (add-to-list 'exec-path my/python-lsp-bin-dir)
+  (setenv "PATH" (concat my/python-lsp-bin-dir path-separator (getenv "PATH"))))
+
 ;; Web/UI languages: same idea as Java.  .ts/.tsx already open in `typescript-ts-mode'/
 ;; `tsx-ts-mode' automatically (core Emacs has no legacy TypeScript mode to fall back to,
 ;; so those two fall back to plain `fundamental-mode', not highlighted, until their

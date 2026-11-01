@@ -1,13 +1,20 @@
-;;; languages-python.el --- Python tree-sitter mode and C-c i p  -*- lexical-binding: t; -*-
+;;; languages-python.el --- Python tree-sitter mode, C-c i p, and pylsp  -*- lexical-binding: t; -*-
 ;; harness: config
 ;; Grammar-dependent tests skip themselves if the grammar is not installed
-;; (./build.sh grammars).
+;; (./build.sh grammars).  The real pylsp test runs only with RUN_LSP_TESTS=1
+;; (tests/run-all.sh --lsp).
 
-(require 'treesit)
+(require 'treesit) (require 'eglot) (require 'jsonrpc)
 
 (defmacro py-with-grammar (&rest body)
   (declare (indent 0))
   `(progn (skip-unless (treesit-language-available-p 'python)) ,@body))
+
+(defun py--skip-unless-lsp ()
+  (unless (getenv "RUN_LSP_TESTS") (ert-skip "set RUN_LSP_TESTS=1 (run-all.sh --lsp) to start a real server")))
+
+(defmacro py--skip-unless-pylsp-installed ()
+  '(skip-unless (file-directory-p my/python-lsp-bin-dir)))
 
 ;;; .py opens in python-ts-mode, not the legacy python-mode
 
@@ -59,5 +66,53 @@
         (should (string-match-p "ZeroDivisionError" out))
         (should (string-match-p "bad\\.py" out)))
       (kill-buffer "*compilation*"))))
+
+;;; pylsp: wiring and a real server session
+
+(ert-deftest py/pylsp-bin-dir-is-on-exec-path-and-path-when-present ()
+  (py--skip-unless-pylsp-installed)
+  (should (member my/python-lsp-bin-dir exec-path))
+  (should (string-match-p (regexp-quote my/python-lsp-bin-dir) (getenv "PATH"))))
+
+(ert-deftest py/eglot-already-knows-pylsp-by-default-for-python ()
+  ;; Confirmed directly in Eglot's own source, not assumed: it already has a
+  ;; built-in entry for `(python-mode python-ts-mode)' that tries `pylsp' first
+  ;; among several candidates --- nothing to register in `eglot-server-programs'
+  ;; for Python, unlike the web/UI languages, only `pylsp' itself on PATH.
+  (should (assoc '(python-mode python-ts-mode) eglot-server-programs)))
+
+(ert-deftest py/pylsp-answers-through-eglot-with-a-real-go-to-definition ()
+  ;; A real, confirmed round trip: a real `pylsp' process, a real
+  ;; `textDocument/definition' request, jumping from a call site to the actual
+  ;; method definition --- not mocked. `eglot-find-implementation' was tried
+  ;; first while building this and found to be a real pylsp limitation (it
+  ;; answers with nil for `textDocument/implementation', which Eglot's own
+  ;; `cl-ecase' dispatch cannot handle) --- `xref-find-definitions' (`M-.'),
+  ;; the far more commonly used command, is what is actually verified here.
+  (py--skip-unless-lsp) (py--skip-unless-pylsp-installed)
+  (skip-unless (treesit-language-available-p 'python))
+  (test-with-temp-dir d
+    ;; `shapes: list["Shape"]' is NOT decorative --- Jedi (pylsp's own backend) needs
+    ;; the type hint to resolve `s.area()' at all, confirmed directly: an earlier,
+    ;; unannotated version of this same fixture made this test genuinely fail with
+    ;; "No definitions found", a real static-analysis limit (duck typing has no
+    ;; declared type to follow), not a bug in the wiring above it.
+    (test-write-file (concat d "a.py")
+                      "class Shape:\n    def area(self):\n        raise NotImplementedError\n\ndef total(shapes: list[\"Shape\"]):\n    return sum(s.area() for s in shapes)\n")
+    (let ((buf (find-file-noselect (concat d "a.py"))) (eglot-sync-connect t) (eglot-connect-timeout 30))
+      (unwind-protect
+          (with-current-buffer buf
+            (call-interactively #'eglot)
+            (let ((server (eglot-current-server)))
+              (should server)
+              (should (equal (file-name-nondirectory (car (process-command (jsonrpc--process server)))) "pylsp"))
+              (goto-char (point-min))
+              (search-forward "s.area()")
+              (goto-char (match-beginning 0)) (forward-char 2)
+              (call-interactively #'xref-find-definitions)
+              (should (equal (buffer-name) "a.py"))
+              (should (string-match-p "def area" (buffer-substring (line-beginning-position) (line-end-position))))
+              (eglot-shutdown server)))
+        (kill-buffer buf)))))
 
 ;;; languages-python.el ends here

@@ -309,9 +309,29 @@ way to type into it. No separate type-check step the way TypeScript's `C-c i t` 
 ships `tsc` alongside itself (`mypy` is a real, popular choice, but an extra install this
 config does not assume).
 
-No language server wired up yet for Python (no Eglot entry, no `pylsp`/`pyright` installed)
---- editing support is tree-sitter only for now, the same honest gap the main branches have
-for the web/UI languages before `dev-ui` added real LSP for those. See
-`tests/ert/languages-python.el` for the real checks, including two tests that actually run
+**Real LSP support too**: `pylsp` (`python-lsp-server`), installed self-contained into
+`tools/python-lsp/.venv/` (same "not system-wide" shape as `tools/node-lsp/`/`tools/aider/`
+--- `python3 -m venv tools/python-lsp/.venv`, `tools/python-lsp/.venv/bin/pip install
+python-lsp-server`), its `bin/` added to `exec-path`/`PATH`. Confirmed directly in Eglot's
+own source, not assumed: it already has a built-in default entry for `(python-mode
+python-ts-mode)` that tries `pylsp` first among several candidates (`pyls`,
+`basedpyright-langserver`/`pyright-langserver`, `jedi-language-server`, `ruff`/`ruff-lsp`)
+--- nothing to register in `eglot-server-programs` here, unlike the web/UI languages above,
+only getting a real `pylsp` onto `PATH`. `M-x eglot` in a `.py` file connects for real:
+confirmed with a genuine `textDocument/definition` round trip (`M-.` from a call site to the
+real method definition, through a real `pylsp` process). One real, found-by-testing limit
+worth knowing: Jedi (`pylsp`'s own backend) needs a type hint to resolve a call through an
+unannotated parameter at all --- `def f(shapes): return [s.area() for s in shapes]` cannot
+find `area`'s definition with no declared type for `shapes`, while `def f(shapes:
+list["Shape"]): ...` can; this is a genuine Python static-analysis limit (duck typing has no
+declared type to follow), not a wiring bug. `eglot-find-implementation` was also tried and
+found to be a genuine `pylsp` limitation, not a wiring issue: it answers
+`textDocument/implementation` requests with `nil` rather than an empty list, which Eglot's
+own internal dispatch (a `cl-ecase`) cannot handle and errors on --- `M-.`/`M-?` (definitions/
+references) both work correctly; `eglot-find-implementation` specifically does not, on this
+server.
+
+See `tests/ert/languages-python.el` for the real checks: wiring, two tests that actually run
 `python3` against a real file and read its real output (a successful run, and a real
-`ZeroDivisionError` traceback).
+`ZeroDivisionError` traceback), and `--lsp`-only tests that start the real `pylsp` and confirm
+it answers through Eglot.

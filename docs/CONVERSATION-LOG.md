@@ -4211,6 +4211,45 @@ If this comes up again (any future "push to a brand-new GitHub repo" request):
 expect `gh repo create' itself to be blocked regardless of visibility flags,
 and go straight to asking the user to create the empty repo by hand.
 
+### Follow-up, same session: real Python LSP (`pylsp`), not just tree-sitter
+
+User asked, after being told Python only had highlighting (tree-sitter) and
+`C-c i p' to run files, no real Eglot/LSP support at all: whether "grammar
+highlighting" meant Eglot (it does not --- a real conceptual confusion worth
+re-explaining if it comes up with this user again: tree-sitter is
+highlighting/structure only, Eglot is the separate LSP client, and neither
+implies the other), then to actually wire up real Python LSP support.
+
+Installed `pylsp' (`python-lsp-server') self-contained into
+`tools/python-lsp/.venv/' (`python3 -m venv ...' + `pip install
+python-lsp-server', same shape as `tools/node-lsp/'/`tools/aider/'), its
+`bin/' added to `exec-path'/`PATH'. Confirmed directly in Eglot's own
+source, not assumed: it ALREADY has a built-in default entry for
+`(python-mode python-ts-mode)' trying `pylsp' first among several real
+candidates --- nothing to register in `eglot-server-programs', only
+`pylsp' itself needed to exist on PATH, much simpler than the web/UI
+languages' own dispatch logic.
+
+Verified for real, including two genuine findings along the way, neither a
+bug in this config: (1) `eglot-find-implementation' genuinely errors on
+`pylsp' (`cl-ecase failed: nil, ...') --- `pylsp' answers
+`textDocument/implementation' with `nil' instead of an empty list, which
+Eglot's own dispatch cannot handle; `M-.'/`M-?' both work fine on the same
+server, confirmed by switching to those instead. (2) Jedi (`pylsp''s own
+backend) cannot resolve a call through an UNANNOTATED function parameter at
+all --- an unannotated test fixture (`def f(shapes): ...') genuinely failed
+"No definitions found," and only passed once given a real type hint (`def
+f(shapes: list["Shape"]): ...'); this is Python's own duck-typing limit,
+not a server or wiring bug, but easy to mistake for one if a future test
+fixture drops the annotation. New tests added to the existing
+`tests/ert/languages-python.el' (now 8 total): exec-path/PATH wiring, the
+built-in `eglot-server-programs' entry, and a real `--lsp'-gated test that
+starts the real `pylsp', connects through Eglot, and confirms a genuine
+`M-.' jump from a call site to the real method definition.
+
+`docs/LANGUAGES.md''s Python section and `docs/MY-NOTES.md' (both gotchas
+above) updated to match. Committed and pushed to `origin/dev-ui-ai'.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

@@ -57,3 +57,7 @@ __pycache__/
 # package `aidermacs', which drives it) --- same self-contained shape as
 # tools/node-lsp/ and tools/node/ above.
 /tools/aider/.venv/
+
+# Same self-contained shape, for `pylsp' (python-lsp-server), the real Python
+# language server Eglot's own built-in defaults already look for by name.
+/tools/python-lsp/.venv/

@@ -289,7 +289,7 @@ Custom Emacs, portable, for Windows 10/11 (64-bit).
 
 Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
-  config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX and JSON
+  config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON and Python
   tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
             Git (for Magit), the Java language server (needs your own JDK 17+ on PATH or
             JAVA_HOME; not bundled), and a real Node.js runtime plus the JS/TS/HTML/CSS/Angular
