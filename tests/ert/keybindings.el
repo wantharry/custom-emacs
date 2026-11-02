@@ -124,6 +124,7 @@ would see them."
   (when (locate-library "treemacs") (require 'treemacs))
   (when (locate-library "ranger") (require 'ranger))
   (when (locate-library "projectile") (require 'projectile))
+  (require 'eglot)   ; built into Emacs itself, but autoloaded --- never loaded unless required
   (let (bad)
     (dolist (r (kb--rows))
       (let ((cmd (intern (nth 2 r))))

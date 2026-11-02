@@ -244,6 +244,34 @@
     ("Run current .py file (this config, dev-ui-ai branch)" "C-c i p"
      "(no buffer to close; runs in a real compile buffer)"
      (("C-c i p" . "python3 -u: run the current Python file")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- ported from this project's separate
+    ;; `java' branch on request (its own `C-c J'/`my/run-java-file', not present on
+    ;; this branch's own lineage before now). Same "compile then run" idea as
+    ;; `C-c i t'/`C-c i p' above, for a single standalone .java file with no build
+    ;; tool involved.
+    ("Run current .java file (this config, dev-ui-ai branch)" "C-c J"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c J" . "javac then java: compile and run the current Java file")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- Maven goals on a real multi-file project
+    ;; (`C-c J' above only ever handles one file, no classpath), also ported from the
+    ;; `java' branch, under `C-c i' rather than its own original bare `C-c j' at the
+    ;; user's own request: `C-c j' is already `projectile-keymap-prefix' on THIS
+    ;; branch (the `java' branch never installed projectile).
+    ("Maven (this config, dev-ui-ai branch)" "C-c i j"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i j c" . "mvn compile")
+      ("C-c i j t" . "mvn test")
+      ("C-c i j p" . "mvn package")
+      ("C-c i j i" . "mvn install")
+      ("C-c i j C" . "mvn clean")
+      ("C-c i j g" . "mvn, with any goals you type")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- one generic binding, not one per
+    ;; language, to Eglot's own built-in `eglot-format-buffer': already works for
+    ;; TS/JS and Java with zero extra install; Python needed `python-lsp-black'
+    ;; installed alongside `pylsp' to format at all, a real, found-by-testing gap.
+    ("Format buffer (this config, dev-ui-ai branch)" "C-c ="
+     "(no buffer to close)"
+     (("C-c =" . "eglot-format-buffer: needs M-x eglot connected first")))
     ;; WHAT/WHY: `dev-ui-ai' branch only --- four AI coding-assistant tools,
     ;; installed side by side to compare (two ghost-text completion, two project-
     ;; wide agentic editing); see docs/AI-TOOLS.md for the full comparison and

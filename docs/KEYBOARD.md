@@ -346,6 +346,14 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c i a` | `my/ng-generate` | **this config, `dev-ui` branch:** `ng generate` --- pick a schematic (component/service/module/...) and a name |
 | `C-c i t` | `my/run-ts-file` | **this config, `dev-ui-ai` branch:** type-check (`tsc --noEmit`) and run (`node`) the current `.ts`/`.tsx` file |
 | `C-c i p` | `my/run-python-file` | **this config, `dev-ui-ai` branch:** run the current `.py` file with `python3` |
+| `C-c J` | `my/run-java-file` | **this config, `dev-ui-ai` branch:** compile and run the current `.java` file |
+| `C-c i j c` | `my/maven-compile` | **this config, `dev-ui-ai` branch:** `mvn compile` on the real project at the nearest `pom.xml` |
+| `C-c i j t` | `my/maven-test` | **this config, `dev-ui-ai` branch:** `mvn test` |
+| `C-c i j p` | `my/maven-package` | **this config, `dev-ui-ai` branch:** `mvn package` |
+| `C-c i j i` | `my/maven-install` | **this config, `dev-ui-ai` branch:** `mvn install` |
+| `C-c i j C` | `my/maven-clean` | **this config, `dev-ui-ai` branch:** `mvn clean` |
+| `C-c i j g` | `my/maven-goals` | **this config, `dev-ui-ai` branch:** run an arbitrary Maven goals string |
+| `C-c =` | `eglot-format-buffer` | **this config, `dev-ui-ai` branch:** format the current buffer (needs `M-x eglot` connected first; works for TS/JS, Python and Java) |
 | `C-c b` | `copilot-menu` | **this config, `dev-ui-ai` branch:** GitHub Copilot's own menu (chat, diagnose, install/login, NES) --- see docs/AI-TOOLS.md |
 | `C-c A` | `aidermacs-transient-menu` | **this config, `dev-ui-ai` branch:** Aidermacs --- start/manage a session with the real `aider` CLI |
 | `C-c C-'` | `claude-code-ide-menu` | **this config, `dev-ui-ai` branch:** start/resume a Claude Code session for the current project |

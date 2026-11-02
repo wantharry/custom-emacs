@@ -286,6 +286,49 @@ dispatch, the npm/nest/ng commands --- including real `nest generate'/`ng genera
 against real scaffolded projects --- and two tests --- `./build.sh test --lsp' only --- that start the
 real servers and confirm they answer through Eglot).
 
+## Java extras (`dev-ui-ai` branch)
+
+Ported from this project's separate `java' branch on request --- two commands this
+branch's own lineage never had before, plus a real, genuinely zero-install JDK and Maven
+on the Windows bundle specifically (WSL/Linux still use whatever `java'/`javac'/`mvn' are
+already on the system, same as the main "What is set up" table above).
+
+`C-c J' (`my/run-java-file'): compile and run the CURRENT buffer's single `.java' file ---
+`javac FILE && java CLASS', in Comint mode so a program reading `Scanner'/`System.in'
+doesn't just hang with no way to type into it, the same reasoning `C-c i t'/`C-c i p'
+above already need for TypeScript/Python. This is for one standalone file with no
+classpath, not a real multi-file project.
+
+`C-c i j' (Maven): for an actual multi-file project with its own `pom.xml', which already
+declares its own dependencies/classpath/source layout --- re-deriving that by hand would
+just be a worse `mvn'. `C-c i j c'/`i j t'/`i j p'/`i j i'/`i j C' run `mvn compile'/
+`test'/`package'/`install'/`clean'; `C-c i j g' prompts for an arbitrary goals string.
+Under the `C-c i' prefix rather than the `java' branch's own original bare `C-c j', at
+the user's own request: `C-c j' is already `projectile-keymap-prefix' on THIS branch (the
+`java' branch never installed projectile) --- confirmed free live via `key-binding' before
+using it, not just grep, the same lesson learned earlier this session with `C-c z'/`C-c P'.
+
+**The Windows bundle has a real, portable JDK (Eclipse Temurin 21 LTS) and Apache Maven
+too**, not just `jdtls' --- `tools/jdk/', `tools/maven/' (`tools/dist-windows.sh'), both
+downloaded and checksum-verified the same way every other binary in that script is, and
+both added to `PATH' (plus `JAVA_HOME' set) by the launcher (`tools/windows-launcher.c'),
+the same mechanism `tools\node-windows'/`tools\python-windows' above already use.
+`my/bundled-jdk-java'/`my/bundled-jdk-bin' resolve the bundled JDK directly (not just via
+`PATH') the same "skip the probe, use the real file we know is there" pattern
+`my/bundled-jdtls-command' already used for jdtls itself; `my/bundled-maven-bin' does the
+same for `mvn.cmd'. A real build-time bug found and fixed getting this far: Apache's
+`dlcdn.apache.org' only mirrors CURRENT releases and 404s the moment a pinned version
+rotates off it (hit this for real building the bundle) --- fixed by pointing at
+`archive.apache.org' instead, which permanently keeps every released version. `jmods\'
+(81 MB of a ~332 MB unpacked JDK, confirmed directly with `du -sh' --- only needed for
+`jlink' custom runtime images) and `include\' (JNI headers, also unneeded just to run
+`java'/`javac') are deliberately left out of the bundle.
+
+See `tests/ert/languages-java-rust.el' for the real checks, including a real
+`javac'/`java' compile-and-run round trip reading actual stdout, and `tests/test_dist.py'
+for confirming the real built zip actually has `java.exe'/`javac.exe'/`mvn.cmd' and does
+NOT have `jmods\'/`include\'.
+
 ## Known limits
 
 - Highlighting and indentation were checked by tests, **not by eye**; look at a real file.

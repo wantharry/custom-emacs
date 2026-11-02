@@ -93,7 +93,8 @@ class WindowsBundle(unittest.TestCase):
         for f in ["Emacs.exe", "README.txt", "README.md", "emacs/bin/emacs.exe", "emacs/bin/runemacs.exe",
                   "emacs/bin/emacsclient.exe", "emacs/bin/libtree-sitter-0.26.dll",
                   "tools/git/cmd/git.exe", "tools/git/usr/bin/sh.exe", "tools/rg/rg.exe", "tools/fd/fd.exe",
-                  "tools/jdtls/config_win/config.ini", "docs/SEARCHING.md", "docs/EGLOT.md",
+                  "tools/jdtls/config_win/config.ini", "tools/jdk/bin/java.exe", "tools/jdk/bin/javac.exe",
+                  "tools/maven/bin/mvn.cmd", "docs/SEARCHING.md", "docs/EGLOT.md",
                   "config/tree-sitter/libtree-sitter-java.dll", "config/tree-sitter/libtree-sitter-rust.dll",
                   "config/tree-sitter/libtree-sitter-html.dll", "config/tree-sitter/libtree-sitter-css.dll",
                   "config/tree-sitter/libtree-sitter-javascript.dll", "config/tree-sitter/libtree-sitter-jsdoc.dll",
@@ -152,6 +153,17 @@ class WindowsBundle(unittest.TestCase):
         self.assertNotIn("#import site", pth)
         self.assertIn("Lib\\site-packages", pth)
 
+    def test_jdk_skips_jmods_and_include_but_keeps_what_running_java_needs(self):
+        # Ported from this project's separate `java' branch on request: `jmods\' (only
+        # for `jlink' custom runtime images, never needed just to run java/jdtls) and
+        # `include\' (JNI headers, also unneeded here) are deliberately left out ---
+        # `du -sh' on a real unpacked JDK found `jmods\' alone is 81 MB of the ~332 MB
+        # unpacked total. `bin\', `conf\' and `lib\' are what running java actually
+        # touches, `legal\' is kept for the license texts.
+        self.assertFalse([n for n in self.names if "/tools/jdk/jmods/" in n], "jmods/ should not be bundled")
+        self.assertFalse([n for n in self.names if "/tools/jdk/include/" in n], "include/ should not be bundled")
+        self.assertIn(TOP + "tools/jdk/lib/jrt-fs.jar", self.names)
+
     def test_settings_are_exactly_the_repo_settings(self):
         for f in CONFIG_FILES:
             with self.subTest(file=f):
@@ -171,10 +183,14 @@ class WindowsBundle(unittest.TestCase):
                             for n in self.names), "no jdtls launcher jar")
         self.assertTrue(any(n.startswith(TOP + "tools/jdtls/plugins/org.eclipse.jdt.ls.core_") for n in self.names))
 
-    def test_no_jdk_is_bundled(self):
-        # Java needs its own JDK installed, the same as Rust needs rust-analyzer installed;
-        # see my/bundled-jdtls-command in config/init.el.
-        self.assertFalse([n for n in self.names if n.startswith(TOP + "tools/jdk/")], "no tools/jdk/ should be shipped")
+    def test_a_real_jdk_is_bundled(self):
+        # Reversed from this test's own earlier name/assertion (`test_no_jdk_is_bundled`):
+        # ported from this project's separate `java' branch on request, a real portable
+        # JDK (Eclipse Temurin) IS now bundled here, unlike Rust (which still needs its
+        # own `rust-analyzer' installed --- no toolchain for it is bundled at all, not
+        # even the compiler, so there is genuinely nothing analogous to bundle).
+        self.assertTrue(any(n == TOP + "tools/jdk/bin/java.exe" for n in self.names), "tools/jdk/bin/java.exe should be shipped")
+        self.assertTrue(any(n == TOP + "tools/jdk/bin/javac.exe" for n in self.names), "tools/jdk/bin/javac.exe should be shipped")
 
     def test_evil_and_magit_are_there_and_compiled(self):
         for pkg in ["evil", "magit", "magit-section", "with-editor", "llama", "treemacs", "dash", "hydra", "pfuture", "consult", "vertico", "orderless", "marginalia", "embark", "embark-consult"]:
@@ -224,7 +240,14 @@ class WindowsBundle(unittest.TestCase):
     def test_the_zip_has_a_sane_size_and_no_junk(self):
         size = os.path.getsize(ZIP)
         self.assertGreater(size, 60 * 1024 * 1024)
-        self.assertLess(size, 400 * 1024 * 1024)
+        # Raised from 400 MB: a real, expected consequence of this branch now bundling a
+        # full JDK (confirmed directly: the real built zip came in at ~465 MB once the
+        # JDK, Maven, Node.js, the web-LSP packages and the Python runtime/pylsp are all
+        # bundled together) --- not a regression, a real growth in what "zero install"
+        # now covers. 600 MB still catches genuine runaway bloat (an accidentally
+        # unstripped JDK, a stray node_modules, etc.) without failing on the real,
+        # intentional size this branch's own bundle now is.
+        self.assertLess(size, 600 * 1024 * 1024)
         self.assertFalse([n for n in self.names if "__pycache__" in n or n.endswith(".part")])
 
     def test_licenses_travel_with_the_programs(self):

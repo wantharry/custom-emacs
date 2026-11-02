@@ -134,4 +134,37 @@
               (eglot-shutdown server)))
         (kill-buffer buf)))))
 
+;;; C-c =: format the current buffer --- a user request to add "a formatter for
+;;; each language", answered with one generic binding to Eglot's own built-in
+;;; `eglot-format-buffer' rather than one bespoke command per language (confirmed
+;;; directly: typescript-language-server and jdtls already format correctly out of
+;;; the box; pylsp needed `python-lsp-black' installed alongside it to do so at
+;;; all, a real, found-by-testing gap --- `black' itself was already present only
+;;; as an incidental dependency of something else, not wired up as pylsp's own
+;;; formatter plugin).
+
+(ert-deftest py/format-buffer-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c =")) #'eglot-format-buffer)))
+
+(ert-deftest py/pylsp-actually-formats-a-real-messy-python-file-with-black ()
+  ;; A real, confirmed round trip: badly-spaced, double-quote-free Python goes in,
+  ;; real black-formatted Python (consistent spacing, double quotes) comes back out
+  ;; --- not mocked, and specifically proving `python-lsp-black' is active, not
+  ;; just that SOME formatter ran (pylsp's other built-in providers, where
+  ;; present, would not normalize quote style the way black does).
+  (py--skip-unless-lsp) (py--skip-unless-pylsp-installed)
+  (skip-unless (treesit-language-available-p 'python))
+  (test-with-temp-dir d
+    (test-write-file (concat d "messy.py") "def add(a,b):\n    return   a+b\nx={'a':1}\n")
+    (let ((buf (find-file-noselect (concat d "messy.py"))) (eglot-sync-connect t) (eglot-connect-timeout 30))
+      (unwind-protect
+          (with-current-buffer buf
+            (call-interactively #'eglot)
+            (eglot-format-buffer)
+            (let ((out (buffer-string)))
+              (should (string-match-p "def add(a, b):" out))
+              (should (string-match-p "x = {\"a\": 1}" out)))
+            (eglot-shutdown (eglot-current-server)))
+        (kill-buffer buf)))))
+
 ;;; languages-python.el ends here

@@ -1198,20 +1198,37 @@ docs/PERSPECTIVE.md."
 (when (treesit-language-available-p 'json)
   (add-to-list 'major-mode-remap-alist '(js-json-mode . json-ts-mode)))
 
-;; Windows bundle: it carries the Java language server itself (tools\jdtls), but no JDK ---
-;; Java needs one installed, the same way Rust needs rust-analyzer installed (neither is
-;; bundled).  Eglot's own entry looks for a program called `jdtls' (a Python script), so
-;; tell it to start the bundled jdtls with whatever `java' it finds on PATH or JAVA_HOME
-;; instead.  Only used when the launcher (Emacs.exe) says where the bundle is; anywhere
+;; Windows bundle: it carries the Java language server itself (tools\jdtls) AND, ported
+;; from this project's separate `java' branch on request, a real portable JDK (tools\jdk,
+;; Temurin 21 LTS --- see tools/dist-windows.sh) and Maven (tools\maven) too, so Java
+;; genuinely needs zero install on Windows, the same bar the Node/Python bundling above
+;; already set --- not merely "jdtls is here, bring your own JDK" the way this branch had
+;; it before. Eglot's own entry looks for a program called `jdtls' (a Python script), so
+;; tell it to start the bundled jdtls with the bundled `java.exe' directly instead ---
+;; WHY the direct path rather than relying on `executable-find'/`PATH': the launcher
+;; (tools/windows-launcher.c) DOES also put `tools\jdk\bin' on `PATH', so `executable-
+;; find "java"' would likely find it too, but going straight to the known bundled path is
+;; the same "skip the probe, use the real file we know is there" pattern already used for
+;; `magit-git-executable' elsewhere in this file --- one less thing that can go wrong if
+;; the user also has some OTHER `java' earlier on their own `PATH' (an old JRE, a
+;; different JDK) that is older than the 17+ jdtls needs. Falls back to `executable-find'
+;; (then a clear error) for anyone running this config from source, where no JDK is
+;; bundled. Only used when the launcher (Emacs.exe) says where the bundle is; anywhere
 ;; else Eglot's normal entry applies.
 (defun my/bundled-jdtls-dir ()
   (let ((home (getenv "CUSTOM_EMACS_HOME")))
     (and home (expand-file-name "tools/jdtls/" home))))
 
+(defun my/bundled-jdk-java ()
+  (let* ((home (getenv "CUSTOM_EMACS_HOME"))
+         (exe (and home (expand-file-name "tools/jdk/bin/java.exe" home))))
+    (and exe (file-exists-p exe) exe)))
+
 (defun my/bundled-jdtls-command (&rest _)
-  "The command line that runs the bundled jdtls on your own Java (none is bundled)."
+  "The command line that runs the bundled jdtls on the bundled JDK (or your own Java)."
   (let* ((dir (my/bundled-jdtls-dir))
-         (java (or (executable-find "java")
+         (java (or (my/bundled-jdk-java)
+                   (executable-find "java")
                    (user-error "No Java found.  Install a JDK (17+) so `java' is on PATH or JAVA_HOME, then try M-x eglot again")))
          (jar (car (file-expand-wildcards (expand-file-name "plugins/org.eclipse.equinox.launcher_*.jar" dir))))
          (root (file-name-as-directory
@@ -1235,10 +1252,119 @@ docs/PERSPECTIVE.md."
   (with-eval-after-load 'eglot
     (add-to-list 'eglot-server-programs '((java-mode java-ts-mode) . my/bundled-jdtls-command))))
 
+;; `C-c J': compile and run the current buffer's .java file --- ported from this
+;; project's separate `java' branch on request (its own `C-c J'/`my/run-java-file',
+;; not present on this branch's own lineage before now). Uses `compile' (not
+;; `shell-command') deliberately: clickable error locations from `javac', `g' to
+;; re-run, the usual `*compilation*' buffer conventions, for free.
+;; HOW: reuses the same bundled-JDK resolution `my/bundled-jdk-java' already does for
+;; jdtls above (so this works with zero install on this branch's own Windows bundle
+;; too), falling back to whatever `javac'/`java' are already on `PATH' everywhere else
+;; (WSL/Linux, or a machine with its own JDK) --- the same "bundled path first, PATH
+;; second" pattern used for jdtls itself, just generalized to any program name in that
+;; same `tools\jdk\bin\' directory instead of only `java.exe'.
+(defun my/bundled-jdk-bin (name)
+  "Full path to NAME (e.g. \"javac.exe\") in the bundled JDK's bin, or nil."
+  (when-let* ((java (my/bundled-jdk-java)))
+    (expand-file-name name (file-name-directory java))))
+
+(defun my/run-java-file ()
+  "Compile and run the current buffer's .java file, output in `*compilation*'.
+
+Runs in Comint mode (`compile's own second, COMINT argument) rather than
+plain `compilation-mode' --- the same real gap `my/run-ts-file'/`my/run-
+python-file' above already guard against: plain `compile' has no way to
+SEND input to the process, so a program that reads `Scanner'/`System.in'
+would just hang forever with no way to type anything into the buffer."
+  (interactive)
+  (unless (and buffer-file-name (string-suffix-p ".java" buffer-file-name))
+    (user-error "Not a .java file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (class (file-name-sans-extension file))
+         (javac (or (my/bundled-jdk-bin "javac.exe") (executable-find "javac") "javac"))
+         (java (or (my/bundled-jdk-bin "java.exe") (executable-find "java") "java"))
+         (default-directory (file-name-directory buffer-file-name))
+         (compile-command (format "%s %s && %s %s"
+                                   (shell-quote-argument javac) (shell-quote-argument file)
+                                   (shell-quote-argument java) (shell-quote-argument class))))
+    (compile compile-command t)))
+(global-set-key (kbd "C-c J") #'my/run-java-file)
+
+;; `C-c i j': run Maven goals on a real multi-file project (`C-c J' above only ever
+;; handles one file, no classpath) --- also ported from the `java' branch, under the
+;; `C-c i' prefix rather than its own original bare `C-c j' at the user's own request:
+;; `C-c j' is already `projectile-keymap-prefix' on THIS branch (the `java' branch
+;; never installed projectile), confirmed free live via `key-binding' before using it,
+;; not just grep, the same lesson learned earlier this session with `C-c z'/`C-c P'.
+;; WHY `mvn' specifically, not a hand-rolled `javac' classpath walk: a project with a
+;; `pom.xml' already declares its own dependencies/classpath/source layout, which
+;; `mvn' already knows how to read; re-deriving that here would just be a worse `mvn'.
+(defun my/bundled-maven-bin ()
+  "Full path to the bundled Maven's mvn.cmd (this branch's Windows bundle), or nil."
+  (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+              (mvn (expand-file-name "tools/maven/bin/mvn.cmd" home)))
+    (and (file-exists-p mvn) mvn)))
+
+(defun my/maven-command ()
+  "The `mvn' to run: bundled first (see above), then whatever is on PATH."
+  (or (my/bundled-maven-bin) (executable-find "mvn") "mvn"))
+
+(defun my/maven-root ()
+  "The nearest directory above the current file with a pom.xml, or the project
+root."
+  (or (and buffer-file-name (locate-dominating-file buffer-file-name "pom.xml"))
+      (locate-dominating-file default-directory "pom.xml")
+      (and (fboundp 'project-current)
+           (when-let* ((pr (project-current))) (project-root pr)))))
+
+(defun my/maven-run (goals)
+  "Run `mvn GOALS' from the project's pom.xml root, in a Comint compile buffer.
+
+Comint (not plain `compilation-mode'), same reason as `my/run-java-file' above:
+some goals (e.g. `archetype:generate') prompt interactively, and a program a
+test goal runs may read stdin --- plain `compile' cannot send either anything
+typed."
+  (let ((root (my/maven-root)))
+    (unless (and root (file-exists-p (expand-file-name "pom.xml" root)))
+      (user-error "No pom.xml found above this file or project"))
+    (let* ((default-directory root)
+           (compile-command (format "%s %s" (shell-quote-argument (my/maven-command)) goals)))
+      (compile compile-command t))))
+
+(defun my/maven-compile () "Run `mvn compile'." (interactive) (my/maven-run "compile"))
+(defun my/maven-test () "Run `mvn test'." (interactive) (my/maven-run "test"))
+(defun my/maven-package () "Run `mvn package'." (interactive) (my/maven-run "package"))
+(defun my/maven-install () "Run `mvn install'." (interactive) (my/maven-run "install"))
+(defun my/maven-clean () "Run `mvn clean'." (interactive) (my/maven-run "clean"))
+(defun my/maven-goals (goals)
+  "Run an arbitrary Maven GOALS string, e.g. \"clean install -DskipTests\"."
+  (interactive "sMaven goals: ")
+  (my/maven-run goals))
+
+(global-set-key (kbd "C-c i j c") #'my/maven-compile)
+(global-set-key (kbd "C-c i j t") #'my/maven-test)
+(global-set-key (kbd "C-c i j p") #'my/maven-package)
+(global-set-key (kbd "C-c i j i") #'my/maven-install)
+(global-set-key (kbd "C-c i j C") #'my/maven-clean)
+(global-set-key (kbd "C-c i j g") #'my/maven-goals)
+
 ;; Language servers (rust-analyzer, jdtls) are started by hand with M-x eglot and
 ;; never automatically: a JVM-based server takes seconds and a large amount of
 ;; memory, and most editing does not need it.  Skip logging every protocol message.
 (setq eglot-events-buffer-config '(:size 0))
+
+;; `C-c =': format the current buffer --- a user request to add "a formatter for each
+;; language", answered with ONE binding, not one per language: `eglot-format-buffer' is
+;; already a real, generic, built-in Eglot command that works for ANY connected server,
+;; and confirmed directly, not assumed, each of this config's own real language servers
+;; already implements formatting correctly with zero per-language code needed here ---
+;; `typescript-language-server' (TS/JS/JSX/TSX) and `jdtls' (Java) both format correctly
+;; out of the box; `pylsp' (Python) did NOT until `python-lsp-black' was installed
+;; alongside it (confirmed: `black' itself was already present as an incidental
+;; dependency of something else, but not wired up as pylsp's own formatter plugin until
+;; now --- a real, found-by-testing gap, not assumed). `C-c =' needs `M-x eglot'
+;; connected first in that buffer, same as any other Eglot command.
+(global-set-key (kbd "C-c =") #'eglot-format-buffer)
 
 ;; `dev-ui' branch: real LSP support (autocomplete, go-to-definition, diagnostics) for
 ;; the web/UI languages above --- JavaScript/JSX/TypeScript/TSX/HTML/CSS, which the

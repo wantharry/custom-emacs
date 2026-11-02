@@ -22,7 +22,11 @@ FD_VERSION="${FD_VERSION:-10.5.0}"
 DELTA_VERSION="${DELTA_VERSION:-0.19.2}"
 DUA_VERSION="${DUA_VERSION:-2.45.1}"   # my/disk-usage's own backend, config/disk-usage.el
 JDTLS_VERSION="${JDTLS_VERSION:-1.61.0}"      # the Java language server; same version as in WSL here
-                                                # (needs a JDK 21+ on PATH or JAVA_HOME; none is bundled)
+JDK_VERSION="${JDK_VERSION:-21.0.12.1+1}"      # Eclipse Temurin, ported from this project's separate
+                                                # `java' branch on request --- a real, genuine Windows-
+                                                # native JDK, not just "install your own" the way this
+                                                # branch had it before
+MAVEN_VERSION="${MAVEN_VERSION:-3.9.9}"        # also ported from the `java' branch, for `C-c i j'
 NODE_VERSION="${NODE_VERSION:-26.13.0}"        # same pinned version as tools/node/ (WSL-side); UNLIKE
                                                 # jdtls above, this one genuinely gets bundled --- a real
                                                 # portable Windows Node.js zip exists, so there is no
@@ -163,16 +167,41 @@ if [ ! -d "$PYLSP_WIN/pylsp" ]; then
     --target "$PYLSP_WIN" --platform win_amd64 --python-version 312 --implementation cp --abi cp312 \
     --only-binary=:all: --no-deps --no-compile \
     python-lsp-server python-lsp-jsonrpc jedi parso ujson black click mypy_extensions pathspec \
-    packaging platformdirs pluggy docstring-to-markdown typing_extensions importlib_metadata zipp pytokens
+    packaging platformdirs pluggy docstring-to-markdown typing_extensions importlib_metadata zipp pytokens \
+    python-lsp-black
 fi
 
-echo "== Java: the Java language server, but no JDK (Java needs one installed, same as Rust needs rust-analyzer)"
+echo "== Java: the language server, plus a real portable JDK and Maven to run it on"
 JDTLS_BASE="https://download.eclipse.org/jdtls/milestones/$JDTLS_VERSION"
 JDTLS_FILE="$(curl --connect-timeout 30 --max-time 60 -fsSL "$JDTLS_BASE/latest.txt" | tr -d '\r\n')"
 fetch "$JDTLS_BASE/$JDTLS_FILE" "$JDTLS_FILE"
 [ "$(sha256sum "$CACHE/$JDTLS_FILE" | cut -d' ' -f1)" = "$(curl --connect-timeout 30 --max-time 60 -fsSL "$JDTLS_BASE/$JDTLS_FILE.sha256" | cut -d' ' -f1 | tr -d '\r\n')" ] \
   || { echo "CHECKSUM MISMATCH for $JDTLS_FILE" >&2; exit 1; }
 echo "   $JDTLS_FILE matches the checksum published by Eclipse"
+# Eclipse Temurin (Adoptium): a real, official OpenJDK build distributed as a plain .zip
+# (not an installer) specifically for this "unzip and go" use case. Asset/tag naming
+# follows Adoptium's own convention: version "21.0.12.1+1" -> release tag
+# "jdk-21.0.12.1%2B1" (URL-encoded '+') and asset "..._21.0.12.1_1.zip" ('+' -> '_').
+JDK_TAG="jdk-${JDK_VERSION/+/%2B}"
+JDK_ASSET="OpenJDK21U-jdk_x64_windows_hotspot_${JDK_VERSION/+/_}.zip"
+JDK_URL="https://github.com/adoptium/temurin21-binaries/releases/download/$JDK_TAG/$JDK_ASSET"
+fetch "$JDK_URL" "$JDK_ASSET"
+[ "$(sha256sum "$CACHE/$JDK_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$JDK_URL.sha256.txt" | cut -d' ' -f1 | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $JDK_ASSET" >&2; exit 1; }
+echo "   $JDK_ASSET matches the checksum published by Adoptium"
+# Apache Maven: a plain, official .zip (no installer), the same "unzip and go" shape as
+# the JDK above --- Maven itself is pure Java, so it only needs the bundled JDK's `java'
+# on PATH (already true, see the launcher) plus `JAVA_HOME' (set in the launcher too).
+# `archive.apache.org', not `dlcdn.apache.org' --- confirmed directly, not assumed: `dlcdn'
+# only mirrors CURRENT releases and 404s the moment a version rotates off it (hit this for
+# real building this), while `archive.apache.org' permanently keeps every released version,
+# which is the whole point of that server existing.
+MAVEN_ASSET="apache-maven-$MAVEN_VERSION-bin.zip"
+MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_ASSET"
+fetch "$MAVEN_URL" "$MAVEN_ASSET"
+[ "$(sha512sum "$CACHE/$MAVEN_ASSET" | cut -d' ' -f1)" = "$(curl -fsSL "$MAVEN_URL.sha512" | tr -d '\r\n')" ] \
+  || { echo "CHECKSUM MISMATCH for $MAVEN_ASSET" >&2; exit 1; }
+echo "   $MAVEN_ASSET matches the checksum published by Apache"
 
 echo "== tree-sitter grammars for Windows (cross-compiled with zig, same versions as on Linux)"
 mkdir -p "$CACHE/gram"
@@ -212,9 +241,30 @@ unzip -q -j "$CACHE/rg-win.zip" "*/rg.exe" -d "$STAGE/tools/rg"
 unzip -q -j "$CACHE/fd-win.zip" "*/fd.exe" -d "$STAGE/tools/fd"
 unzip -q -j "$CACHE/delta-win.zip" "*/delta.exe" -d "$STAGE/tools/delta"
 unzip -q -j "$CACHE/dua-win.zip" "*/dua.exe" -d "$STAGE/tools/dua"
-# the language server: only the Windows part (it is started with whatever `java' the user has on
-# PATH or JAVA_HOME, no Python needed).  No JDK is bundled: see init.el's my/bundled-jdtls-command.
+# the language server: only the Windows part (it is started on the bundled JDK below, no
+# Python needed --- see init.el's my/bundled-jdtls-command).
 mkdir -p "$STAGE/tools/jdtls" && tar -xzf "$CACHE/$JDTLS_FILE" -C "$STAGE/tools/jdtls" plugins features config_win
+# A real, portable JDK so jdtls (and `C-c J'/`C-c i j') has a `java' to run without
+# installing anything. Skips `jmods\' and `include\' --- confirmed by `du -sh' on the
+# real unpacked JDK that `jmods\' alone is 81 MB of the ~332 MB unpacked total (only for
+# `jlink' custom runtime images, never needed just to RUN java/jdtls) and `include\' is
+# JNI headers for compiling native code against the JDK, also unneeded here; `bin\',
+# `conf\' and `lib\' are what running java actually touches, `legal\' is kept for the
+# license texts. The zip's own top-level entry is the release folder itself
+# ("jdk-21.0.12.1+1/"), so extract to a scratch folder and move its one subfolder into
+# place, the same "strip the top-level dir" idea as the font/MinGit extraction above,
+# giving a flat `tools\jdk\bin\java.exe' like `tools\jdtls'.
+rm -rf "$CACHE/jdk-tmp"; mkdir -p "$CACHE/jdk-tmp"
+unzip -q "$CACHE/$JDK_ASSET" -d "$CACHE/jdk-tmp" "*/bin/*" "*/conf/*" "*/legal/*" "*/lib/*"
+mv "$CACHE"/jdk-tmp/*/ "$STAGE/tools/jdk"
+rm -rf "$CACHE/jdk-tmp"
+# Maven: same "strip the top-level release folder" unzip idiom as the JDK above (the
+# zip's own top-level entry is "apache-maven-$MAVEN_VERSION/"), giving a flat
+# `tools\maven\bin\mvn.cmd'.
+rm -rf "$CACHE/maven-tmp"; mkdir -p "$CACHE/maven-tmp"
+unzip -q "$CACHE/$MAVEN_ASSET" -d "$CACHE/maven-tmp"
+mv "$CACHE"/maven-tmp/*/ "$STAGE/tools/maven"
+rm -rf "$CACHE/maven-tmp"
 mkdir -p "$STAGE/tools/node-lsp/bin-windows"
 # The WHOLE official distribution, not just `node.exe' --- `npm'/`npx' (and the real `npm'
 # package implementing them, under `node_modules/npm/') need to come along too: `ng new'/
@@ -346,19 +396,20 @@ Nothing to install, nothing to download. Everything is in this folder:
   emacs\\   GNU Emacs 31.1 for Windows (official build, unmodified) with its libraries
   config\\  your settings and the packages Evil, Magit, Treemacs and Consult, and tree-sitter grammars for Java, Rust, HTML, CSS, JavaScript/JSX, TypeScript/TSX, JSON and Python
   tools\\   ripgrep and fd (fast search and file finding), delta (nicer Magit diffs), a portable
-            Git (for Magit), the Java language server (needs your own JDK 17+ on PATH or
-            JAVA_HOME; not bundled), a real Node.js runtime plus the JS/TS/HTML/CSS/Angular
-            language servers and the Angular/Nest CLIs, and a real Python runtime plus pylsp
-            (all fully bundled, nothing to install)
+            Git (for Magit), a real Node.js runtime plus the JS/TS/HTML/CSS/Angular language
+            servers and the Angular/Nest CLIs, a real Python runtime plus pylsp, and a real JDK
+            plus Maven and the Java language server (all fully bundled, nothing to install)
   docs\\    every guide, also readable inside Emacs itself: press C-c d
 Keep the folders together; you can move or copy the whole folder anywhere, even a USB stick.
 Your history, backups and saved settings are written in config\\, so put it somewhere you can write.
 
 Notes: this is Emacs 31.1, not the Emacs 32 development build the Linux version uses, and it has no
 native compilation (the official Windows build ships without it), so it runs byte-compiled code.
-Java: the language server (jdtls) is included, but not a JDK --- install one yourself (17+), so
-"java" is on PATH or JAVA_HOME, then M-x eglot in a Java project (definitions, references, etc.).
-Rust's rust-analyzer is a separate program and is not included, the same as Java's JDK.
+Java: fully bundled (a real JDK and Maven, plus the language server) --- M-x eglot in a .java file
+for definitions/references, C-c J to compile and run the current file, C-c i j for Maven goals
+(compile/test/package/install/clean/arbitrary) on a real multi-file project with a pom.xml.
+Rust's rust-analyzer is a separate program and is not included --- editing, hover and diagnostics
+for Rust need your own rust-analyzer; Rust has no bundled compiler/runtime here.
 JavaScript/JSX/TypeScript/TSX/HTML/CSS/Angular: fully bundled (a real Node.js runtime and the
 language servers themselves), nothing to install --- M-x eglot in a .js/.ts/.tsx/.html/.css file.
 Angular/Nest scaffolding (C-c i a / C-c i n) also work out of the box, same reason.

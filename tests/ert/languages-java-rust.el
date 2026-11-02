@@ -292,4 +292,69 @@
       (should (rassq 'my/bundled-jdtls-command eglot-server-programs))
     (should-not (rassq 'my/bundled-jdtls-command eglot-server-programs))))
 
+;;; C-c J: compile and run the current .java file --- ported from this project's
+;;; separate `java' branch on request (its own `C-c J'/`my/run-java-file')
+
+(ert-deftest langs/run-java-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c J")) #'my/run-java-file)))
+
+(ert-deftest langs/run-java-file-errors-clearly-on-a-non-java-buffer ()
+  (test-with-temp-dir d
+    (let ((buffer-file-name (concat d "a.py")))
+      (should-error (my/run-java-file) :type 'user-error))))
+
+(ert-deftest langs/run-java-file-really-compiles-and-runs-a-real-java-file ()
+  ;; A real, confirmed round trip: `javac'/`java' actually run (on WSL, the real system
+  ;; JDK, since no bundled one exists here --- confirmed `my/bundled-jdk-java' falls back
+  ;; correctly), and the real stdout is read back, not mocked.
+  (skip-unless (or (my/bundled-jdk-bin "javac.exe") (executable-find "javac")))
+  (test-with-temp-dir d
+    (test-write-file (concat d "Hello.java")
+                      "public class Hello {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from Java!\");\n    }\n}\n")
+    (let ((buffer-file-name (concat d "Hello.java")) (default-directory d))
+      (my/run-java-file)
+      (with-timeout (20 (error "javac/java did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (should (string-match-p "Hello from Java!" (with-current-buffer "*compilation*" (buffer-string))))
+      (kill-buffer "*compilation*"))))
+
+;;; C-c i j: Maven goals --- also ported from the `java' branch, under the `C-c i'
+;;; prefix rather than its own original bare `C-c j' at the user's own request:
+;;; `C-c j' is already `projectile-keymap-prefix' on THIS branch (the `java' branch
+;;; never installed projectile), confirmed free live via `key-binding' before using it.
+
+(ert-deftest langs/maven-keys-are-bound ()
+  (should (eq (key-binding (kbd "C-c i j c")) #'my/maven-compile))
+  (should (eq (key-binding (kbd "C-c i j t")) #'my/maven-test))
+  (should (eq (key-binding (kbd "C-c i j p")) #'my/maven-package))
+  (should (eq (key-binding (kbd "C-c i j i")) #'my/maven-install))
+  (should (eq (key-binding (kbd "C-c i j C")) #'my/maven-clean))
+  (should (eq (key-binding (kbd "C-c i j g")) #'my/maven-goals))
+  ;; `C-c j' itself must still be projectile's own prefix, unclobbered
+  (should (eq (key-binding (kbd "C-c j")) 'projectile-command-map)))
+
+(ert-deftest langs/maven-root-finds-the-nearest-real-pom-xml ()
+  (test-with-temp-dir d
+    (test-write-file (concat d "pom.xml") "<project></project>")
+    (make-directory (concat d "src/main/java/com/example") t)
+    (let ((buffer-file-name (concat d "src/main/java/com/example/App.java"))
+          (default-directory (concat d "src/main/java/com/example/")))
+      (should (equal (expand-file-name (my/maven-root)) (expand-file-name d))))))
+
+(ert-deftest langs/maven-run-errors-clearly-with-no-pom-xml ()
+  (test-with-temp-dir d
+    (let ((buffer-file-name (concat d "a.java")) (default-directory d))
+      (should-error (my/maven-run "compile") :type 'user-error))))
+
+(ert-deftest langs/maven-command-prefers-a-bundled-mvn-over-path ()
+  ;; Same "bundled path first, PATH second" pattern already confirmed for
+  ;; `my/bundled-jdtls-command' above --- only exercised when `CUSTOM_EMACS_HOME'
+  ;; points at a real bundle, which WSL/Linux never sets, so this is a real,
+  ;; confirmed round trip on Windows and a correctly-skipped no-op everywhere else.
+  (if (and (eq system-type 'windows-nt) (getenv "CUSTOM_EMACS_HOME"))
+      (let ((mvn (expand-file-name "tools/maven/bin/mvn.cmd" (getenv "CUSTOM_EMACS_HOME"))))
+        (skip-unless (file-exists-p mvn))
+        (should (equal (my/maven-command) mvn)))
+    (should (equal (my/maven-command) (or (executable-find "mvn") "mvn")))))
+
 ;;; languages-java-rust.el ends here

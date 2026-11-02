@@ -64,7 +64,9 @@ custom-emacs-windows-x64/
 │   ├── fd/            fd: file finding for Consult (`C-c s f`) and for finding git repositories (`C-c f p`)
 │   ├── fonts/         all 20 `C-c F` fonts, real files --- select them all, right-click, Install (see tools/fonts/README.md)
 │   ├── pdf-tools/     epdfinfo.exe + every DLL it needs, real PDF text/search with zero install (see tools/pdf-tools/README.md)
-│   ├── jdtls/         the Java language server (needs your own JDK 17+ on PATH/JAVA_HOME; not bundled)
+│   ├── jdtls/         the Java language server
+│   ├── jdk/           a real portable JDK (Eclipse Temurin 21 LTS), so jdtls/`C-c J`/`C-c i j` need zero install (dev-ui-ai branch only)
+│   ├── maven/         Apache Maven, for `C-c i j` on a real multi-file project (dev-ui-ai branch only)
 │   ├── node-windows/  a real Windows-native Node.js runtime (dev-ui-ai branch only)
 │   ├── node-lsp/      the JS/TS/HTML/CSS/Angular language servers + Angular/Nest CLIs, built for Windows (dev-ui-ai branch only)
 │   └── python-windows/  a real Windows-native Python runtime (the official embeddable package) plus pylsp and its dependencies, built for Windows (dev-ui-ai branch only)
@@ -104,7 +106,7 @@ right there in that folder) for how each one was sourced and its real license.
 | Speed | startup 0.05 s (measured, headless) | 0.23 s until the window is ready, measured in a real window |
 | Line endings for new files | LF | LF: the config sets UTF-8 with LF on Windows (Windows Emacs would otherwise write CRLF). Files that already have CRLF keep them |
 | Whole-disk file index | the whole `/`, minus system folders | the drive of your home folder (normally `C:\`), minus `Windows`, `Program Files`, `ProgramData` and a few noisy `AppData` folders |
-| Java | install a JDK and `jdtls` yourself | `jdtls` **included**; install your own JDK (17+) so `java` is on PATH/JAVA_HOME ([EGLOT.md](EGLOT.md)) |
+| Java | install a JDK and `jdtls` yourself | **fully included**: a real JDK, Maven and `jdtls` (`dev-ui-ai` branch) --- nothing to install ([EGLOT.md](EGLOT.md)) |
 | Rust | install a toolchain and `rust-analyzer` | not included (it needs a Rust toolchain), same as Java's JDK |
 | HTML/CSS/JS/TS/JSX/JSON/Python editing (tree-sitter) | install grammars yourself | **included**: fast highlighting/indent/imenu (see [LANGUAGES.md](LANGUAGES.md)) |
 | JS/TS/HTML/CSS/Angular language server (`dev-ui-ai` branch) | `tools/node-lsp/`: `npm install` yourself, needs its own Node.js too | **included**: a real Windows-native Node.js runtime plus the language servers, nothing to install ([LANGUAGES.md](LANGUAGES.md)) |
@@ -255,7 +257,7 @@ folder and project history, backups, anything `M-x customize` saves. Keep the fo
 | Packages | compiled here | **copied as-is**: no recompiling needed, since it is the exact same Emacs that built them | recompiled: a different Emacs (31.1) runs them |
 | `git` (for Magit) | your system's | **your system's** (not bundled; almost always already installed on Linux) | bundled (MinGit) |
 | `fd` (Consult's `C-c s f`) | your system's, if installed | **your system's, if installed**; `C-c f p`'s own script falls back to plain `find` if not | bundled |
-| Java language server (`jdtls`) | install yourself | **not bundled yet** (install `jdtls` yourself, or just use the Linux build directly) | bundled (bring your own JDK) |
+| Java language server (`jdtls`) | install yourself | **not bundled yet** (install `jdtls` yourself, or just use the Linux build directly) | bundled, with a real JDK and Maven too (`dev-ui-ai` branch) |
 | Rust (`rust-analyzer`) | install yourself | not bundled, same as Java's JDK | not bundled, same as Java's JDK |
 
 The Linux bundle's one real gap next to the Windows one, today, is the Java language server: the Windows
@@ -409,7 +411,7 @@ Gatekeeper dialog; if it ever appears anyway, right-click `Emacs.app` > Open onc
 | Native compilation | yes | no (official Windows build has none) | **yes** |
 | GUI toolkit | GTK (pgtk) | native Win32 | native Cocoa (NS) |
 | `git` (for Magit) | your system's | bundled (MinGit) | your system's (Xcode Command Line Tools) |
-| Java language server (`jdtls`) | not bundled yet | bundled (bring your own JDK) | not bundled (install yourself) |
+| Java language server (`jdtls`) | not bundled yet | bundled, with a real JDK and Maven too (`dev-ui-ai` branch) | not bundled (install yourself) |
 | Rust (`rust-analyzer`) | not bundled | not bundled | not bundled |
 
 ### What was verified

@@ -4381,6 +4381,102 @@ tsconfig section and the `pylsp' PATH-ordering note), `docs/AI-TOOLS.md'
 entry, general enough to apply to any future narrow single-tool venv
 added the same way) updated to match.
 
+### Follow-up, same session: the separate `java` branch's Java tooling ported into
+`dev-ui-ai` (real bundled JDK + Maven, not "bring your own"), plus one generic
+formatter binding for every language touched this session
+
+User asked to port just the `java` branch's Java-specific work into `dev-ui-ai`
+(explicitly not `lsp-java`, a different branch). `git diff main java --stat`
+showed 310 files different, mostly unrelated pdf-tools/font work that had
+evolved separately on each branch --- a real `git merge` would have dragged
+all of that in, so the actual Java pieces were extracted by hand instead
+(`git show java:config/init.el`, `git show java:tools/dist-windows.sh`) and
+adapted onto `dev-ui-ai''s current state rather than copied verbatim.
+`dev-ui-ai` already had `jdtls` bundled (inherited from `dev-ui`) but no
+bundled JDK, no `my/run-java-file`, and no Maven --- those three were the
+real gap.
+
+Added `my/bundled-jdk-java` (finds a bundled `tools/jdk/bin/java.exe` via
+`CUSTOM_EMACS_HOME`) and made `my/bundled-jdtls-command` prefer it over
+whatever `java` happens to be on `PATH`; `my/run-java-file` (`C-c J`,
+matching the `java` branch's own key, confirmed free live first) compiles
+with `javac` and runs with `java`, mirroring `my/run-ts-file`/
+`my/run-python-file`. Added the full Maven block (`my/maven-root`,
+`my/maven-command`, `my/maven-run`, `my/maven-compile/test/package/
+install/clean/goals`) --- the `java` branch bound these to bare `C-c j`,
+which is already `projectile-keymap-prefix` on `dev-ui-ai` (confirmed live
+via `key-binding`, not grep, before reusing anything); moved Maven under
+the existing `C-c i` project-tooling prefix instead, `C-c i j <letter>`.
+Confirmed directly, not assumed, that `my/maven-root''s own path (used only
+to set `default-directory`) does NOT need the same `~`-expansion fix the
+TS tsconfig bug needed two follow-ups ago --- Emacs expands
+`default-directory` itself when spawning a subprocess, unlike a quoted CLI
+argument.
+
+Real Windows bundling, same scale as the earlier Node/TS and Python work:
+Eclipse Temurin JDK 21 (SHA256-verified against Adoptium's own
+`.sha256.txt`) and Apache Maven (SHA512-verified), with `jmods/`
+(81MB of ~332MB unpacked, only needed for `jlink`) and `include/` (JNI
+headers, unneeded) deliberately excluded --- the same size reasoning
+ported from the `java` branch, confirmed with `du -sh`, not assumed. One
+real build-time 404 found and fixed: Maven 3.9.9 doesn't exist on
+`dlcdn.apache.org` (that CDN only mirrors the CURRENT release of a
+project); switched to `archive.apache.org`, which permanently hosts every
+version, confirmed both the zip and its `.sha512` exist there first.
+`tools/windows-launcher.c` updated to prepend `tools\jdk\bin` and
+`tools\maven\bin` to `PATH` and set `JAVA_HOME` (Maven's own `mvn.cmd`
+prefers `%JAVA_HOME%\bin\java.exe` when set, confirmed in its source).
+`tests/test_dist.py''s `test_no_jdk_is_bundled` --- a stale assertion from
+the old "bring your own JDK" design --- flipped to
+`test_a_real_jdk_is_bundled`; the zip's size ceiling raised from 400MB to
+600MB, documented as a real, expected consequence of bundling
+JDK+Maven+Node+Python all together (confirmed actual built size ~465MB,
+not just raised blindly).
+
+**Then, mid-turn, user asked to "add a formatter for each language"**:
+checked each language directly before building anything bespoke --- a
+real round trip against deliberately messy `.ts'/`.java' files confirmed
+`typescript-language-server` and `jdtls` both already implement LSP
+`textDocument/formatting` correctly out of the box, zero extra install.
+`pylsp` did NOT: confirmed via a real `ModuleNotFoundError` for both
+`autopep8` (pylsp's own documented default) and `pylsp_black` that
+NEITHER was installed, even though `black` itself was already present ---
+only as an incidental transitive dependency of something else, never
+wired up as pylsp's actual formatter plugin. Fixed by installing the real
+`python-lsp-black` package (the WSL venv, plus the Windows cross-install
+list, clearing the stale `dist/cache/pylsp-win32` cache dir so a rebuild
+actually picks up the new package instead of reusing the old one). Added
+ONE generic binding, `C-c =` &rarr; `eglot-format-buffer`, rather than a
+bespoke formatter command per language, since Eglot's own built-in
+command already works universally once any server is connected. New
+tests in `languages-python.el` (a real round trip: badly-spaced,
+single-quoted Python in, correctly black-formatted double-quoted Python
+out --- specifically proving `python-lsp-black` is active, not just that
+some formatter ran). One small test-harness gap found immediately after:
+`eglot-format-buffer` is autoloaded, part of core Emacs but never
+`require`d until used (Eglot never auto-starts by this config's own
+design) --- `keys/every-documented-command-exists` didn't recognize it as
+a command until a bare `(require 'eglot)` was added to that test,
+mirroring its existing require-list pattern for other optional packages.
+
+`tests/ert/languages-java-rust.el` (new: `run-java-key-is-bound`,
+a real `javac`/`java` round trip, Maven key/root/command tests, 38 total),
+`tests/ert/languages-python.el` (new: format-buffer-key-is-bound, the
+real pylsp+black round trip, 11 total), `config/shortcuts.el` (Java
+run-file, Maven, and Format-buffer entries), `docs/KEYBOARD.md`, a new
+"Java extras (`dev-ui-ai` branch)" section in `docs/LANGUAGES.md`
+documenting `C-c J`/`C-c i j`/the bundled JDK+Maven (including the
+`dlcdn`&rarr;`archive.apache.org` fix), and `docs/DISTRIBUTION.md` (three
+Java rows flipped from "bring your own JDK" to the real bundled one, plus
+the tree diagram) all updated to match. `docs/MY-NOTES.md` got a new
+section covering the TS5112/`~`-path fixes, the pylsp-formatter gap, the
+diverged-branch-porting approach, and the `dlcdn`/`archive.apache.org`
+fix. Full regression suite confirmed clean at the established 18-failure
+baseline (1234/1284 passing; every one of the 18 is a pre-existing,
+machine-load-sensitive `does-not-slow-startup` test or a known flaky
+category --- doom-modeline/treemacs loading races, a live-server network
+test --- none touching Java/Python/TypeScript/keybindings/shortcuts).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
