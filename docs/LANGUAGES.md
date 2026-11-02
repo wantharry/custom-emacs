@@ -299,6 +299,14 @@ doesn't just hang with no way to type into it, the same reasoning `C-c i t'/`C-c
 above already need for TypeScript/Python. This is for one standalone file with no
 classpath, not a real multi-file project.
 
+A real, user-hit bug, not assumed: a file with a real `package com.foo.bar;'
+declaration (the normal case for any actual project, not an edge case) used to fail
+with `NoClassDefFoundError: CLASS (wrong name: com/foo/bar/CLASS)', since running
+`java' with the bare class name from the file's own directory only works for the
+default (unnamed) package. Fixed: `my/run-java-file' now detects the `package'
+declaration and compiles/runs from the real source root with the fully-qualified
+class name (`java -cp SOURCE-ROOT com.foo.bar.CLASS') instead.
+
 `C-c i j' (Maven): for an actual multi-file project with its own `pom.xml', which already
 declares its own dependencies/classpath/source layout --- re-deriving that by hand would
 just be a worse `mvn'. `C-c i j c'/`i j t'/`i j p'/`i j i'/`i j C' run `mvn compile'/

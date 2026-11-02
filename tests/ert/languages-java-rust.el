@@ -318,6 +318,35 @@
       (should (string-match-p "Hello from Java!" (with-current-buffer "*compilation*" (buffer-string))))
       (kill-buffer "*compilation*"))))
 
+(ert-deftest langs/run-java-file-really-compiles-and-runs-a-real-file-with-a-package ()
+  ;; A real, user-hit bug, not assumed: a bare `javac file.java && java Class', run
+  ;; from the file's own directory, only works for the default package --- any real
+  ;; `package com.foo.bar;' file (confirmed live on the user's own machine, running
+  ;; `C-c J' against a real `coding-languages/java' file) fails with a real
+  ;; `NoClassDefFoundError: Class (wrong name: com/foo/bar/Class)'. This test puts the
+  ;; file on disk at the real matching package directory structure (`com/example/pkg/
+  ;; Hello.java', not just a bare file in an empty temp dir) and confirms the actual
+  ;; fully-qualified run succeeds.
+  (skip-unless (or (my/bundled-jdk-bin "javac.exe") (executable-find "javac")))
+  (test-with-temp-dir d
+    (let ((pkg-dir (concat d "com/example/pkg/")))
+      (make-directory pkg-dir t)
+      (test-write-file (concat pkg-dir "Hello.java")
+                        "package com.example.pkg;\n\npublic class Hello {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from a real package!\");\n    }\n}\n")
+      (let ((buffer-file-name (concat pkg-dir "Hello.java")) (default-directory pkg-dir))
+        (my/run-java-file)
+        (with-timeout (20 (error "javac/java did not finish in time"))
+          (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+        (should (string-match-p "Hello from a real package!" (with-current-buffer "*compilation*" (buffer-string))))
+        (kill-buffer "*compilation*")))))
+
+(ert-deftest langs/java-file-package-detects-a-real-package-declaration ()
+  (test-with-temp-dir d
+    (test-write-file (concat d "Plain.java") "public class Plain {}\n")
+    (should-not (my/java-file-package (concat d "Plain.java")))
+    (test-write-file (concat d "Pkg.java") "package com.example.pkg;\n\npublic class Pkg {}\n")
+    (should (equal (my/java-file-package (concat d "Pkg.java")) "com.example.pkg"))))
+
 ;;; C-c i j: Maven goals --- also ported from the `java' branch, under the `C-c i'
 ;;; prefix rather than its own original bare `C-c j' at the user's own request:
 ;;; `C-c j' is already `projectile-keymap-prefix' on THIS branch (the `java' branch

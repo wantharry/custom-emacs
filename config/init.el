@@ -1268,6 +1268,20 @@ docs/PERSPECTIVE.md."
   (when-let* ((java (my/bundled-jdk-java)))
     (expand-file-name name (file-name-directory java))))
 
+(defun my/java-file-package (file)
+  "FILE's declared `package' name, or nil for the default package.
+
+Reads FILE's own content on disk (not the current buffer, which may not
+even be visiting it --- `my/run-java-file' is exercised in tests the same
+way `my/run-ts-file'/`my/run-python-file' are, by let-binding `buffer-file-
+name' alone) --- the first 4KB is always enough, since `package' must be
+the first real statement in any `.java' file."
+  (with-temp-buffer
+    (insert-file-contents file nil 0 4096)
+    (goto-char (point-min))
+    (when (re-search-forward "^[ \t]*package[ \t]+\\([A-Za-z0-9_.]+\\)[ \t]*;" nil t)
+      (match-string 1))))
+
 (defun my/run-java-file ()
   "Compile and run the current buffer's .java file, output in `*compilation*'.
 
@@ -1275,18 +1289,37 @@ Runs in Comint mode (`compile's own second, COMINT argument) rather than
 plain `compilation-mode' --- the same real gap `my/run-ts-file'/`my/run-
 python-file' above already guard against: plain `compile' has no way to
 SEND input to the process, so a program that reads `Scanner'/`System.in'
-would just hang forever with no way to type anything into the buffer."
+would just hang forever with no way to type anything into the buffer.
+
+A real, user-hit bug, not assumed: a bare `javac file.java && java Class',
+run from the file's own directory, only works for the default (unnamed)
+package --- any real `package com.foo.bar;' file (the normal case for any
+actual project, not an edge case) fails with a real, confirmed
+`NoClassDefFoundError: Class (wrong name: com/foo/bar/Class)', since `java'
+needs the fully-qualified name run with the package's real SOURCE ROOT as
+its classpath, not the file's own directory with the bare name. Fixed by
+detecting the `package' declaration (`my/java-file-package') and walking up
+one directory per package segment from the file to find that root."
   (interactive)
   (unless (and buffer-file-name (string-suffix-p ".java" buffer-file-name))
     (user-error "Not a .java file"))
-  (let* ((file (file-name-nondirectory buffer-file-name))
-         (class (file-name-sans-extension file))
+  (let* ((package (my/java-file-package buffer-file-name))
+         (class (file-name-sans-extension (file-name-nondirectory buffer-file-name)))
+         (fq-class (if package (concat package "." class) class))
+         (source-root (expand-file-name
+                       (let ((dir (file-name-directory buffer-file-name)))
+                         (dotimes (_ (length (split-string (or package "") "\\." t)))
+                           (setq dir (file-name-directory (directory-file-name dir))))
+                         dir)))
          (javac (or (my/bundled-jdk-bin "javac.exe") (executable-find "javac") "javac"))
          (java (or (my/bundled-jdk-bin "java.exe") (executable-find "java") "java"))
-         (default-directory (file-name-directory buffer-file-name))
-         (compile-command (format "%s %s && %s %s"
-                                   (shell-quote-argument javac) (shell-quote-argument file)
-                                   (shell-quote-argument java) (shell-quote-argument class))))
+         (default-directory source-root)
+         (compile-command (format "%s %s && %s -cp %s %s"
+                                   (shell-quote-argument javac)
+                                   (shell-quote-argument (expand-file-name buffer-file-name))
+                                   (shell-quote-argument java)
+                                   (shell-quote-argument source-root)
+                                   (shell-quote-argument fq-class))))
     (compile compile-command t)))
 (global-set-key (kbd "C-c J") #'my/run-java-file)
 

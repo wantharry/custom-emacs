@@ -4477,6 +4477,34 @@ machine-load-sensitive `does-not-slow-startup` test or a known flaky
 category --- doom-modeline/treemacs loading races, a live-server network
 test --- none touching Java/Python/TypeScript/keybindings/shortcuts).
 
+### Follow-up, same session: a real bug the user hit immediately trying `C-c J` for
+real --- Java's default-package assumption
+
+User ran `C-c J` against a real `coding-languages/java` file with a genuine
+`package com.interviewprep.collections;` declaration and hit `Error: Could
+not find or load main class CollectionsDemo` /
+`NoClassDefFoundError: CollectionsDemo (wrong name: com/interviewprep/
+collections/CollectionsDemo)` --- the exact same SHAPE of gap as the TS5112
+bug earlier this session: `my/run-java-file''s only test coverage was a bare
+standalone file in an empty temp dir (the default/unnamed package), never a
+file with a real `package' declaration, even though that is the normal case
+for any actual project. `javac file.java && java Class`, run from the
+file's own directory, only works for the default package --- `java` needs
+the fully-qualified class name run with the package's real source root on
+the classpath. Reproduced directly first (a real `package com.example.pkg;`
+file in `/tmp`, confirmed the exact same error, then confirmed the fix:
+compiling/running from the actual source root with `java -cp SOURCE-ROOT
+com.example.pkg.Class` works). Fixed by adding `my/java-file-package`
+(reads the file's own content on disk, not the current buffer --- this
+matters because the test harness, like `my/run-ts-file''s own tests,
+exercises `my/run-java-file' by let-binding `buffer-file-name' alone,
+without actually visiting the file) and walking up one directory per
+package segment to find the real root. New tests in
+`tests/ert/languages-java-rust.el`: a real round trip with the file placed
+at a REAL matching `com/example/pkg/Hello.java` directory structure, and a
+direct `my/java-file-package` unit test (default package vs. a real
+declared one). `docs/LANGUAGES.md` and `docs/MY-NOTES.md` updated.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
