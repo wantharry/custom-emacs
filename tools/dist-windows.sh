@@ -320,7 +320,7 @@ cp -a "$PYLSP_WIN/." "$STAGE/tools/python-windows/Lib/site-packages/"
 # `.cmd' is in the Windows default list).
 printf '@echo off\r\n"%%~dp0python.exe" -m pylsp %%*\r\n' > "$STAGE/tools/python-windows/pylsp.cmd"
 cp "$CACHE/Emacs.exe" "$STAGE/Emacs.exe"
-cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el} "$STAGE/config/"
+cp "$ROOT"/config/{early-init.el,init.el,fastfind.el,startpage.el,docsbuffer.el,gitfolders.el,llm.el,llm-council.el,shortcuts.el,dictate.el,emacs-session.el,calendar-year.el,mode-reference.el,disk-usage.el,ai-tools.el,synonyms.el,typing-game.el} "$STAGE/config/"
 # text only (not docs/images/): the *docs* buffer (C-c d) reads these at the same relative
 # layout as the git repository, so no code needs to know it is running from a bundle
 cp "$ROOT/README.md" "$STAGE/README.md"
