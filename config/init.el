@@ -1696,6 +1696,24 @@ assumed, against a real project with a real strict `tsconfig.json'."
     (compile compile-command t)))
 (global-set-key (kbd "C-c i t") #'my/run-ts-file)
 
+;; `C-c i s': run the current buffer's `.js'/`.jsx' file --- same request as `.ts'
+;; above ("how do I run a JavaScript file"), confirmed `C-c i s' free live via
+;; `key-binding' before using it, not just grep. No type-check step: plain JS has no
+;; `tsc' to run against it at all, unlike the `.ts' case above. Just `node FILE', in
+;; Comint mode for the same stdin reason every run-file command above needs it.
+(defun my/run-js-file ()
+  "Run the current buffer's `.js'/`.jsx' file with `node', in `*compilation*',
+Comint mode (so stdin works, same reasoning as `my/run-ts-file')."
+  (interactive)
+  (unless (and buffer-file-name (string-match-p "\\.jsx?\\'" buffer-file-name))
+    (user-error "Not a .js or .jsx file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (default-directory (file-name-directory buffer-file-name))
+         (node (or (executable-find "node") "node"))
+         (compile-command (format "%s %s" (shell-quote-argument node) (shell-quote-argument file))))
+    (compile compile-command t)))
+(global-set-key (kbd "C-c i s") #'my/run-js-file)
+
 ;; `C-c i p': run the current buffer's `.py' file --- same request, same Comint-for-
 ;; stdin reasoning as `C-c i t' above (a program reading from `input()' would
 ;; otherwise hang with no way to type into it). No type-check step the way
@@ -1706,15 +1724,34 @@ assumed, against a real project with a real strict `tsconfig.json'."
 ;; config has been tested (WSL's own system Python 3.12). `-u' (unbuffered stdout)
 ;; so prints show up in the compile buffer immediately rather than only at exit,
 ;; the same real gap buffered output causes in other languages' REPLs/runners.
+(defun my/bundled-python-windows ()
+  "Full path to the bundled Windows embeddable `python.exe' (this branch's Windows
+bundle), or nil."
+  (when-let* ((home (getenv "CUSTOM_EMACS_HOME"))
+              (py (expand-file-name "tools/python-windows/python.exe" home)))
+    (and (file-exists-p py) py)))
+
 (defun my/run-python-file ()
   "Run the current buffer's `.py' file with `python3', in `*compilation*',
-Comint mode (so stdin via `input()' works)."
+Comint mode (so stdin via `input()' works).
+
+A real, user-hit bug, not assumed: the official Windows \"embeddable
+package\" bundled above only ever ships `python.exe' --- there is no
+`python3.exe' in it at all, confirmed directly against the real staged
+bundle. Searching for `\"python3\"' FIRST (the right default on WSL/Linux,
+where `python' commonly does not exist at all, confirmed on this very
+machine) meant the bundled runtime was skipped entirely on Windows, falling
+through PATH to Windows's own fake \"Microsoft Store app execution alias\"
+stub --- which prints an install-from-the-Store nag instead of running
+anything. Fixed by checking the bundled `python.exe' FIRST, by its real
+path, before ever searching PATH by name; the existing `python3'-then-
+`python' fallback order is unchanged for everywhere else."
   (interactive)
   (unless (and buffer-file-name (string-suffix-p ".py" buffer-file-name))
     (user-error "Not a .py file"))
   (let* ((file (file-name-nondirectory buffer-file-name))
          (default-directory (file-name-directory buffer-file-name))
-         (python (or (executable-find "python3") (executable-find "python") "python3"))
+         (python (or (my/bundled-python-windows) (executable-find "python3") (executable-find "python") "python3"))
          (compile-command (format "%s -u %s" (shell-quote-argument python) (shell-quote-argument file))))
     (compile compile-command t)))
 (global-set-key (kbd "C-c i p") #'my/run-python-file)

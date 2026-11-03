@@ -241,6 +241,10 @@ directory `locate-dominating-file` returns can come back `~`-abbreviated, which
 expansion --- `tsc` then fails with "the specified path does not exist" on a path that very
 much does exist, just not spelled that way; fixed with `expand-file-name` before quoting.
 
+`C-c i s`: run (`node`) the current buffer's plain `.js`/`.jsx` file --- the same request
+as `C-c i t` above ("how do I run a JavaScript file"), same Comint-for-stdin reasoning. No
+type-check step: plain JavaScript has no `tsc` to run against it at all.
+
 ## Express and NestJS
 
 Both are just TypeScript/JavaScript under a framework, like React/Next.js above --- the

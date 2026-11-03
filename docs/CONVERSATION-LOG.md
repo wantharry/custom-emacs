@@ -4505,6 +4505,46 @@ at a REAL matching `com/example/pkg/Hello.java` directory structure, and a
 direct `my/java-file-package` unit test (default package vs. a real
 declared one). `docs/LANGUAGES.md` and `docs/MY-NOTES.md` updated.
 
+### Follow-up, same session: "how do I run a JavaScript file" (a real gap, `C-c i s`
+added), and a second real bug the user hit live --- Windows's own fake Python
+"install from the Store" stub winning over the real bundled runtime
+
+User asked how to run a plain `.js` file --- the honest answer was there was no
+dedicated command for it at all, only `.ts`/`.tsx` (`C-c i t`). Added `C-c i s'
+(`my/run-js-file'), the same `node FILE' idea, Comint mode for the same stdin
+reason every other run-file command needs it, just with no type-check step
+(plain JavaScript has no `tsc' to run against it). Confirmed free live via
+`key-binding' first (`j`/`r`/`i`/`n`/`a`/`t`/`p` were already taken under
+`C-c i`). New tests in `tests/ert/languages-web-lsp.el` (key bound, a non-`.js'
+buffer errors clearly, a real round trip reading real `node' stdout, a real
+`ReferenceError`).
+
+Then, immediately after, the user hit a real bug trying `C-c i p` for real on
+Windows: `"c:/Users/openclaw/AppData/Local/Microsoft/WindowsApps/python3.exe"`
+--- `Python was not found; run without arguments to install from the
+Microsoft Store`. Confirmed directly, not assumed: the bundled Windows
+"embeddable package" (`tools/python-windows/`) only ever ships `python.exe` ---
+there is no `python3.exe` in it at all. `my/run-python-file` checked
+`"python3"` FIRST (the right default on WSL/Linux, where there is often no
+bare `python` at all, confirmed on this very machine), which meant the search
+skipped the bundled runtime entirely on Windows and fell through PATH to
+Windows's own fake Microsoft-Store app-execution-alias stub for that exact
+name --- a placeholder that just nags to install from the Store, not a real
+interpreter. The same shape of gap as the TS5112 and Java-package bugs
+earlier this session: synthetic tests never exercised the real Windows
+bundle's actual file layout. Fixed with `my/bundled-python-windows'
+(mirrors `my/bundled-jdk-bin''s pattern exactly), resolving the real bundled
+`python.exe' by its own known path FIRST, before ever searching PATH by
+name --- the existing `python3'-then-`python' fallback order is unchanged
+everywhere else. New tests in `tests/ert/languages-python.el`: direct
+coverage of `my/bundled-python-windows' (finds it / nil without a bundle),
+and an integration test faking BOTH a bundled `python.exe' and a wrong
+`python3' on PATH to confirm the bundled one actually wins (real shell
+scripts, each echoing a distinct marker, so the test fails loudly if the
+preference order ever regresses). `docs/KEYBOARD.md`, `config/shortcuts.el`,
+`docs/LANGUAGES.md`, and `docs/MY-NOTES.md` all updated for both fixes. Full
+regression suite confirmed clean at the established 18-failure baseline.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

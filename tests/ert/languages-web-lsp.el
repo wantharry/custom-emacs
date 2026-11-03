@@ -386,4 +386,38 @@ Each one may itself be a plain symbol or a (MODE :language-id STRING) list
         (should (string-match-p "^5$" out)))
       (kill-buffer "*compilation*"))))
 
+;;; C-c i s: run the current .js/.jsx file
+
+(ert-deftest wl/run-js-key-is-bound ()
+  (should (eq (key-binding (kbd "C-c i s")) #'my/run-js-file)))
+
+(ert-deftest wl/run-js-file-errors-clearly-on-a-non-js-buffer ()
+  (test-with-temp-dir d
+    (let ((buffer-file-name (concat d "a.py")))
+      (should-error (my/run-js-file) :type 'user-error))))
+
+(ert-deftest wl/run-js-file-really-runs-a-real-js-file ()
+  ;; A real, confirmed round trip: `node' actually runs and its real stdout is read
+  ;; back, not mocked.
+  (wl--skip-unless-node-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "ok.js") "function add(a, b) {\n  return a + b;\n}\nconsole.log(add(2, 3));\n")
+    (let ((buffer-file-name (concat d "ok.js")) (default-directory d))
+      (my/run-js-file)
+      (with-timeout (20 (error "node did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (should (string-match-p "^5$" (with-current-buffer "*compilation*" (buffer-string))))
+      (kill-buffer "*compilation*"))))
+
+(ert-deftest wl/run-js-file-reports-a-real-reference-error ()
+  (wl--skip-unless-node-installed)
+  (test-with-temp-dir d
+    (test-write-file (concat d "bad.js") "console.log(notDefinedAnywhere);\n")
+    (let ((buffer-file-name (concat d "bad.js")) (default-directory d))
+      (my/run-js-file)
+      (with-timeout (20 (error "node did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (should (string-match-p "ReferenceError" (with-current-buffer "*compilation*" (buffer-string))))
+      (kill-buffer "*compilation*"))))
+
 ;;; languages-web-lsp.el ends here

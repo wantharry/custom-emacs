@@ -345,6 +345,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c i n` | `my/nest-generate` | **this config, `dev-ui` branch:** `nest generate` --- pick a schematic (controller/service/module/...) and a name |
 | `C-c i a` | `my/ng-generate` | **this config, `dev-ui` branch:** `ng generate` --- pick a schematic (component/service/module/...) and a name |
 | `C-c i t` | `my/run-ts-file` | **this config, `dev-ui-ai` branch:** type-check (`tsc --noEmit`) and run (`node`) the current `.ts`/`.tsx` file |
+| `C-c i s` | `my/run-js-file` | **this config, `dev-ui-ai` branch:** run the current `.js`/`.jsx` file with `node` |
 | `C-c i p` | `my/run-python-file` | **this config, `dev-ui-ai` branch:** run the current `.py` file with `python3` |
 | `C-c J` | `my/run-java-file` | **this config, `dev-ui-ai` branch:** compile and run the current `.java` file |
 | `C-c i j c` | `my/maven-compile` | **this config, `dev-ui-ai` branch:** `mvn compile` on the real project at the nearest `pom.xml` |

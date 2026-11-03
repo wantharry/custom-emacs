@@ -238,6 +238,11 @@
     ("Run current .ts/.tsx file (this config, dev-ui-ai branch)" "C-c i t"
      "(no buffer to close; runs in a real compile buffer)"
      (("C-c i t" . "tsc --noEmit then node: type-check and run the current TypeScript file")))
+    ;; WHAT/WHY: `dev-ui-ai' branch only --- same idea as `C-c i t' above, for plain
+    ;; JavaScript; no type-check step, since plain `.js' has no `tsc' to run against it.
+    ("Run current .js/.jsx file (this config, dev-ui-ai branch)" "C-c i s"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i s" . "node: run the current JavaScript file")))
     ;; WHAT/WHY: `dev-ui-ai' branch only --- same idea as `C-c i t' above, for Python;
     ;; no separate type-check step, since Python has no universally-installed static
     ;; checker the way TypeScript always ships `tsc' alongside itself.

@@ -67,6 +67,46 @@
         (should (string-match-p "bad\\.py" out)))
       (kill-buffer "*compilation*"))))
 
+(ert-deftest py/bundled-python-windows-finds-the-real-embeddable-exe ()
+  (test-with-temp-dir home
+    (make-directory (concat home "tools/python-windows") t)
+    (test-write-file (concat home "tools/python-windows/python.exe") "")
+    (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment)))
+      (should (equal (my/bundled-python-windows)
+                     (expand-file-name "tools/python-windows/python.exe" home))))))
+
+(ert-deftest py/bundled-python-windows-is-nil-without-a-real-bundle ()
+  (let ((process-environment (cons "CUSTOM_EMACS_HOME=/nonexistent/path/not-a-real-bundle" process-environment)))
+    (should-not (my/bundled-python-windows))))
+
+(ert-deftest py/run-python-file-prefers-the-bundled-windows-python-over-a-fake-python3-on-path ()
+  ;; A real, user-hit bug, not assumed: on Windows, the bundled embeddable package
+  ;; only ever ships `python.exe' --- there is no `python3.exe' in it at all. Looking
+  ;; for `"python3"' FIRST meant the bundled runtime was skipped entirely, falling
+  ;; through PATH to whatever else answers to that exact name --- on a real user's
+  ;; machine, Windows's own fake "install from the Microsoft Store" alias stub, not a
+  ;; real interpreter at all. This fakes both ends of that exact scenario: a
+  ;; `python3' on PATH that would run the WRONG thing if ever reached, and the real
+  ;; bundled `python.exe' that must win instead.
+  (test-with-temp-dir home
+    (make-directory (concat home "tools/python-windows") t)
+    (test-write-file (concat home "tools/python-windows/python.exe") "#!/bin/sh\necho BUNDLED_PYTHON_RAN\n")
+    (set-file-modes (concat home "tools/python-windows/python.exe") #o755)
+    (make-directory (concat home "fakebin") t)
+    (test-write-file (concat home "fakebin/python3") "#!/bin/sh\necho WRONG_PYTHON3_RAN\n")
+    (set-file-modes (concat home "fakebin/python3") #o755)
+    (test-write-file (concat home "ok.py") "")
+    (let ((process-environment (cons (concat "CUSTOM_EMACS_HOME=" (directory-file-name home)) process-environment))
+          (exec-path (list (concat home "fakebin")))
+          (buffer-file-name (concat home "ok.py")) (default-directory home))
+      (my/run-python-file)
+      (with-timeout (20 (error "fake python did not finish in time"))
+        (while (get-buffer-process "*compilation*") (sit-for 0.2)))
+      (let ((out (with-current-buffer "*compilation*" (buffer-string))))
+        (should (string-match-p "BUNDLED_PYTHON_RAN" out))
+        (should-not (string-match-p "WRONG_PYTHON3_RAN" out)))
+      (kill-buffer "*compilation*"))))
+
 ;;; pylsp: wiring and a real server session
 
 (ert-deftest py/pylsp-bin-dir-is-on-exec-path-and-path-when-present ()
