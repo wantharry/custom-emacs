@@ -437,3 +437,80 @@ adding `Lib\site-packages` as an explicit search path in that file; (2) cross-in
 builds for a console-script entry point like `pylsp` --- a one-line `pylsp.cmd` (`python.exe -m
 pylsp`) stands in, the same `.cmd`-shim idea the Node-based language servers above already
 needed and for the same underlying reason.
+
+## Swift (`swift` branch)
+
+`.swift` files get real editing support via `swift-mode` (a real, actively maintained MELPA
+package --- its own `swift-mode-font-lock.el`/`swift-mode-indent.el` are a complete,
+hand-written highlighting/indentation engine) and `C-c i w` to run the current file. Unlike
+every other language in this document, there is no tree-sitter grammar involved at all:
+Emacs core ships no Swift mode to remap FROM in the first place (not Rust's situation either,
+which has no legacy mode but DOES have a core *treesit* mode already --- Swift has neither),
+so `swift-mode` already does the whole highlighting/indentation job on its own, with nothing
+to install beyond the package itself. Same explicit-activation gap `dockerfile-mode` already
+needs in this config (this branch's own `load-path` wiring never loads any package's
+`-autoloads.el`): `swift-mode`'s own `auto-mode-alist` entry is mirrored by hand in
+`config/init.el`, confirmed directly against its source, not guessed.
+
+`C-c i w` (`my/run-swift-file`) runs the current buffer's `.swift` file with plain `swift
+FILE` in Comint mode (same stdin reasoning as `C-c i t`/`C-c i p` above). Simpler than every
+other run-file command in this document: `swift FILE` runs a single file directly as a real
+script, no separate `swiftc` compile step needed at all --- confirmed directly, not assumed.
+
+**Real LSP support too**: `sourcekit-lsp`, Apple's own Swift language server, ships INSIDE
+the real Swift toolchain itself (confirmed directly: `usr/bin/sourcekit-lsp`, right next to
+`swift`/`swiftc`) --- not a separate install the way `pylsp`/`typescript-language-server`
+are. Not a built-in Eglot default the way `pylsp` is for Python --- confirmed directly in
+Eglot's own source --- so `(swift-mode . "sourcekit-lsp")` is registered in
+`eglot-server-programs` by hand, the same as the web/UI languages above. One real, found-
+by-testing mistake caught immediately: this config never eagerly `require`s `eglot` at all
+(confirmed: Java's and the web languages' own registrations are both wrapped in
+`with-eval-after-load 'eglot`) --- a first attempt at a bare top-level `add-to-list` here
+hit a real `Symbol's value as variable is void: eglot-server-programs` error, since that
+variable is not bound until `eglot.el` actually loads on its own first real use. Fixed by
+wrapping the registration in `with-eval-after-load` like the other two. A SECOND real bug
+caught immediately after by the same test: the CONTACT half of the cons cell must be a
+LIST of strings (the command line), never a bare string --- `'(swift-mode . "sourcekit-
+lsp")` hit a real `(wrong-type-argument listp "sourcekit-lsp")` the moment Eglot tried to
+start it; fixed to `'(swift-mode . ("sourcekit-lsp"))`. Verified for real:
+a genuine `textDocument/definition` round trip (`M-.` from a call site to the real method
+definition, through a real `sourcekit-lsp` process, inside a minimal real SwiftPM package
+--- `sourcekit-lsp` needs a real `Package.swift` to resolve against, unlike `pylsp`/`jdtls`,
+which are happy with a bare file).
+
+**Not bundled for Windows OR Linux/WSL**, unlike every other language above --- "bring your
+own Swift toolchain," the same PATH-only pattern this branch already uses for Java's
+`javac`/`java` on WSL/Linux (no `my/bundled-jdk-bin`-style wiring at all). Two real reasons,
+confirmed directly rather than assumed: (1) swift.org's own Linux toolchain IS genuinely
+just a tarball (extract it, add `usr/bin` to PATH, no installer, no root needed beyond a
+handful of real apt dependencies --- `gnupg2`, `libcurl4-openssl-dev`, `libz3-dev`, `zip`
+were the ones missing on this machine), but it is ~3.5GB unpacked --- bundling that into
+this project's own Windows zip the way the ~300MB JDK was would roughly double its size for
+a feature most users of this config will never touch; (2) Swift's Windows toolchain is
+installer-only --- swift.org publishes no zip/xcopy-deployable archive at all, confirmed
+directly (a 2020-era Swift Forums thread asking for exactly that was never answered with
+one), and real community reports describe extracting it portably via `msiexec /a` as
+genuinely fragile (hardcoded `SDKROOT`/`DEVELOPER_DIR` expectations, one documented failure
+from spaces in a username path) --- nothing like the clean "drop in a folder" story the
+Python embeddable package or the stripped JDK zip gave earlier branches.
+
+Verified for real on this WSL machine: the real Swift 6.4.2 Linux toolchain, downloaded
+directly from `download.swift.org` and PGP-signature-verified against swift.org's own
+published signing keys (swift.org publishes a `.sig`, not a SHA256/SHA512 checksum file, for
+this one download --- stated honestly, the same way the Python Windows runtime's MD5-only
+checksum was earlier, rather than pretended to match the SHA-everywhere-else pattern). See
+`tests/ert/languages-swift.el`: wiring, two tests that actually run `swift` against a real
+file and read its real output (a successful run, and a real compile error with a clickable
+file location), and `--lsp`-only tests that start the real `sourcekit-lsp` and confirm it
+answers through Eglot.
+
+A real methodology gap found and fixed while building this, worth remembering for any future
+ad-hoc check against this config: `emacs --batch --init-directory=DIR` alone does **not**
+load `DIR/init.el` at all --- `--batch` skips Emacs's normal interactive startup sequence,
+which is what would otherwise auto-load it. The real test harness (`tests/run-all.sh`)
+already knows this (`-l "$dir/early-init.el" -l "$dir/init.el"`, explicit, alongside
+`--init-directory`), but an ad-hoc one-off check using `--init-directory` alone silently
+loads NOTHING from this config --- every `key-binding`/`fboundp` check against it then
+returns a false, uninformatively-empty answer (indistinguishable from "genuinely unbound"),
+not an error. Always add the explicit `-l` pair for any one-off check, not just
+`--init-directory`.

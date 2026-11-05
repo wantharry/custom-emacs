@@ -4545,6 +4545,111 @@ preference order ever regresses). `docs/KEYBOARD.md`, `config/shortcuts.el`,
 `docs/LANGUAGES.md`, and `docs/MY-NOTES.md` all updated for both fixes. Full
 regression suite confirmed clean at the established 18-failure baseline.
 
+### New branch, `swift` (off `dev-ui-ai`): real Swift support, researched and verified
+before committing to an approach, not assumed
+
+User asked, after a short back-and-forth about whether Swift could be added at all
+("yes on WSL/Linux the same way as other languages; Windows bundling is the real
+open question"), to "do both and do it" --- create a dedicated `swift` branch (off
+`dev-ui-ai`, to inherit all the language tooling built this session) and actually
+build real Swift support, not just wire it up optimistically.
+
+**Research before writing any code** (a forked agent, Swift toolchain details):
+confirmed the real swift.org Linux download URL/checksum pattern (a PGP `.sig`, not
+a SHA256/SHA512 file --- genuinely different from every other download this
+project verifies, stated honestly rather than pretended to match), the real apt
+dependencies needed to actually run it, and --- the critical open question ---
+whether Windows bundling (the JDK/Node/Python trick used earlier this session)
+could work for Swift too. Verdict: no. swift.org publishes Windows Swift as an
+installer only, no zip/xcopy-deployable form at all (a 2020 Swift Forums thread
+asking for exactly that was never answered with one); real community reports of
+extracting it portably via `msiexec /a` describe genuine fragility (hardcoded
+`SDKROOT`/`DEVELOPER_DIR` expectations, a documented failure from spaces in a
+username path) --- nothing like the clean "drop in a folder" story the JDK/Python
+embeddable package gave. Decided against attempting it: Swift gets the same
+"bring your own toolchain" PATH-only pattern Java's `javac`/`java` already use on
+WSL/Linux, not a bundled runtime.
+
+**A real install, not assumed to work**: confirmed before installing that disk
+space (545GB free) and the download size (~1.1GB compressed, ~3.5GB unpacked) were
+both fine, then asked the user before running `sudo apt-get install` for 4 missing
+packages (`gnupg2`, `libcurl4-openssl-dev`, `libz3-dev`, `zip`) --- a real system-
+level change, worth confirming first rather than assumed authorized by "do it."
+Could not run `sudo` directly (no TTY for the password prompt in this sandboxed
+environment); the user ran it themselves via `!`. Downloaded the real Swift 6.4.2
+Linux toolchain directly from `download.swift.org`, verified its PGP signature
+against swift.org's own published keys (confirmed a real gotcha along the way:
+the keys URL serves gzip-encoded content, so a plain `curl` without `--compressed`
+silently writes raw gzip bytes instead of the actual key block), extracted it
+(3.5GB), and confirmed `usr/bin/sourcekit-lsp` is genuinely bundled inside it ---
+something swift.org's own install docs never actually state, only inferred from
+community sources until checked directly. Installed to `~/.local/share/swift-
+6.4.2`, NOT inside the repo (matching the "bring your own" decision above, and
+unlike `tools/python-lsp/.venv/`'s own project-local pattern, which only made
+sense there because pylsp is a small pip package, not a multi-GB system
+compiler). Tried to add it to the user's own `~/.bashrc` for convenience; blocked
+by Claude Code's own safety classifier ("Unauthorized Persistence" --- editing a
+dotfile outside the project is treated as a bigger, more persistent action than
+editing project files) --- accepted this rather than working around it, since it
+also matches the actual intended design (no hardcoded path baked into the
+config); used an inline `export PATH=...` for this session's own testing instead.
+
+**The Emacs wiring, each piece verified by actually testing it, not assumed
+correct**: `swift-mode` (MELPA, added to `tools/install-packages.el`) --- a real,
+hand-written, non-treesit major mode, the first language this whole project has
+added with NO tree-sitter grammar involved at all, since Emacs core has nothing
+built in for Swift to remap FROM (Rust has no legacy mode either, but DOES have a
+core treesit mode to fall into; Swift has neither). Needed the same explicit
+`autoload` + manual `auto-mode-alist` entry `dockerfile-mode` already needed
+(this config's `load-path` wiring never loads any package's own `-autoloads.el`).
+`my/run-swift-file` (`C-c i w`, confirmed free live): simpler than every other
+run-file command in this project --- `swift FILE` runs a file directly as a
+script, no separate `swiftc` step at all, confirmed directly. `sourcekit-lsp`
+registered in `eglot-server-programs` for `swift-mode` (not a built-in Eglot
+default the way `pylsp` is for Python, confirmed directly) --- **one real bug
+caught immediately by testing**: a first attempt registered it with a bare
+top-level `add-to-list`, which hit a real `void-variable: eglot-server-programs`
+error, since this config never eagerly `require`s `eglot` at all (confirmed:
+Java's and the web languages' own registrations are both already wrapped in
+`with-eval-after-load 'eglot`) --- fixed by wrapping Swift's the same way.
+
+**A second real methodology bug, found while debugging the first one, with much
+bigger implications**: testing the fix kept showing `my/run-swift-file`/`swift-
+mode` as completely unbound, even functions defined far earlier in the file
+(`my/run-java-file`, `my/shortcuts-list` in a different file entirely) --- not a
+Swift-specific problem at all. Root cause: `emacs --batch --init-directory=DIR`
+alone does **not** load `DIR/init.el`, confirmed directly against the real test
+harness (`tests/run-all.sh` already knows this, explicitly passing `-l early-
+init.el -l init.el` alongside `--init-directory`). Every ad-hoc `key-binding`
+check this session using bare `--init-directory` (no explicit `-l`) --- including
+confirming `C-c i s`/`C-c i b`/`C-c i w` were "free" before using them --- was
+silently checking against an UNLOADED config the whole time: `nil` back then
+meant "config never loaded" just as much as it could have meant "genuinely
+unbound," indistinguishable without the fix. They happened to be genuinely free
+regardless, confirmed properly this time, but the CHECK itself was never real
+until this was caught. Documented in `docs/MY-NOTES.md` and `docs/LANGUAGES.md`
+as a standing gotcha for any future one-off check against this config.
+
+Verified for real once both bugs were fixed: `.swift` opens in `swift-mode`,
+`C-c i w` runs a real file and prints real stdout, the Eglot entry resolves
+`sourcekit-lsp` correctly. New `tests/ert/languages-swift.el`: key binding, a
+non-`.swift` buffer errors clearly, two real round trips (`swift` actually
+running a file and reading its real output; a real compile error with a
+clickable file location), the `eglot-server-programs` entry, and a `--lsp`-gated
+real `sourcekit-lsp` go-to-definition test (needs a real minimal `Package.swift`
+to resolve against, unlike `pylsp`/`jdtls`, which are happy with a bare file).
+
+**A THIRD real bug, caught immediately by that last test, not assumed safe just
+because it ran without erroring earlier**: `eglot-server-programs`'s CONTACT half
+must be a LIST of strings (the command line), never a bare string ---
+`'(swift-mode . "sourcekit-lsp")` hit a real `(wrong-type-argument listp
+"sourcekit-lsp")` the moment Eglot actually tried to start the server, not at
+registration time, which is why it only surfaced once the real `--lsp` test ran
+rather than earlier. Fixed to `'(swift-mode . ("sourcekit-lsp"))`; all 7 tests in
+`tests/ert/languages-swift.el` pass after, including the real go-to-definition
+round trip. `docs/LANGUAGES.md` (new "Swift" section), `docs/KEYBOARD.md`,
+`config/shortcuts.el`, and `docs/MY-NOTES.md` all updated.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

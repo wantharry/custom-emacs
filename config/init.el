@@ -1756,6 +1756,64 @@ path, before ever searching PATH by name; the existing `python3'-then-
     (compile compile-command t)))
 (global-set-key (kbd "C-c i p") #'my/run-python-file)
 
+;; Swift: `swift-mode' (a real, actively maintained MELPA package, confirmed directly
+;; --- its own `swift-mode-font-lock.el'/`swift-mode-indent.el' are a complete,
+;; hand-written highlighting/indentation engine, unlike every other language above:
+;; Emacs core ships no Swift mode at all to remap FROM (not Rust's situation either,
+;; which has no legacy mode but DOES have a core treesit mode already; Swift has
+;; neither), so there is no tree-sitter grammar to install here, and none is needed ---
+;; `swift-mode' already does the whole highlighting/indentation job on its own).
+;; Same explicit-activation gap `dockerfile-mode' above already needs: this config's
+;; own `load-path' wiring never loads any package's `-autoloads.el', so `swift-mode''s
+;; own `auto-mode-alist' entry (mirrored exactly below, confirmed directly in its
+;; source) would otherwise never fire even with the package installed.
+(when (locate-library "swift-mode")
+  (autoload 'swift-mode "swift-mode" "Major mode for Apple's Swift programming language." t)
+  (add-to-list 'auto-mode-alist '("\\.swift\\(interface\\)?\\'" . swift-mode)))
+
+;; Swift's real language server, `sourcekit-lsp' --- ships INSIDE the real Swift
+;; toolchain itself (confirmed directly: `usr/bin/sourcekit-lsp', right next to
+;; `swift'/`swiftc'), not a separate install the way `pylsp'/`typescript-language-
+;; server' are. Not bundled for Windows OR Linux/WSL the way the JDK/Node/Python
+;; runtimes above are: swift.org publishes the Linux toolchain only as a plain
+;; tarball (genuinely just "extract it, add `usr/bin' to PATH," confirmed directly,
+;; no installer) but ~3.5GB unpacked, and the Windows toolchain is installer-only
+;; with no relocatable/zip form at all, confirmed directly --- "bring your own Swift
+;; toolchain," the same `my/maven-command'-less, PATH-only pattern this branch
+;; already uses for Java's `javac'/`java' on WSL/Linux. Not in Eglot's own built-in
+;; `eglot-server-programs' the way `pylsp' is for Python --- confirmed directly, so
+;; it needs registering here, same as the web/UI languages above. Wrapped in
+;; `with-eval-after-load' like the other two registrations above --- this config
+;; never eagerly `require's `eglot' itself (confirmed directly: a bare top-level
+;; `add-to-list' here hit `Symbol's value as variable is void: eglot-server-
+;; programs', since `eglot-server-programs' is not bound until `eglot.el' actually
+;; loads, on its own first real use). The CONTACT half of the cons cell must be a
+;; LIST of strings (the command line), never a bare string --- a real, found-by-
+;; testing mistake: a first attempt registered the bare string `"sourcekit-lsp"'
+;; directly and hit `(wrong-type-argument listp "sourcekit-lsp")' the moment Eglot
+;; tried to start it, confirmed directly against Eglot's own CONTACT handling.
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs '(swift-mode . ("sourcekit-lsp"))))
+
+;; `C-c i w': compile and run the current buffer's `.swift' file --- same request
+;; shape as `C-c i t'/`C-c i p'/`C-c J' above. Simpler than all three: `swift FILE'
+;; runs a single file directly as a script, no separate `swiftc' compile step at all
+;; (confirmed directly against a real file) --- Swift's own scripting mode, not just
+;; a convenience wrapper. Comint mode for the same stdin reason every run-file
+;; command above needs it.
+(defun my/run-swift-file ()
+  "Run the current buffer's `.swift' file with `swift', in `*compilation*',
+Comint mode (so stdin works, same reasoning as the other run-file commands above)."
+  (interactive)
+  (unless (and buffer-file-name (string-suffix-p ".swift" buffer-file-name))
+    (user-error "Not a .swift file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (default-directory (file-name-directory buffer-file-name))
+         (swift (or (executable-find "swift") "swift"))
+         (compile-command (format "%s %s" (shell-quote-argument swift) (shell-quote-argument file))))
+    (compile compile-command t)))
+(global-set-key (kbd "C-c i w") #'my/run-swift-file)
+
 ;;; Clicking through code -------------------------------------------------------
 
 ;; Right-click a symbol in code for "Find Definition" and "Find References" (Emacs

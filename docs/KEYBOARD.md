@@ -347,6 +347,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `C-c i t` | `my/run-ts-file` | **this config, `dev-ui-ai` branch:** type-check (`tsc --noEmit`) and run (`node`) the current `.ts`/`.tsx` file |
 | `C-c i s` | `my/run-js-file` | **this config, `dev-ui-ai` branch:** run the current `.js`/`.jsx` file with `node` |
 | `C-c i p` | `my/run-python-file` | **this config, `dev-ui-ai` branch:** run the current `.py` file with `python3` |
+| `C-c i w` | `my/run-swift-file` | **this config, `swift` branch:** run the current `.swift` file with `swift` |
 | `C-c J` | `my/run-java-file` | **this config, `dev-ui-ai` branch:** compile and run the current `.java` file |
 | `C-c i j c` | `my/maven-compile` | **this config, `dev-ui-ai` branch:** `mvn compile` on the real project at the nearest `pom.xml` |
 | `C-c i j t` | `my/maven-test` | **this config, `dev-ui-ai` branch:** `mvn test` |

@@ -249,6 +249,12 @@
     ("Run current .py file (this config, dev-ui-ai branch)" "C-c i p"
      "(no buffer to close; runs in a real compile buffer)"
      (("C-c i p" . "python3 -u: run the current Python file")))
+    ;; WHAT/WHY: `swift' branch only --- same idea as `C-c i t'/`C-c i p' above, for
+    ;; Swift; no separate compile step, since `swift FILE' already runs a file
+    ;; directly as a script, with no `swiftc' step needed at all.
+    ("Run current .swift file (this config, swift branch)" "C-c i w"
+     "(no buffer to close; runs in a real compile buffer)"
+     (("C-c i w" . "swift: run the current Swift file")))
     ;; WHAT/WHY: `dev-ui-ai' branch only --- ported from this project's separate
     ;; `java' branch on request (its own `C-c J'/`my/run-java-file', not present on
     ;; this branch's own lineage before now). Same "compile then run" idea as
