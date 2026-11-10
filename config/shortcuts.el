@@ -344,7 +344,8 @@ by hand.")
     ("Completion (embark: actions on the thing at point/candidate)"
      ("C-." embark-act "menu of actions for the thing at point, or the current candidate")
      ("C-;" embark-dwim "run the default action directly, no menu")
-     ("C-h B" embark-bindings "list every action available right now"))
+     ("C-h B" embark-bindings "list every action available right now")
+     ("C-c q" my/toggle-corfu-auto "turn the automatic completion popup (while typing) off, or back on"))
     ;; WHAT/WHY: a real gap, found the same way Evil/Dired were earlier this session ---
     ;; `yas-insert-snippet'/`er/expand-region'/`er/contract-region'/`vterm' were all
     ;; bound to real keys in init.el back when the 6-package batch shipped, but never

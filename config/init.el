@@ -902,17 +902,46 @@ is actually installed on this machine."
 ;; (32.0.50): it already has native tty-child-frame support, and Corfu's own source
 ;; detects this and warns `corfu-terminal' is not needed at all on Emacs 31+ --- so it
 ;; is deliberately not installed here (see tools/install-packages.el's own comment).
-;; `corfu-auto' is deliberately nil --- user request: this popped up a candidate list
-;; after nearly every keystroke, the same uninvited "autosuggestion" complaint as
-;; `completion-preview-mode' just above. `global-corfu-mode' stays ON so `C-M-i'
-;; (already a stock Emacs binding, documented in KEYBOARD.md, unchanged by this) still
-;; shows the popup on demand --- "disabled by default, enabled if needed," exactly as
-;; asked, via the one key that already existed for it rather than a new one.
+;; `corfu-auto' was OFF for a while (an earlier user request: it popped up a candidate
+;; list after nearly every keystroke, the same uninvited "autosuggestion" complaint as
+;; `completion-preview-mode' just above) --- turned back ON by a later, explicit
+;; request ("it should automatically show"), specifically after typing `System.out.'
+;; and expecting `println' to appear with no further typing. `corfu-auto-prefix' (how
+;; many characters of the symbol itself must already be typed before the popup
+;; appears, default 3) is set to 0 to match that exact expectation: right after a bare
+;; `.', zero characters of the member name have been typed yet, so the default would
+;; still show nothing until a few letters were typed. `C-M-i' (`complete-symbol') still
+;; works too, for whenever the auto popup does not fire (e.g. mid-identifier, not
+;; right after a boundary like `.').
 (when (locate-library "corfu")
   (require 'corfu)
-  (setq corfu-auto nil
+  (setq corfu-auto t
+        corfu-auto-prefix 0
         corfu-cycle t)
-  (global-corfu-mode 1))
+  (global-corfu-mode 1)
+
+  ;; `C-c q': toggle the auto-popup back off (or on again) --- user request, right
+  ;; after asking for it to default on, for a way to flip it without editing this
+  ;; file. Just `(setq corfu-auto (not corfu-auto))` would silently do nothing in
+  ;; every ALREADY-OPEN buffer: `corfu-mode' (on everywhere via `global-corfu-mode')
+  ;; only checks `corfu-auto' ONCE, at the moment it itself turns on for a buffer ---
+  ;; the same real gap `my/synonyms-mode' already works around locally, confirmed
+  ;; directly in `corfu.el''s own source (`corfu-mode''s enable function). Turning
+  ;; `corfu-mode' off and back on in every buffer that already has it re-runs that
+  ;; same check against the new value, using Corfu's own public toggle rather than
+  ;; poking its internal hook directly. `C-M-i' (`complete-symbol') still works on
+  ;; demand either way, unaffected by this.
+  (defun my/toggle-corfu-auto ()
+    "Toggle automatic completion popups while typing (`corfu-auto') on or off."
+    (interactive)
+    (setq corfu-auto (not corfu-auto))
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when (bound-and-true-p corfu-mode)
+          (corfu-mode -1)
+          (corfu-mode 1))))
+    (message "corfu-auto: %s" (if corfu-auto "ON --- popup shows automatically" "off --- C-M-i shows it on demand")))
+  (global-set-key (kbd "C-c q") #'my/toggle-corfu-auto))
 
 ;; WHAT: install a single package on demand, straight from Lisp, rather than via
 ;; `./build.sh packages' (`tools/install-packages.el').  WHY: that script is how every

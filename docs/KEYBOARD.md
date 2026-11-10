@@ -319,6 +319,7 @@ While replacing: `y` replace this one, `n` skip, `!` replace all the rest, `q` q
 | `M-O` | `transpose-frame` | **this config:** swap a horizontal split (windows stacked top/bottom) for a vertical one (side by side), or back, keeping each window's own buffer |
 | `C-c u` | `my/toggle-frame-chrome` | **this config:** hide/show the menu bar, tool bar and this frame's window decorations together, in one keystroke --- note the current on/off state is itself part of what this config's session-restore system (`C-c w s`/`C-c w r`) remembers across restarts |
 | `C-c U` | `my/reset-to-defaults` | **this config:** put the menu bar, tool bar, window decorations and color theme back to this config's own startup defaults, and immediately save that so it's what gets restored next time too (the one-step fix for "I toggled something off and it keeps coming back off") |
+| `C-c q` | `my/toggle-corfu-auto` | **this config:** turn the automatic completion popup (while typing) off, or back on --- `corfu-auto` is on by default; `C-M-i` always shows a candidate list on demand regardless of this setting |
 | `C-c H` | `my/mode-reference-mode` | **this config:** turn the always-visible command-reference panel on the right (Dired/Org/ranger/Treemacs) off, or back on --- shown by default; `C-c H` again toggles it back |
 | `C-c K d` | `docker` | **this config:** a Magit-style transient menu of Docker containers/images/volumes/networks (needs a real `docker` binary on PATH to do anything once opened) |
 | `C-c K k` | `kubernetes-overview` | **this config:** a buffer listing a Kubernetes cluster's resources (needs `kubectl` configured against a real cluster) |
@@ -643,9 +644,11 @@ candidates appear under the prompt, you keep typing to narrow them, `TAB` comple
 and `C-n` / `C-p` (or the arrows) choose. Matching is flexible and ignores case, so
 `fbuf` can find `find-buffer-file`.
 
-**this config:** in programming buffers, completion does NOT pop up automatically while
-you type (`corfu-auto` is off, and `completion-preview-mode` is off entirely) --- press
-`C-M-i` whenever you actually want a candidate list, same key either way.
+**this config:** in programming buffers, completion pops up automatically while you type
+(`corfu-auto` is on, right after a boundary like `.` with zero characters typed yet ---
+`corfu-auto-prefix` is `0`; `completion-preview-mode` is still off entirely). `C-c q`
+(`my/toggle-corfu-auto`) turns the automatic popup off (or back on) if you don't want it;
+`C-M-i` always shows a candidate list on demand either way, regardless of this setting.
 
 ## Evil: vi keys (optional)
 

@@ -95,18 +95,27 @@
 ;; `(setq-local corfu-auto t)' alone does NOT actually turn auto-popup on --- `corfu-
 ;; mode' (already active everywhere via `global-corfu-mode') only wires up the real
 ;; trigger hook ONCE, when it itself turns on, which already happened before
-;; `my/synonyms-mode' runs, with `corfu-auto' still nil at that moment.
-(ert-deftest synonyms/mode-on-turns-on-corfu-auto-for-this-buffer-only ()
+;; `my/synonyms-mode' runs. `corfu-auto' itself is now `t' GLOBALLY by default (a
+;; later, separate user request, well after this one --- see `config/init.el''s own
+;; comment and `C-c q'/`my/toggle-corfu-auto'); the real thing `my/synonyms-mode'
+;; still distinguishes is `corfu-auto-prefix'/`corfu-auto-delay', tuned for prose
+;; (`2'/`0.4') rather than the code-oriented global default (`0'/`0.2') --- and it
+;; still adds the trigger hook itself unconditionally, which matters in any context
+;; where `corfu-mode''s own global activation has not already done so.
+(ert-deftest synonyms/mode-on-tunes-corfu-auto-for-prose-in-this-buffer-only ()
   (let ((other (generate-new-buffer "syn-other")))
     (unwind-protect
         (with-temp-buffer
           (text-mode)
-          (should-not (bound-and-true-p corfu-auto))
+          (should corfu-auto)              ; already on globally by default
           (my/synonyms-mode 1)
           (should corfu-auto)
+          (should (= corfu-auto-prefix 2))
+          (should (= corfu-auto-delay 0.4))
           (should (memq #'corfu-auto--post-command post-command-hook))
-          ;; buffer-local, not global --- another buffer must be untouched.
-          (should-not (buffer-local-value 'corfu-auto other))
+          ;; the prose-specific TUNING is buffer-local, not global --- another
+          ;; buffer must be untouched.
+          (should-not (local-variable-p 'corfu-auto-prefix other))
           (should-not (memq #'corfu-auto--post-command
                              (buffer-local-value 'post-command-hook other))))
       (kill-buffer other))))
@@ -116,7 +125,7 @@
     (text-mode)
     (my/synonyms-mode 1)
     (my/synonyms-mode -1)
-    (should-not (local-variable-p 'corfu-auto))
+    (should-not (local-variable-p 'corfu-auto-prefix))
     (should-not (memq #'corfu-auto--post-command post-command-hook))))
 
 ;; real, user-hit bug, fixed this session: `try-completion' on a table whose

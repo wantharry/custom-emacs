@@ -18,10 +18,27 @@
 (ert-deftest corfu/global-mode-is-on ()
   (corfu-need
     (should (bound-and-true-p global-corfu-mode))
-    ;; User request: no automatic popup while typing; `C-M-i' (stock Emacs, documented
-    ;; in KEYBOARD.md) still shows it on demand, since `global-corfu-mode' stays on.
-    (should-not corfu-auto)
+    ;; Was off for a while (no automatic popup while typing), then turned back on by
+    ;; a later, explicit user request --- `C-M-i' (stock Emacs, documented in
+    ;; KEYBOARD.md) still shows it on demand either way, and `C-c q' toggles this.
+    (should corfu-auto)
+    (should (zerop corfu-auto-prefix))
     (should corfu-cycle)))
+
+(ert-deftest corfu/toggle-key-is-bound ()
+  (corfu-need
+    (should (eq (key-binding (kbd "C-c q")) #'my/toggle-corfu-auto))))
+
+(ert-deftest corfu/toggle-flips-corfu-auto-and-back ()
+  (corfu-need
+    (let ((before corfu-auto))
+      (unwind-protect
+          (progn
+            (my/toggle-corfu-auto)
+            (should (eq corfu-auto (not before)))
+            (my/toggle-corfu-auto)
+            (should (eq corfu-auto before)))
+        (setq corfu-auto before)))))
 
 (ert-deftest corfu/corfu-terminal-is-not-installed-and-not-needed ()
   ;; Confirmed in a real terminal session (see tests/test_tui.py), not assumed: this

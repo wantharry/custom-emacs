@@ -4650,6 +4650,65 @@ rather than earlier. Fixed to `'(swift-mode . ("sourcekit-lsp"))`; all 7 tests i
 round trip. `docs/LANGUAGES.md` (new "Swift" section), `docs/KEYBOARD.md`,
 `config/shortcuts.el`, and `docs/MY-NOTES.md` all updated.
 
+### Follow-up, same session: `corfu-auto` turned back ON, plus a toggle (`C-c q`) ---
+the opposite of an EARLIER request in this project's own history
+
+User asked how to get Java method/reference commands, then specifically whether
+typing `System.out.` should auto-show `println`. Answered honestly: no, because
+`corfu-auto` was deliberately turned OFF earlier in this project's history (a
+recorded user request, after it popped up a candidate list on nearly every
+keystroke) --- `C-M-i` was the documented on-demand alternative. User then asked
+to enable it after all, and separately to add a toggle command for it.
+
+Turned `corfu-auto` back on, and set `corfu-auto-prefix` (how many characters of
+the symbol must already be typed before the popup appears, default 3) to `0` ---
+right after a bare `.`, zero characters of the member name are typed yet, so the
+default would still have shown nothing until a few letters were typed, missing
+the user's exact stated expectation.
+
+Added `my/toggle-corfu-auto` (`C-c q`), confirmed free live first. A real,
+confirmed implementation detail caught before shipping a naive version: a bare
+`(setq corfu-auto (not corfu-auto))` would silently do nothing in any ALREADY-OPEN
+buffer --- `corfu-mode` (on everywhere via `global-corfu-mode`) only checks
+`corfu-auto` ONCE, at the moment it itself turns on for a buffer, confirmed
+directly in `corfu.el`'s own source --- the exact same gap `my/synonyms-mode`
+already works around locally for its own prose-tuned values. Fixed by turning
+`corfu-mode` off and back on, in every buffer that already has it active, which
+re-runs that same check against the new value --- using Corfu's own public
+toggle rather than poking `corfu-auto--post-command` directly. Verified the fix
+actually flips behavior with a real, non-batch-mode-limited round trip (see
+below for why that caveat matters).
+
+**A real methodology trap found while verifying this, worth remembering**: an
+ad-hoc `with-temp-buffer` + `(text-mode)` ERT-style check showed `corfu-mode`
+itself as completely inactive (`nil`), even with `corfu-auto` already `t`
+globally and even using a REAL file via `find-file-noselect` rather than a temp
+buffer --- almost certainly a `--batch`-mode activation-timing quirk for this
+particular globalized minor mode (the same general class of surprise `--batch`
+already produced earlier this session with `--init-directory` alone not loading
+`init.el`), not a real bug in the fix. Source-level confirmation was used
+instead: `corfu.el`'s own `corfu-mode` enable function (`(when corfu-auto
+(require 'corfu-auto) (add-hook 'post-command-hook 'corfu-auto--post-command 10
+'local))`) proves the mechanism is correct whenever `corfu-mode` genuinely turns
+on with `corfu-auto` already `t` --- which is expected to happen normally in any
+real interactive session, just not reliably observable through this one batch
+pattern. Documented as a standing gotcha: don't trust a `with-temp-buffer`
+check alone to prove a GLOBAL minor mode's own activation timing.
+
+Two existing tests broke as a direct, expected consequence of the new default
+and were fixed to match: `corfu/global-mode-is-on` (flipped `should-not
+corfu-auto` to `should corfu-auto`, added a `corfu-auto-prefix` check) and
+`synonyms/mode-on-turns-on-corfu-auto-for-this-buffer-only` (renamed to
+`.../mode-on-tunes-corfu-auto-for-prose-in-this-buffer-only` --- since
+`corfu-auto` is no longer nil-by-default, the real thing `my/synonyms-mode`
+still distinguishes for its own buffers is `corfu-auto-prefix`/`corfu-auto-delay`,
+tuned for prose (`2`/`0.4`) against the new code-oriented global default
+(`0`/`0.2`), not `corfu-auto` itself anymore). Two new tests added for the
+toggle command itself. `docs/KEYBOARD.md` (the completion-popup paragraph and a
+new `C-c q` table row), `config/shortcuts.el`, and `docs/MY-NOTES.md` (a new
+section covering all of the above) updated. Full regression suite confirmed
+clean at the established 18-failure baseline after (1251/1302 passing).
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the
