@@ -4709,6 +4709,32 @@ new `C-c q` table row), `config/shortcuts.el`, and `docs/MY-NOTES.md` (a new
 section covering all of the above) updated. Full regression suite confirmed
 clean at the established 18-failure baseline after (1251/1302 passing).
 
+### Follow-up, same session: the Java navigation/Eglot commands added to the
+in-Emacs shortcuts panel too --- explicitly framed as generic, not Java-only
+
+User asked for the Java "find methods/references and others" commands (already
+documented in `docs/KEYBOARD.md`/`docs/NAVIGATING-CODE.md`) to also show up in
+the `C-c k`/Custom-menu shortcuts panel, correctly guessing they are "mostly
+common to all the programming languages" rather than Java-specific.
+
+Added a new `my/shortcuts-packages` entry, "Code navigation across any language
+(Eglot + xref)" --- `my/shortcuts-list` (the OTHER list in this file, used for
+things like the `C-c q` corfu toggle added earlier this session) was the wrong
+fit here: its own test (`shortcuts/every-key-is-bound`) requires every row's key
+string to be a REAL, `kbd`-parseable binding that resolves via `key-binding` to
+the exact command listed, confirmed directly by reading that test --- but
+several of these commands (`eglot-rename`, `eglot-code-actions`, `eglot-find-
+implementation`, `flymake-show-buffer-diagnostics`) have no default key at all,
+only `M-x`. `my/shortcuts-packages`'s own verification
+(`shortcuts/packages-buffer-shows-every-entry`) only checks the text appears in
+the rendered buffer, not a real keybinding --- already how the existing `C-c =`/
+Format-buffer entry handles the same "no real key" case, confirmed by reading
+that test too before picking the format, not guessed. Includes the ones that DO
+have a real stock key (`M-.`/`M-,`/`M-?`/`C-M-.`/`M-g i`/`C-M-i`) alongside the
+`M-x`-only ones, plus a pointer to `docs/NAVIGATING-CODE.md` for the mouse-click
+equivalents. Verified via `./build.sh test shortcuts` (26/26) and the full
+regression suite at the established 18-failure baseline.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

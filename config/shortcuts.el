@@ -283,6 +283,28 @@
     ("Format buffer (this config, dev-ui-ai branch)" "C-c ="
      "(no buffer to close)"
      (("C-c =" . "eglot-format-buffer: needs M-x eglot connected first")))
+    ;; WHAT/WHY: user request --- explicitly NOT Java-specific, despite coming up in a
+    ;; conversation about Java: every one of these is a stock Emacs (`xref'/`imenu') or
+    ;; Eglot command, so it works identically once `M-x eglot' connects for ANY
+    ;; supported language (Java/Python/TypeScript/JavaScript/Rust/Swift), not just Java
+    ;; --- `jdtls'/`pylsp'/`typescript-language-server'/`rust-analyzer'/`sourcekit-lsp'
+    ;; all answer the same requests underneath. Several of these have no default key at
+    ;; all (`eglot-rename', `eglot-code-actions', `eglot-find-implementation',
+    ;; `flymake-show-buffer-diagnostics') --- shown as `M-x ...' here rather than a real
+    ;; key, matching the `C-c ='/Format-buffer entry just above. See docs/NAVIGATING-
+    ;; CODE.md for the mouse-click equivalents (Ctrl+Click, right-click menu) too.
+    ("Code navigation across any language (Eglot + xref)" "M-x eglot (once, in a supported file) starts the language server"
+     "M-x eglot-shutdown"
+     (("M-." . "xref-find-definitions: jump to a definition")
+      ("M-," . "xref-go-back: jump back to where you were")
+      ("M-?" . "xref-find-references: find every use")
+      ("C-M-." . "xref-find-apropos: search for symbols by pattern")
+      ("M-g i" . "imenu: jump to a method/function in this file")
+      ("C-M-i" . "complete-symbol: show the completion popup on demand")
+      ("M-x eglot-rename" . "rename a symbol everywhere")
+      ("M-x eglot-code-actions" . "quick fixes and refactorings at the cursor")
+      ("M-x eglot-find-implementation" . "jump to an implementation")
+      ("M-x flymake-show-buffer-diagnostics" . "list the errors and warnings")))
     ;; WHAT/WHY: `dev-ui-ai' branch only --- four AI coding-assistant tools,
     ;; installed side by side to compare (two ghost-text completion, two project-
     ;; wide agentic editing); see docs/AI-TOOLS.md for the full comparison and
