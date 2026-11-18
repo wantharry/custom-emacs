@@ -243,6 +243,66 @@
                 (eglot-shutdown server)))
           (kill-buffer buf))))))
 
+;;; `my/project-try-pom': a real Maven/Gradle project is a real project to Eglot
+;;; too, not just to `my/maven-root' --- even with no `.git' repo at its root at
+;;; all. A real, user-hit bug, not assumed: without this, `jdtls' treated a real
+;;; `pom.xml' project as a "non-project file" (confirmed directly against the
+;;; exact message it sends), reporting ONLY syntax errors --- a missing `import
+;;; java.util.List;' stayed completely invisible until an actual `javac' compile
+;;; caught it, and no "Import ..." quick fix was ever offered.
+
+(ert-deftest langs/project-try-pom-finds-a-real-maven-root-with-no-git-at-all ()
+  (test-with-temp-dir d
+    (make-directory (concat d "src/main/java/com/example") t)
+    (test-write-file (concat d "pom.xml") "<project/>")
+    (should (equal (my/project-try-pom (concat d "src/main/java/com/example/"))
+                    (cons 'transient (expand-file-name d))))))
+
+(ert-deftest langs/project-try-pom-finds-a-real-gradle-root-too ()
+  (test-with-temp-dir d
+    (make-directory (concat d "src/main/java") t)
+    (test-write-file (concat d "build.gradle") "")
+    (should (equal (my/project-try-pom (concat d "src/main/java/"))
+                    (cons 'transient (expand-file-name d))))))
+
+(ert-deftest langs/project-try-pom-is-nil-with-no-real-maven-or-gradle-marker ()
+  (test-with-temp-dir d
+    (should-not (my/project-try-pom d))))
+
+(ert-deftest langs/project-try-pom-is-hooked-into-project-find-functions ()
+  (should (memq #'my/project-try-pom project-find-functions)))
+
+(ert-deftest lsp/jdtls-flags-a-real-missing-import-in-a-git-less-maven-project ()
+  ;; The real round trip proving the fix above, not just the unit-level function:
+  ;; a genuine Maven layout (`pom.xml' + `src/main/java/...'), deliberately with NO
+  ;; `.git' repo anywhere above it, a real missing-import mistake (`List'/
+  ;; `ArrayList' used with no `import java.util.*;'), and a real, live Flymake
+  ;; diagnostic confirmed BEFORE any `javac'/`C-c J' compile step ever runs.
+  (jr--skip-unless-lsp)
+  (skip-unless (executable-find "jdtls"))
+  (jr-with-grammar 'java
+    (test-with-temp-dir d
+      (make-directory (concat d "src/main/java/com/example") t)
+      (test-write-file (concat d "pom.xml")
+                        "<project xmlns=\"http://maven.apache.org/POM/4.0.0\"><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>t</artifactId><version>1.0</version></project>")
+      (test-write-file (concat d "src/main/java/com/example/Test.java")
+                        "package com.example;\n\npublic class Test {\n    public static void main(String[] args) {\n        List<String> names = new ArrayList<>();\n        names.add(\"hi\");\n    }\n}\n")
+      (let* ((file (concat d "src/main/java/com/example/Test.java"))
+             (buf (find-file-noselect file)) (eglot-sync-connect t) (eglot-connect-timeout 180))
+        (unwind-protect
+            (with-current-buffer buf
+              (should (equal (project-root (project-current)) (expand-file-name d)))
+              (call-interactively #'eglot)
+              (let ((server (eglot-current-server)) (deadline (+ (float-time) 60)) diags)
+                (should server)
+                (while (and (not diags) (< (float-time) deadline))
+                  (flymake-start)
+                  (sleep-for 1)
+                  (setq diags (flymake-diagnostics)))
+                (should (cl-some (lambda (diag) (string-match-p "List cannot be resolved" (flymake-diagnostic-text diag))) diags))
+                (eglot-shutdown server)))
+          (kill-buffer buf))))))
+
 ;;; The Windows bundle starts its own Java language server
 
 (ert-deftest langs/bundled-jdtls-command-is-built-from-the-bundle-folder ()

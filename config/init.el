@@ -1148,6 +1148,51 @@ docs/PERSPECTIVE.md."
 ;; when the grammar is installed (otherwise keep the working classic mode).
 (when (treesit-language-available-p 'java)
   (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode)))
+
+;; A real, user-hit bug, not assumed: a real Maven project (a genuine `pom.xml',
+;; standard `src/main/java/...' layout) still got jdtls's own "Test.java is a
+;; non-project file, only syntax errors are reported" warning, with every
+;; unresolved type (`List', `ArrayList') silently invisible until an actual
+;; `javac' compile caught it --- no live error, no "Import ..." quick fix
+;; offered at all. Root cause, confirmed directly, not assumed: Eglot asks
+;; `project-current' for the project root to hand `jdtls' as its workspace
+;; root, and `project-find-functions' only has `project-try-vc' in it by
+;; default --- purely `.git'-based. A `pom.xml' with no `.git' anywhere above
+;; it is therefore NOT a "project" to Eglot at all, regardless of how real its
+;; Maven layout is; `jdtls' then correctly refuses to do semantic analysis on
+;; a file it has no classpath for. Confirmed the fix directly too: the exact
+;; same file, same missing imports, under a directory with nothing but an
+;; added `pom.xml'/`build.gradle' and no `.git', went from that "non-project
+;; file" warning to a real live `List cannot be resolved to a type' diagnostic
+;; plus a genuine `Import 'List' (java.util)' code action the moment this ran
+;; before Eglot connected. `(cons 'transient DIR)' is project.el's own public,
+;; documented minimal project representation (the same one `project-current'
+;; itself constructs as its own last-resort fallback) --- not a private detail
+;; poked into from outside. Added AFTER `project-try-vc' (append, priority
+;; irrelevant to a hook always run via `run-hook-with-args-until-success'
+;; until one succeeds): a real git repo's own root, when one exists, should
+;; still win over this, matching normal expectations.
+(defun my/project-try-pom (dir)
+  "Treat the nearest directory above DIR with a `pom.xml'/`build.gradle'/
+`build.gradle.kts' as a project root, for Eglot/jdtls --- `project-find-
+functions' only tries `.git' by default, so a real Maven/Gradle project with
+no git repo at its root would otherwise never be recognized as one at all."
+  (when-let* ((root (or (locate-dominating-file dir "pom.xml")
+                         (locate-dominating-file dir "build.gradle")
+                         (locate-dominating-file dir "build.gradle.kts"))))
+    (cons 'transient (expand-file-name root))))
+;; A real, found-by-testing bug, not assumed: `add-hook' on a variable `project.el'
+;; itself has not loaded yet does NOT append to its eventual default --- it creates
+;; `project-find-functions' fresh, right then, holding ONLY `my/project-try-pom';
+;; `project.el''s own `(defvar project-find-functions (list #'project-try-vc))',
+;; loaded lazily later on first real use, is then a no-op (`defvar' never
+;; overrides an ALREADY-bound variable), so `project-try-vc' never gets added at
+;; all --- confirmed directly: every real git-repo project broke, `project-root'
+;; erroring `cl-no-applicable-method' since `project-current' returned nil for
+;; anything the pom/gradle check did not match. `(require 'project)' first forces
+;; the real default list to exist before appending to it.
+(require 'project)
+(add-hook 'project-find-functions #'my/project-try-pom 100)
 ;; Python: the SAME real gap Java has, not Rust's --- `python.el' unconditionally
 ;; maps `.py' to the legacy `python-mode' in `auto-mode-alist', and merely
 ;; registering `(python-mode . python-ts-mode)' in `treesit-major-mode-remap-alist'

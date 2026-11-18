@@ -4735,6 +4735,63 @@ have a real stock key (`M-.`/`M-,`/`M-?`/`C-M-.`/`M-g i`/`C-M-i`) alongside the
 equivalents. Verified via `./build.sh test shortcuts` (26/26) and the full
 regression suite at the established 18-failure baseline.
 
+### Follow-up, same session: a real Java bug the user hit --- `jdtls` never flagged
+a missing import live, only `javac` caught it, and Eglot never offered to add one
+
+User asked why adding `List<String>` to a real Java file wasn't recognized (no
+auto-import suggestion), and separately why no errors show in the buffer at all
+until actually compiling. Reproduced directly first, not assumed: a loose
+single file genuinely got no semantic checking at all, confirmed via `jdtls`'s
+own diagnostic text ("Test.java is not on the classpath... only syntax errors
+are reported"). Then built a REAL Maven-shaped project (`pom.xml`, standard
+`src/main/java/...` layout) to test the honest, real case --- and hit the EXACT
+same limitation there too: `jdtls` answered "Test.java is a non-project file,
+only syntax errors are reported", even with a completely valid Maven layout.
+
+Root cause, confirmed directly, not assumed: Eglot asks `project-current` for
+the root to hand `jdtls` as its workspace root, and `project-find-functions`
+only has `project-try-vc` in it by default --- purely `.git`-based. Confirmed
+the surprising part the hard way: adding ONLY `pom.xml` (no `.git`) changed
+NOTHING; only adding a real `git init` on top of that same directory made
+`jdtls` recognize it. A real Maven project and a real `project.el` project are
+simply not the same thing, without an explicit fix.
+
+Fixed with `my/project-try-pom`, added to `project-find-functions`: recognizes
+the nearest `pom.xml`/`build.gradle`/`build.gradle.kts` above a file as a
+project root too, returning `(cons 'transient DIR)` --- confirmed directly in
+`project.el`'s own source that this is its OWN public minimal project
+representation (what `project-current` itself falls back to internally), not a
+private detail reached into from outside. Verified the fix directly, before
+committing to it: the exact same Maven project, same missing imports, went
+from the "non-project file" warning to a real, live `List cannot be resolved
+to a type` Flymake diagnostic, plus a genuine `Import 'List' (java.util)` code
+action (via `refactor`, what `eglot-code-actions` is now an obsolete alias for
+on this Emacs/Eglot version) --- confirmed by actually listing the real code
+actions jdtls offered, not assumed from the diagnostic alone.
+
+**A real regression caught by running the FULL suite, not just the targeted
+test** --- this session's own standing lesson paying off again: `(add-hook
+'project-find-functions #'my/project-try-pom 100)`, run before `project.el`
+itself had ever loaded, did not append to its eventual default at all --- it
+created `project-find-functions` FRESH, holding ONLY `my/project-try-pom`;
+`project.el`'s own `(defvar project-find-functions (list #'project-try-vc))`,
+loaded lazily later, is then a no-op (`defvar` never overrides an already-
+bound variable), so `project-try-vc` never got added back at all. Every real
+git-repo project broke as a result: `project-root` on a `nil` project errored
+`cl-no-applicable-method`, confirmed in a full regression run as 7 failing
+`jnav/*` tests plus more. Fixed with a plain `(require 'project)` right before
+the `add-hook` call, forcing the real default list to exist first. Re-ran the
+full suite after: back to the exact established 18-failure baseline
+(1255/1307 passing), confirmed clean.
+
+New tests in `tests/ert/languages-java-rust.el`: `my/project-try-pom` unit
+tests (a real `pom.xml`/`build.gradle` root; `nil` with neither present),
+confirming it is actually hooked into `project-find-functions`, and a
+`--lsp`-gated real round trip proving the live diagnostic now appears in a
+genuine git-less Maven project. `docs/LANGUAGES.md` (the Java extras section)
+and `docs/MY-NOTES.md` (a new section, including the `add-hook`-before-
+`require` gotcha) updated.
+
 ## Where things stand as of the last entry
 
 - Casual Dired + Casual Org (`C-o` in both), Org's `.org` auto-activation, the

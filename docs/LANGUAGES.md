@@ -341,6 +341,32 @@ See `tests/ert/languages-java-rust.el' for the real checks, including a real
 for confirming the real built zip actually has `java.exe'/`javac.exe'/`mvn.cmd' and does
 NOT have `jmods\'/`include\'.
 
+**A real Maven project with no `.git` repo got no live errors or import suggestions at
+all** --- a real, user-hit bug, not assumed. Confirmed directly: `jdtls` answered with
+"Test.java is a non-project file, only syntax errors are reported" for a genuine
+`pom.xml` project (standard `src/main/java/...` layout, no syntax problems at all) ---
+`List<String>` with no `import java.util.List;` showed nothing live, surfacing only once
+an actual `javac` compile caught it, and no "Import ..." quick fix was ever offered.
+Root cause: Eglot asks `project-current` for the root to hand `jdtls` as its workspace
+root, and `project-find-functions` only tries `project-try-vc` (purely `.git`-based) by
+default --- a real Maven/Gradle layout with no git repo anywhere above it was therefore
+not a "project" to Eglot at all, regardless of how real the Maven structure was. Fixed
+with `my/project-try-pom`, added to `project-find-functions` (after `project-try-vc`, so
+a real git root still wins when one exists): it recognizes the nearest `pom.xml`/
+`build.gradle`/`build.gradle.kts` above a file as the project root too, returning
+`(cons 'transient DIR)` --- project.el's own public, documented minimal project
+representation, the same one `project-current` itself falls back to internally, not a
+private detail reached into from outside. Verified for real, before and after: the exact
+same file, same missing imports, went from that "non-project file" warning to a real,
+live `List cannot be resolved to a type` Flymake diagnostic plus a genuine `Import
+'List' (java.util)` code action (confirmed via `refactor`, what `eglot-code-actions` is
+now an obsolete alias for on this Emacs/Eglot version) the moment this ran, still with no
+`.git` anywhere. New tests in `tests/ert/languages-java-rust.el`: `my/project-try-pom`
+unit tests (a real `pom.xml`/`build.gradle` root, and confirming it stays `nil` with
+neither present), confirming it's actually hooked into `project-find-functions`, and a
+`--lsp`-gated real round trip proving the live diagnostic now appears in a genuine
+git-less Maven project.
+
 ## Known limits
 
 - Highlighting and indentation were checked by tests, **not by eye**; look at a real file.
